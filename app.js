@@ -6,7 +6,7 @@ const TABLE_NAME = 'stock_data';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// AASTOCKS 基礎網址產生器 (★已補上函數結尾大括號)
+// AASTOCKS 基礎網址產生器
 function generateAastocksUrl(ticker) {
     let cleanId = ticker.replace('.HK', '').trim();
     if (cleanId.length <= 4 && !isNaN(cleanId)) {
@@ -23,7 +23,6 @@ function getRatingScore(ratingStr) {
 
 async function loadDashboardData() {
     try {
-        // 拉取最新 2000 筆數據以確保涵蓋 240+ 股票的 5 日歷史
         const { data, error } = await supabase
             .from(TABLE_NAME)
             .select('*')
@@ -33,7 +32,6 @@ async function loadDashboardData() {
         if (error) throw error;
         if (!data || data.length === 0) return;
 
-        // 🛡️ 數據智能去重核心邏輯 (防止一天內重複運行測試導致數據失真)
         const uniqueDataMap = new Map();
         data.forEach(row => {
             const uniqueKey = `${row.date}_${row.ticker}`;
@@ -43,12 +41,10 @@ async function loadDashboardData() {
         });
         const cleanedData = Array.from(uniqueDataMap.values());
 
-        // 1. 提取所有不重複的日期
         const allDates = [...new Set(cleanedData.map(row => row.date))].sort().reverse();
         const latestDate = allDates[0];
         const past5Dates = allDates.slice(0, 5); 
 
-        // 2. 處理恒生指數 (^HSI)
         const hsiToday = cleanedData.find(row => row.ticker === '^HSI' && row.date === latestDate);
         if (hsiToday) {
             document.getElementById('hsi-price').textContent = hsiToday.price ? Number(hsiToday.price).toFixed(2) : '-';
@@ -59,10 +55,8 @@ async function loadDashboardData() {
                 : 'text-xs px-2 py-0.5 rounded ml-2 font-semibold bg-red-900 text-red-300';
         }
 
-        // 過濾掉大盤
         const stockData = cleanedData.filter(row => row.ticker !== '^HSI');
 
-        // 3. 聚合 5 日歷史數據
         const tickerMap = {};
         stockData.forEach(row => {
             if (!past5Dates.includes(row.date)) return;
@@ -78,7 +72,6 @@ async function loadDashboardData() {
             const latestRecord = stock.history.find(h => h.date === latestDate);
             if (!latestRecord) return; 
 
-            // 計算 5 天內觸發 Squeeze 的次數
             const squeezeCount = stock.history.filter(h => h.vol_squeeze && h.vol_squeeze.includes('Squeeze')).length;
             const hasBuyDipToday = latestRecord.pullback_signal === 'BUY DIP';
 
@@ -114,7 +107,6 @@ async function loadDashboardData() {
             }
         });
 
-        // 4. 🚀 雙重排序邏輯：優先比「5日擠壓次數」(從大到小) ➡️ 次數一樣則比「評級星星數」(從多到少)
         compiledStocks.sort((a, b) => {
             if (b.squeeze_count !== a.squeeze_count) {
                 return b.squeeze_count - a.squeeze_count;
@@ -148,13 +140,11 @@ function renderMainDashboard(stocks) {
         tr.id = mainTrId;
         tr.className = 'border-b border-gray-700/50 hover:bg-gray-700/20 cursor-pointer transition-colors';
         
-        // 1. 展開小箭頭
         const tdArrow = document.createElement('td');
         tdArrow.className = 'p-4 text-center text-gray-500 text-xs';
         tdArrow.innerHTML = '▶';
         tr.appendChild(tdArrow);
 
-        // 2. Ticker 欄位 (內嵌 AASTOCKS 專屬圖表連結)
         const tdTicker = document.createElement('td');
         tdTicker.className = 'p-4 font-mono font-bold flex items-center gap-2';
         
@@ -166,25 +156,21 @@ function renderMainDashboard(stocks) {
         }
         tr.appendChild(tdTicker);
 
-        // 3. 公司名稱
         const tdName = document.createElement('td');
         tdName.className = 'p-4 text-gray-300';
         tdName.textContent = stock.company_name;
         tr.appendChild(tdName);
 
-        // 4. 最新現價
         const tdPrice = document.createElement('td');
         tdPrice.className = 'p-4 text-right font-mono text-yellow-400 font-bold';
         tdPrice.textContent = stock.price ? Number(stock.price).toFixed(2) : '-';
         tr.appendChild(tdPrice);
 
-        // 5. 綜合評級 (提到主表顯示)
         const tdRating = document.createElement('td');
         tdRating.className = 'p-4 text-center text-yellow-500 font-bold';
         tdRating.textContent = stock.rating_hybrid;
         tr.appendChild(tdRating);
 
-        // 6. 🎨 5日擠壓頻次顏色管理
         const tdCount = document.createElement('td');
         tdCount.className = 'p-4 text-center';
         
@@ -202,7 +188,6 @@ function renderMainDashboard(stocks) {
 
         tbody.appendChild(tr);
 
-        // 7. 🎛️ 展開面板：全量技術數據矩陣展示
         const detailTr = document.createElement('tr');
         detailTr.id = detailTrId;
         detailTr.className = 'detail-row bg-gray-900/60 border-b border-gray-800 text-xs text-gray-400';
@@ -255,7 +240,6 @@ function renderMainDashboard(stocks) {
         `;
         tbody.appendChild(detailTr);
 
-        // 點擊主行觸發展開/收合
         tr.addEventListener('click', (e) => {
             if (e.target.tagName === 'A') return;
 
@@ -274,3 +258,4 @@ function renderMainDashboard(stocks) {
 }
 
 document.addEventListener('DOMContentLoaded', loadDashboardData);
+// === 程式碼結束標記 ===
