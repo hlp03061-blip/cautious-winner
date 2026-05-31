@@ -16,7 +16,7 @@
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-gray-700 pb-4 gap-4">
             <div>
                 <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">📊 港股精選數據市場雷達</h1>
-                <p class="text-xs text-gray-400 mt-1">綜合近 5 日數據分析 • 點擊股票行可展開技術細節</p>
+                <p class="text-xs text-gray-400 mt-1">綜合近 5 日數據去重分析 • 點擊代號可看 AASTOCKS 圖表 • 點擊行可展開完整技術指標</p>
             </div>
             <div id="hsi-panel" class="bg-gray-800 p-3 rounded-xl border border-gray-700 flex items-center gap-4 min-w-[280px]">
                 <span class="text-gray-400 font-bold text-sm">🏛️ 恒生指數 (^HSI)</span>
@@ -40,11 +40,12 @@
                             <th class="p-4 w-12"></th> <th class="p-4">股票代號</th>
                             <th class="p-4">公司名稱</th>
                             <th class="p-4 text-right">最新現價</th>
+                            <th class="p-4 text-center">綜合評級</th>
                             <th class="p-4 text-center">5日擠壓頻次</th>
                         </tr>
                     </thead>
                     <tbody id="main-dashboard-body">
-                        <tr><td colspan="5" class="p-8 text-center text-gray-500">正在計算近 5 日大數據，請稍候...</td></tr>
+                        <tr><td colspan="6" class="p-8 text-center text-gray-500">正在安全連線並精確過濾重複數據，請稍候...</td></tr>
                     </tbody>
                 </table>
             </div>
