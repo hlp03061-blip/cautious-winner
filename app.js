@@ -7,14 +7,12 @@ const TABLE_NAME = 'stock_data';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // AASTOCKS 基礎網址產生器
-def generateAastocksUrl(ticker) {
-    // 將 0001.HK 格式轉換為 000001 (共6位數)
+function generateAastocksUrl(ticker) {
     let cleanId = ticker.replace('.HK', '').trim();
     if (cleanId.length <= 4 && !isNaN(cleanId)) {
         cleanId = cleanId.padStart(6, '0');
     }
     return `https://charts.aastocks.com/servlet/Charts?fontsize=12&15MinDelay=T&lang=1&titlestyle=1&vol=1&Indicator=1&indpara1=10&indpara2=20&indpara3=50&indpara4=100&indpara5=150&subChart1=2&ref1para1=14&ref1para2=0&ref1para3=0&subChart2=3&ref2para1=12&ref2para2=26&ref2para3=9&subChart3=12&ref3para1=0&ref3para2=0&ref3para3=0&subChart4=9&ref4para1=0&ref4para2=0&ref4para3=0&subChart5=6&ref5para1=20&ref5para2=5&ref5para3=0&scheme=3&com=100&chartwidth=870&chartheight=1000&stockid=${cleanId}.HK&period=6&type=1&logoStyle=1&`;
-}
 
 // 將星星評級轉為數字，供排序使用
 function getRatingScore(ratingStr) {
