@@ -6,13 +6,14 @@ const TABLE_NAME = 'stock_data';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// AASTOCKS 基礎網址產生器
+// AASTOCKS 基礎網址產生器 (★已補上函數結尾大括號)
 function generateAastocksUrl(ticker) {
     let cleanId = ticker.replace('.HK', '').trim();
     if (cleanId.length <= 4 && !isNaN(cleanId)) {
         cleanId = cleanId.padStart(6, '0');
     }
     return `https://charts.aastocks.com/servlet/Charts?fontsize=12&15MinDelay=T&lang=1&titlestyle=1&vol=1&Indicator=1&indpara1=10&indpara2=20&indpara3=50&indpara4=100&indpara5=150&subChart1=2&ref1para1=14&ref1para2=0&ref1para3=0&subChart2=3&ref2para1=12&ref2para2=26&ref2para3=9&subChart3=12&ref3para1=0&ref3para2=0&ref3para3=0&subChart4=9&ref4para1=0&ref4para2=0&ref4para3=0&subChart5=6&ref5para1=20&ref5para2=5&ref5para3=0&scheme=3&com=100&chartwidth=870&chartheight=1000&stockid=${cleanId}.HK&period=6&type=1&logoStyle=1&`;
+}
 
 // 將星星評級轉為數字，供排序使用
 function getRatingScore(ratingStr) {
@@ -50,9 +51,9 @@ async function loadDashboardData() {
         // 2. 處理恒生指數 (^HSI)
         const hsiToday = cleanedData.find(row => row.ticker === '^HSI' && row.date === latestDate);
         if (hsiToday) {
-            document.getElementById('hsi-price').textContent = Number(hsiToday.price).toFixed(2);
+            document.getElementById('hsi-price').textContent = hsiToday.price ? Number(hsiToday.price).toFixed(2) : '-';
             const macdEl = document.getElementById('hsi-macd');
-            macdEl.textContent = hsiToday.macd_momentum;
+            macdEl.textContent = hsiToday.macd_momentum || 'N/A';
             macdEl.className = hsiToday.macd_momentum === 'Positive' 
                 ? 'text-xs px-2 py-0.5 rounded ml-2 font-semibold bg-green-900 text-green-300'
                 : 'text-xs px-2 py-0.5 rounded ml-2 font-semibold bg-red-900 text-red-300';
@@ -90,7 +91,6 @@ async function loadDashboardData() {
                     has_buy_dip: hasBuyDipToday,
                     rating_hybrid: latestRecord.rating_hybrid || 'Avoid',
                     rating_score: getRatingScore(latestRecord.rating_hybrid),
-                    // 保存所有技術與基本面指標，供點擊展現
                     macd_momentum: latestRecord.macd_momentum,
                     rsi_14: latestRecord.rsi_14,
                     risk_note: latestRecord.risk_note,
@@ -188,13 +188,13 @@ function renderMainDashboard(stocks) {
         const tdCount = document.createElement('td');
         tdCount.className = 'p-4 text-center';
         
-        let colorStyle = 'bg-gray-800 text-gray-400'; // 0天或默認
+        let colorStyle = 'bg-gray-800 text-gray-400'; 
         if (stock.squeeze_count >= 5) {
-            colorStyle = 'bg-red-950 text-red-400 border border-red-600 font-extrabold'; // 5天極度高危變盤
+            colorStyle = 'bg-red-950 text-red-400 border border-red-600 font-extrabold'; 
         } else if (stock.squeeze_count >= 3) {
-            colorStyle = 'bg-orange-950 text-orange-400 border border-orange-600'; // 3-4天高度關注
+            colorStyle = 'bg-orange-950 text-orange-400 border border-orange-600'; 
         } else if (stock.squeeze_count > 0) {
-            colorStyle = 'bg-blue-950 text-blue-400 border border-blue-800'; // 1-2天初現動能
+            colorStyle = 'bg-blue-950 text-blue-400 border border-blue-800'; 
         }
         
         tdCount.innerHTML = `<span class="px-3 py-0.5 rounded-full text-xs font-bold ${colorStyle}">${stock.squeeze_count} 天</span>`;
@@ -207,7 +207,6 @@ function renderMainDashboard(stocks) {
         detailTr.id = detailTrId;
         detailTr.className = 'detail-row bg-gray-900/60 border-b border-gray-800 text-xs text-gray-400';
         
-        // 格式化百分比與大型數字
         const formattedCap = stock.market_cap ? (stock.market_cap / 1e8).toFixed(1) + ' 億' : '-';
         const formattedVol = stock.avg_money_vol_20d ? (stock.avg_money_vol_20d / 1e6).toFixed(1) + ' 百萬' : '-';
         const formattedDist = stock.dist_52w_high ? (stock.dist_52w_high * 100).toFixed(1) + '%' : '-';
@@ -222,9 +221,9 @@ function renderMainDashboard(stocks) {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-300">
                     <div class="space-y-1.5 bg-gray-800/20 p-3 rounded-lg border border-gray-800">
                         <h4 class="text-blue-400 font-bold border-b border-gray-800 pb-1 mb-2">📈 技術指標群</h4>
-                        <div><span class="text-gray-500">MACD 動能：</span><span class="${stock.macd_momentum === 'Positive' ? 'text-green-400' : 'text-red-400'} font-semibold">${stock.macd_momentum}</span></div>
+                        <div><span class="text-gray-500">MACD 動能：</span><span class="${stock.macd_momentum === 'Positive' ? 'text-green-400' : 'text-red-400'} font-semibold">${stock.macd_momentum || '-'}</span></div>
                         <div><span class="text-gray-500">RSI (14)：</span><span class="font-mono text-yellow-500 font-bold">${stock.rsi_14 ? Number(stock.rsi_14).toFixed(2) : '-'}</span></div>
-                        <div><span class="text-gray-500">SMA 趨勢：</span><span class="px-1 rounded bg-gray-800">${stock.sma_trend}</span></div>
+                        <div><span class="text-gray-500">SMA 趨勢：</span><span class="px-1 rounded bg-gray-800">${stock.sma_trend || '-'}</span></div>
                         <div><span class="text-gray-500">距52週高位：</span><span class="font-mono">${formattedDist}</span></div>
                     </div>
                     
@@ -239,14 +238,14 @@ function renderMainDashboard(stocks) {
                     <div class="space-y-1.5 bg-gray-800/20 p-3 rounded-lg border border-gray-800">
                         <h4 class="text-purple-400 font-bold border-b border-gray-800 pb-1 mb-2">🛡️ 風險與資金流</h4>
                         <div><span class="text-gray-500">20日均成交額：</span><span class="font-mono">${formattedVol}</span></div>
-                        <div><span class="text-gray-500">量能信號 / 佔比：</span><span class="text-purple-300 font-semibold">${stock.money_vol_signal}</span> <span class="text-gray-500">(${formattedVolPct})</span></div>
+                        <div><span class="text-gray-500">量能信號 / 佔比：</span><span class="text-purple-300 font-semibold">${stock.money_vol_signal || '-'}</span> <span class="text-gray-500">(${formattedVolPct})</span></div>
                         <div><span class="text-gray-500">貝塔係數 (Beta)：</span><span class="font-mono">${stock.beta || '-'}</span></div>
-                        <div><span class="text-gray-500">綜合風險提示：</span><span class="text-red-300 font-semibold">${stock.risk_note}</span></div>
+                        <div><span class="text-gray-500">綜合風險提示：</span><span class="text-red-300 font-semibold">${stock.risk_note || '-'}</span></div>
                     </div>
 
                     <div class="md:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-4 bg-gray-900/80 p-3 rounded-lg border border-gray-800 text-xs">
-                        <div><span class="text-gray-500">所屬板塊：</span><span class="text-gray-300 font-medium">${stock.sector}</span></div>
-                        <div><span class="text-gray-500">市值檢查：</span><span class="text-gray-300 font-mono">${formattedCap} (${stock.mkt_cap_check})</span></div>
+                        <div><span class="text-gray-500">所屬板塊：</span><span class="text-gray-300 font-medium">${stock.sector || '-'}</span></div>
+                        <div><span class="text-gray-500">市值檢查：</span><span class="text-gray-300 font-mono">${formattedCap} (${stock.mkt_cap_check || '-'})</span></div>
                         <div><span class="text-gray-500">年化總回報：</span><span class="font-mono text-green-400">${formattedReturn}</span></div>
                         <div><span class="text-gray-500">夏普比率 (Sharpe)：</span><span class="font-mono text-yellow-400 font-bold">${stock.sharpe_ratio ? Number(stock.sharpe_ratio).toFixed(2) : '-'}</span></div>
                         <div><span class="text-gray-500">歷史最大回撤：</span><span class="font-mono text-red-400">${formattedMaxDd}</span></div>
@@ -258,7 +257,6 @@ function renderMainDashboard(stocks) {
 
         // 點擊主行觸發展開/收合
         tr.addEventListener('click', (e) => {
-            // 如果點擊的是 AASTOCKS 的超連結，不觸發展開面板
             if (e.target.tagName === 'A') return;
 
             const isOpened = detailTr.classList.contains('open');
