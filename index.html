@@ -3,59 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>精選港股 Dashboard</title>
+    <title>精選港股量能雷達</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .detail-row { display: none; }
+        .detail-row.open { display: table-row; }
+    </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-6">
     <div class="max-w-7xl mx-auto">
-        <header class="flex justify-between items-center mb-8 border-b border-gray-700 pb-4">
-            <h1 class="text-3xl font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">📊 港股精選數據市埸雷達</h1>
-            <div id="latest-date" class="text-sm text-gray-400 bg-gray-800 px-3 py-1 rounded border border-gray-700">更新日期：載入中...</div>
-        </header>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 border-t-4 border-t-green-500">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-green-400 flex items-center gap-2">📉 唯讀防護：回調買入 (Buy Dip)</h2>
-                    <span id="buy-dip-count" class="bg-green-900 text-green-300 text-xs font-semibold px-2.5 py-0.5 rounded">0 隻觸發</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-left text-sm text-gray-300">
-                        <thead>
-                            <tr class="border-b border-gray-700 text-gray-400 font-medium">
-                                <th class="p-3">代號</th>
-                                <th class="p-3">名稱</th>
-                                <th class="p-3 text-right">現價</th>
-                                <th class="p-3 text-center">綜合評級</th>
-                            </tr>
-                        </thead>
-                        <tbody id="buy-dip-body">
-                            <tr><td colspan="4" class="p-4 text-center text-gray-500">正在安全連線至 Supabase 讀取最新數據...</td></tr>
-                        </tbody>
-                    </table>
+        
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-gray-700 pb-4 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">📊 港股精選數據市場雷達</h1>
+                <p class="text-xs text-gray-400 mt-1">綜合近 5 日數據分析 • 點擊股票行可展開技術細節</p>
+            </div>
+            <div id="hsi-panel" class="bg-gray-800 p-3 rounded-xl border border-gray-700 flex items-center gap-4 min-w-[280px]">
+                <span class="text-gray-400 font-bold text-sm">🏛️ 恒生指數 (^HSI)</span>
+                <div class="ml-auto text-right">
+                    <span id="hsi-price" class="text-lg font-mono text-yellow-400 font-bold">-.--</span>
+                    <span id="hsi-macd" class="text-xs px-2 py-0.5 rounded ml-2 font-semibold">載入中</span>
                 </div>
             </div>
+        </header>
 
-            <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 border-t-4 border-t-blue-500">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-blue-400 flex items-center gap-2">🚀 動能變盤：成交量擠壓 (Vol Squeeze)</h2>
-                    <span id="squeeze-count" class="bg-blue-900 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded">0 隻觸發</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-left text-sm text-gray-300">
-                        <thead>
-                            <tr class="border-b border-gray-700 text-gray-400 font-medium">
-                                <th class="p-3">代號</th>
-                                <th class="p-3">名稱</th>
-                                <th class="p-3 text-right">現價</th>
-                                <th class="p-3 text-center">MACD動能</th>
-                            </tr>
-                        </thead>
-                        <tbody id="squeeze-body">
-                            <tr><td colspan="4" class="p-4 text-center text-gray-500">正在安全連線至 Supabase 讀取最新數據...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+        <div class="bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden">
+            <div class="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
+                <h2 class="text-xl font-bold text-blue-400 flex items-center gap-2">🚀 擠壓變盤聚焦 (Vol Squeeze 主控台)</h2>
+                <span id="main-count" class="bg-blue-900 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded">0 隻策略追蹤中</span>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
+                            <th class="p-4 w-12"></th> <th class="p-4">股票代號</th>
+                            <th class="p-4">公司名稱</th>
+                            <th class="p-4 text-right">最新現價</th>
+                            <th class="p-4 text-center">5日擠壓頻次</th>
+                        </tr>
+                    </thead>
+                    <tbody id="main-dashboard-body">
+                        <tr><td colspan="5" class="p-8 text-center text-gray-500">正在計算近 5 日大數據，請稍候...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
