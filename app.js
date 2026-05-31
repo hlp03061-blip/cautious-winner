@@ -6,51 +6,69 @@ const TABLE_NAME = 'stock_data';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// AASTOCKS 基礎網址產生器
+def generateAastocksUrl(ticker) {
+    // 將 0001.HK 格式轉換為 000001 (共6位數)
+    let cleanId = ticker.replace('.HK', '').trim();
+    if (cleanId.length <= 4 && !isNaN(cleanId)) {
+        cleanId = cleanId.padStart(6, '0');
+    }
+    return `https://charts.aastocks.com/servlet/Charts?fontsize=12&15MinDelay=T&lang=1&titlestyle=1&vol=1&Indicator=1&indpara1=10&indpara2=20&indpara3=50&indpara4=100&indpara5=150&subChart1=2&ref1para1=14&ref1para2=0&ref1para3=0&subChart2=3&ref2para1=12&ref2para2=26&ref2para3=9&subChart3=12&ref3para1=0&ref3para2=0&ref3para3=0&subChart4=9&ref4para1=0&ref4para2=0&ref4para3=0&subChart5=6&ref5para1=20&ref5para2=5&ref5para3=0&scheme=3&com=100&chartwidth=870&chartheight=1000&stockid=${cleanId}.HK&period=6&type=1&logoStyle=1&`;
+}
+
+// 將星星評級轉為數字，供排序使用
+function getRatingScore(ratingStr) {
+    if (!ratingStr || ratingStr === 'Avoid') return 0;
+    return (ratingStr.match(/★/g) || []).length;
+}
+
 async function loadDashboardData() {
     try {
-        // 為了涵蓋 200+ 隻股票過去 5 天的紀錄，我們一次拉取最新 1500 筆數據
+        // 拉取最新 2000 筆數據以確保涵蓋 240+ 股票的 5 日歷史
         const { data, error } = await supabase
             .from(TABLE_NAME)
             .select('*')
             .order('date', { ascending: false })
-            .limit(1500);
+            .limit(2000);
 
         if (error) throw error;
         if (!data || data.length === 0) return;
 
-        // 1. 找出最新的一天是哪天（用於判斷今日訊號和大盤）
-        const allDates = [...new Set(data.map(row => row.date))].sort().reverse();
-        const latestDate = allDates[0];
-        const past5Dates = allDates.slice(0, 5); // 取得最近的5個交易日
+        // 🛡️ 數據智能去重核心邏輯 (防止一天內重複運行測試導致數據失真)
+        const uniqueDataMap = new Map();
+        data.forEach(row => {
+            const uniqueKey = `${row.date}_${row.ticker}`;
+            if (!uniqueDataMap.has(uniqueKey)) {
+                uniqueDataMap.set(uniqueKey, row);
+            }
+        });
+        const cleanedData = Array.from(uniqueDataMap.values());
 
-        // 2. 獨立抽離處理恒生指數 (^HSI)
-        const hsiToday = data.find(row => row.ticker === '^HSI' && row.date === latestDate);
+        // 1. 提取所有不重複的日期
+        const allDates = [...new Set(cleanedData.map(row => row.date))].sort().reverse();
+        const latestDate = allDates[0];
+        const past5Dates = allDates.slice(0, 5); 
+
+        // 2. 處理恒生指數 (^HSI)
+        const hsiToday = cleanedData.find(row => row.ticker === '^HSI' && row.date === latestDate);
         if (hsiToday) {
             document.getElementById('hsi-price').textContent = Number(hsiToday.price).toFixed(2);
             const macdEl = document.getElementById('hsi-macd');
             macdEl.textContent = hsiToday.macd_momentum;
-            if (hsiToday.macd_momentum === 'Positive') {
-                macdEl.className = 'text-xs px-2 py-0.5 rounded ml-2 font-semibold bg-green-900 text-green-300';
-            } else {
-                macdEl.className = 'text-xs px-2 py-0.5 rounded ml-2 font-semibold bg-red-900 text-red-300';
-            }
+            macdEl.className = hsiToday.macd_momentum === 'Positive' 
+                ? 'text-xs px-2 py-0.5 rounded ml-2 font-semibold bg-green-900 text-green-300'
+                : 'text-xs px-2 py-0.5 rounded ml-2 font-semibold bg-red-900 text-red-300';
         }
 
-        // 過濾掉大盤，只看個股
-        const stockData = data.filter(row => row.ticker !== '^HSI');
+        // 過濾掉大盤
+        const stockData = cleanedData.filter(row => row.ticker !== '^HSI');
 
-        // 3. 核心大數據聚合：按 Ticker 分組計算過去 5 天的狀態
+        // 3. 聚合 5 日歷史數據
         const tickerMap = {};
         stockData.forEach(row => {
-            // 只統計最近 5 個交易日內的數據
             if (!past5Dates.includes(row.date)) return;
-
             if (!tickerMap[row.ticker]) {
-                tickerMap[row.ticker] = {
-                    ticker: row.ticker,
-                    company_name: row.company_name,
-                    history: []
-                };
+                tickerMap[row.ticker] = { ticker: row.ticker, history: [] };
             }
             tickerMap[row.ticker].history.push(row);
         });
@@ -58,48 +76,59 @@ async function loadDashboardData() {
         const compiledStocks = [];
 
         Object.values(tickerMap).forEach(stock => {
-            // 找出該股最新一天的紀錄
             const latestRecord = stock.history.find(h => h.date === latestDate);
-            if (!latestRecord) return; // 如果今天沒數據則跳過
+            if (!latestRecord) return; 
 
-            // 計算過去 5 天觸發 Squeeze 的次數
+            // 計算 5 天內觸發 Squeeze 的次數
             const squeezeCount = stock.history.filter(h => h.vol_squeeze && h.vol_squeeze.includes('Squeeze')).length;
-            
-            // 檢查今天是否有 Buy Dip 訊號
             const hasBuyDipToday = latestRecord.pullback_signal === 'BUY DIP';
 
-            // 🌟 篩選條件：只要 5 天內有觸發過 Squeeze，或者今天有 Buy Dip 的股票才放進來
             if (squeezeCount > 0 || hasBuyDipToday) {
                 compiledStocks.push({
                     ticker: stock.ticker,
-                    company_name: stock.company_name,
+                    company_name: latestRecord.company_name,
                     price: latestRecord.price,
                     squeeze_count: squeezeCount,
                     has_buy_dip: hasBuyDipToday,
-                    // 以下保留給詳情面板顯示 (使用最新一天的數字)
-                    rating_hybrid: latestRecord.rating_hybrid,
+                    rating_hybrid: latestRecord.rating_hybrid || 'Avoid',
+                    rating_score: getRatingScore(latestRecord.rating_hybrid),
+                    // 保存所有技術與基本面指標，供點擊展現
                     macd_momentum: latestRecord.macd_momentum,
                     rsi_14: latestRecord.rsi_14,
                     risk_note: latestRecord.risk_note,
-                    sharpe_ratio: latestRecord.sharpe_ratio
+                    market_cap: latestRecord.market_cap,
+                    avg_money_vol_20d: latestRecord.avg_money_vol_20d,
+                    dist_52w_high: latestRecord.dist_52w_high,
+                    pe_ttm: latestRecord.pe_ttm,
+                    forward_pe: latestRecord.forward_pe,
+                    pb_ratio: latestRecord.pb_ratio,
+                    div_yield: latestRecord.div_yield,
+                    beta: latestRecord.beta,
+                    sector: latestRecord.sector,
+                    sma_trend: latestRecord.sma_trend,
+                    total_return: latestRecord.total_return,
+                    sharpe_ratio: latestRecord.sharpe_ratio,
+                    max_drawdown: latestRecord.max_drawdown,
+                    mkt_cap_check: latestRecord.mkt_cap_check,
+                    money_vol_pct: latestRecord.money_vol_pct,
+                    money_vol_signal: latestRecord.money_vol_signal
                 });
             }
         });
 
-        // 4. 🚀 解決排序問題：優先按「5日擠壓次數」從多到少排，次數一樣則看「夏普值」性價比高低
+        // 4. 🚀 雙重排序邏輯：優先比「5日擠壓次數」(從大到小) ➡️ 次數一樣則比「評級星星數」(從多到少)
         compiledStocks.sort((a, b) => {
             if (b.squeeze_count !== a.squeeze_count) {
                 return b.squeeze_count - a.squeeze_count;
             }
-            return (b.sharpe_ratio || 0) - (a.sharpe_ratio || 0);
+            return b.rating_score - a.rating_score;
         });
 
-        // 5. 渲染表格
         renderMainDashboard(compiledStocks);
 
     } catch (error) {
         console.error("處理數據失敗:", error);
-        document.getElementById('main-dashboard-body').innerHTML = `<tr><td colspan="5" class="text-red-400 p-4 text-center">系統優化出錯: ${error.message}</td></tr>`;
+        document.getElementById('main-dashboard-body').innerHTML = `<tr><td colspan="6" class="text-red-400 p-4 text-center">系統優化出錯: ${error.message}</td></tr>`;
     }
 }
 
@@ -109,7 +138,7 @@ function renderMainDashboard(stocks) {
     document.getElementById('main-count').textContent = `${stocks.length} 隻策略追蹤中`;
 
     if (stocks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-500">今日市埸風平浪靜，無觸發訊號的股票</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合條件的股票</td></tr>`;
         return;
     }
 
@@ -117,65 +146,123 @@ function renderMainDashboard(stocks) {
         const mainTrId = `main-row-${index}`;
         const detailTrId = `detail-row-${index}`;
 
-        // 主行 (只看關鍵資訊)
         const tr = document.createElement('tr');
         tr.id = mainTrId;
         tr.className = 'border-b border-gray-700/50 hover:bg-gray-700/20 cursor-pointer transition-colors';
         
-        // 1. 箭頭欄位
+        // 1. 展開小箭頭
         const tdArrow = document.createElement('td');
         tdArrow.className = 'p-4 text-center text-gray-500 text-xs';
         tdArrow.innerHTML = '▶';
         tr.appendChild(tdArrow);
 
-        // 2. Ticker 欄位 (加上 Buy Dip 標籤)
+        // 2. Ticker 欄位 (內嵌 AASTOCKS 專屬圖表連結)
         const tdTicker = document.createElement('td');
         tdTicker.className = 'p-4 font-mono font-bold flex items-center gap-2';
-        tdTicker.textContent = stock.ticker;
+        
+        const aastocksUrl = generateAastocksUrl(stock.ticker);
+        tdTicker.innerHTML = `<a href="${aastocksUrl}" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1" title="點擊前往 AASTOCKS 圖表">🔗 ${stock.ticker}</a>`;
+        
         if (stock.has_buy_dip) {
             tdTicker.innerHTML += `<span class="bg-emerald-950 text-emerald-400 border border-emerald-500 text-[10px] px-1.5 py-0.5 rounded font-sans font-bold animate-pulse">🏷️ BUY DIP</span>`;
         }
         tr.appendChild(tdTicker);
 
-        // 3. 名稱
+        // 3. 公司名稱
         const tdName = document.createElement('td');
         tdName.className = 'p-4 text-gray-300';
         tdName.textContent = stock.company_name;
         tr.appendChild(tdName);
 
-        // 4. 現價
+        // 4. 最新現價
         const tdPrice = document.createElement('td');
         tdPrice.className = 'p-4 text-right font-mono text-yellow-400 font-bold';
         tdPrice.textContent = stock.price ? Number(stock.price).toFixed(2) : '-';
         tr.appendChild(tdPrice);
 
-        // 5. 擠壓次數
+        // 5. 綜合評級 (提到主表顯示)
+        const tdRating = document.createElement('td');
+        tdRating.className = 'p-4 text-center text-yellow-500 font-bold';
+        tdRating.textContent = stock.rating_hybrid;
+        tr.appendChild(tdRating);
+
+        // 6. 🎨 5日擠壓頻次顏色管理
         const tdCount = document.createElement('td');
         tdCount.className = 'p-4 text-center';
-        tdCount.innerHTML = `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${stock.squeeze_count >= 3 ? 'bg-red-950 text-red-400 border border-red-700' : 'bg-blue-950 text-blue-400'}">${stock.squeeze_count} 天</span>`;
+        
+        let colorStyle = 'bg-gray-800 text-gray-400'; // 0天或默認
+        if (stock.squeeze_count >= 5) {
+            colorStyle = 'bg-red-950 text-red-400 border border-red-600 font-extrabold'; // 5天極度高危變盤
+        } else if (stock.squeeze_count >= 3) {
+            colorStyle = 'bg-orange-950 text-orange-400 border border-orange-600'; // 3-4天高度關注
+        } else if (stock.squeeze_count > 0) {
+            colorStyle = 'bg-blue-950 text-blue-400 border border-blue-800'; // 1-2天初現動能
+        }
+        
+        tdCount.innerHTML = `<span class="px-3 py-0.5 rounded-full text-xs font-bold ${colorStyle}">${stock.squeeze_count} 天</span>`;
         tr.appendChild(tdCount);
 
         tbody.appendChild(tr);
 
-        // 隱藏的詳情行 (Accordion)
+        // 7. 🎛️ 展開面板：全量技術數據矩陣展示
         const detailTr = document.createElement('tr');
         detailTr.id = detailTrId;
-        detailTr.className = 'detail-row bg-gray-900/50 border-b border-gray-800 text-xs text-gray-400';
+        detailTr.className = 'detail-row bg-gray-900/60 border-b border-gray-800 text-xs text-gray-400';
+        
+        // 格式化百分比與大型數字
+        const formattedCap = stock.market_cap ? (stock.market_cap / 1e8).toFixed(1) + ' 億' : '-';
+        const formattedVol = stock.avg_money_vol_20d ? (stock.avg_money_vol_20d / 1e6).toFixed(1) + ' 百萬' : '-';
+        const formattedDist = stock.dist_52w_high ? (stock.dist_52w_high * 100).toFixed(1) + '%' : '-';
+        const formattedYield = stock.div_yield ? (stock.div_yield * 100).toFixed(1) + '%' : '-';
+        const formattedReturn = stock.total_return ? (stock.total_return * 100).toFixed(1) + '%' : '-';
+        const formattedMaxDd = stock.max_drawdown ? (stock.max_drawdown * 100).toFixed(1) + '%' : '-';
+        const formattedVolPct = stock.money_vol_pct ? (stock.money_vol_pct * 100).toFixed(3) + '%' : '-';
+
         detailTr.innerHTML = `
             <td></td>
-            <td colspan="4" class="p-4 bg-gray-900/30">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div><span class="text-gray-500">綜合評級：</span><span class="text-yellow-500 font-bold">${stock.rating_hybrid || 'Avoid'}</span></div>
-                    <div><span class="text-gray-500">MACD 動能：</span><span class="${stock.macd_momentum === 'Positive' ? 'text-green-400' : 'text-red-400'} font-semibold">${stock.macd_momentum}</span></div>
-                    <div><span class="text-gray-500">RSI (14)：</span><span class="font-mono">${stock.rsi_14 ? Number(stock.rsi_14).toFixed(1) : '-'}</span></div>
-                    <div><span class="text-gray-500">風險提示：</span><span class="text-gray-300">${stock.risk_note || 'Stable'}</span></div>
+            <td colspan="5" class="p-5 bg-gray-900/40">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-300">
+                    <div class="space-y-1.5 bg-gray-800/20 p-3 rounded-lg border border-gray-800">
+                        <h4 class="text-blue-400 font-bold border-b border-gray-800 pb-1 mb-2">📈 技術指標群</h4>
+                        <div><span class="text-gray-500">MACD 動能：</span><span class="${stock.macd_momentum === 'Positive' ? 'text-green-400' : 'text-red-400'} font-semibold">${stock.macd_momentum}</span></div>
+                        <div><span class="text-gray-500">RSI (14)：</span><span class="font-mono text-yellow-500 font-bold">${stock.rsi_14 ? Number(stock.rsi_14).toFixed(2) : '-'}</span></div>
+                        <div><span class="text-gray-500">SMA 趨勢：</span><span class="px-1 rounded bg-gray-800">${stock.sma_trend}</span></div>
+                        <div><span class="text-gray-500">距52週高位：</span><span class="font-mono">${formattedDist}</span></div>
+                    </div>
+                    
+                    <div class="space-y-1.5 bg-gray-800/20 p-3 rounded-lg border border-gray-800">
+                        <h4 class="text-emerald-400 font-bold border-b border-gray-800 pb-1 mb-2">🏦 財報基本面</h4>
+                        <div><span class="text-gray-500">市盈率 (PE TTM)：</span><span class="font-mono">${stock.pe_ttm || '-'}</span></div>
+                        <div><span class="text-gray-500">預期市盈率：</span><span class="font-mono">${stock.forward_pe || '-'}</span></div>
+                        <div><span class="text-gray-500">市淨率 (PB Ratio)：</span><span class="font-mono">${stock.pb_ratio || '-'}</span></div>
+                        <div><span class="text-gray-500">股息率 (Yield)：</span><span class="font-mono text-emerald-400 font-semibold">${formattedYield}</span></div>
+                    </div>
+
+                    <div class="space-y-1.5 bg-gray-800/20 p-3 rounded-lg border border-gray-800">
+                        <h4 class="text-purple-400 font-bold border-b border-gray-800 pb-1 mb-2">🛡️ 風險與資金流</h4>
+                        <div><span class="text-gray-500">20日均成交額：</span><span class="font-mono">${formattedVol}</span></div>
+                        <div><span class="text-gray-500">量能信號 / 佔比：</span><span class="text-purple-300 font-semibold">${stock.money_vol_signal}</span> <span class="text-gray-500">(${formattedVolPct})</span></div>
+                        <div><span class="text-gray-500">貝塔係數 (Beta)：</span><span class="font-mono">${stock.beta || '-'}</span></div>
+                        <div><span class="text-gray-500">綜合風險提示：</span><span class="text-red-300 font-semibold">${stock.risk_note}</span></div>
+                    </div>
+
+                    <div class="md:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-4 bg-gray-900/80 p-3 rounded-lg border border-gray-800 text-xs">
+                        <div><span class="text-gray-500">所屬板塊：</span><span class="text-gray-300 font-medium">${stock.sector}</span></div>
+                        <div><span class="text-gray-500">市值檢查：</span><span class="text-gray-300 font-mono">${formattedCap} (${stock.mkt_cap_check})</span></div>
+                        <div><span class="text-gray-500">年化總回報：</span><span class="font-mono text-green-400">${formattedReturn}</span></div>
+                        <div><span class="text-gray-500">夏普比率 (Sharpe)：</span><span class="font-mono text-yellow-400 font-bold">${stock.sharpe_ratio ? Number(stock.sharpe_ratio).toFixed(2) : '-'}</span></div>
+                        <div><span class="text-gray-500">歷史最大回撤：</span><span class="font-mono text-red-400">${formattedMaxDd}</span></div>
+                    </div>
                 </div>
             </td>
         `;
         tbody.appendChild(detailTr);
 
-        // 綁定點擊事件控制展開與收合
-        tr.addEventListener('click', () => {
+        // 點擊主行觸發展開/收合
+        tr.addEventListener('click', (e) => {
+            // 如果點擊的是 AASTOCKS 的超連結，不觸發展開面板
+            if (e.target.tagName === 'A') return;
+
             const isOpened = detailTr.classList.contains('open');
             if (isOpened) {
                 detailTr.classList.remove('open');
