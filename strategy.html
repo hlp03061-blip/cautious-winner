@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略選股清單</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-gray-700 pb-4 gap-4">
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <a href="index.html" class="text-gray-400 hover:text-white transition-colors">◀ 返回首頁</a>
+                </div>
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">🎯 量化策略選股清單</h1>
+                <p class="text-xs text-gray-400 mt-1">基於資金流向與技術指標的自動化篩選 (數據表: money_flow_hk)</p>
+            </div>
+            <div id="date-panel" class="bg-gray-800 p-3 rounded-xl border border-gray-700">
+                <span class="text-gray-400 font-bold text-sm">📅 數據日期：</span>
+                <span id="latest-date" class="text-white font-mono font-bold">載入中...</span>
+            </div>
+        </header>
+
+        <div class="flex flex-wrap gap-2 mb-6">
+            <button id="tab-1" class="strategy-tab active bg-indigo-600 border-indigo-400 text-white border-2 px-4 py-2 rounded-lg font-bold shadow-lg transition-all" onclick="switchTab(1)">
+                🕵️‍♂️ 密密吸納區 (底背離)
+            </button>
+            <button id="tab-2" class="strategy-tab bg-gray-800 border-gray-700 text-gray-400 border px-4 py-2 rounded-lg font-bold hover:bg-gray-700 transition-all" onclick="switchTab(2)">
+                🚀 資金爆發區 (量價齊揚)
+            </button>
+            <button id="tab-3" class="strategy-tab bg-gray-800 border-gray-700 text-gray-400 border px-4 py-2 rounded-lg font-bold hover:bg-gray-700 transition-all" onclick="switchTab(3)">
+                🔥 熱錢狙擊區 (高資金影響力)
+            </button>
+        </div>
+
+        <div class="bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden">
+            <div class="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
+                <h2 id="strategy-title" class="text-lg font-bold text-indigo-400">🕵️‍♂️ 策略：股價低檔 + 資金暗中流入 + MFI大於RSI</h2>
+                <span id="strategy-count" class="bg-gray-700 text-gray-300 text-xs font-semibold px-2.5 py-0.5 rounded">0 隻符合</span>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead id="table-head">
+                        </thead>
+                    <tbody id="strategy-body">
+                        <tr><td colspan="7" class="p-8 text-center text-gray-500">正在分析資金流向，請稍候...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="strategy.js"></script>
+</body>
+</html>
