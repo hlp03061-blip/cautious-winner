@@ -73,4 +73,219 @@
             </div>
             
             <div class="overflow-x-auto">
-                <table class="min-w-full text-left text-sm text-gray-3
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-950/40">
+                            <th class="p-4 w-12 text-center">🌟</th>
+                            <th class="p-4">股票代號 / 名稱</th>
+                            <th class="p-4">所屬板塊</th>
+                            <th class="p-4 text-right">最新現價</th>
+                            <th class="p-4 text-center">智慧標籤</th>
+                            <th class="p-4 text-right font-bold text-indigo-400 pr-6">綜合潛力得分</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-table-body">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // 1. 預填 15 隻符合你 Python 資料庫欄位特徵的高質量模擬數據
+        const stockDatabase = [
+            { ticker: 'NVDA', name: 'NVIDIA Corp.', sector: '半導體', price: 1096.10, flow_5d: 4500000, Volspike: 2.8, accel: 'Y', base_tech: 88, base_flow: 95, base_vol: 92 },
+            { ticker: 'SMCI', name: 'Super Micro Computer', sector: '半導體', price: 46.88, flow_5d: 2335000, Volspike: 4.2, accel: 'Y', base_tech: 65, base_flow: 92, base_vol: 98 },
+            { ticker: 'AMD', name: 'Advanced Micro Devices', sector: '半導體', price: 160.20, flow_5d: 1200000, Volspike: 1.6, accel: 'N', base_tech: 70, base_flow: 75, base_vol: 68 },
+            { ticker: 'AAPL', name: 'Apple Inc.', sector: '大型科技', price: 192.25, flow_5d: -850000, Volspike: 0.9, accel: 'N', base_tech: 75, base_flow: 40, base_vol: 35 },
+            { ticker: 'MSFT', name: 'Microsoft Corp.', sector: '大型科技', price: 415.50, flow_5d: 1850000, Volspike: 1.4, accel: 'Y', base_tech: 82, base_flow: 84, base_vol: 60 },
+            { ticker: 'AMZN', name: 'Amazon.com Inc.', sector: '大型科技', price: 180.10, flow_5d: 950000, Volspike: 1.2, accel: 'N', base_tech: 78, base_flow: 70, base_vol: 55 },
+            { ticker: 'GOOG', name: 'Alphabet Inc.', sector: '大型科技', price: 173.50, flow_5d: 1100000, Volspike: 1.5, accel: 'Y', base_tech: 80, base_flow: 76, base_vol: 72 },
+            { ticker: 'TSLA', name: 'Tesla Inc.', sector: '權重藍籌', price: 178.20, flow_5d: -2400000, Volspike: 2.1, accel: 'N', base_tech: 45, base_flow: 30, base_vol: 80 },
+            { ticker: '0700.HK', name: '騰訊控股', sector: '大型科技', price: 375.40, flow_5d: 3100000, Volspike: 1.9, accel: 'Y', base_tech: 85, base_flow: 89, base_vol: 78 },
+            { ticker: '3690.HK', name: '美團-W', sector: '大型科技', price: 112.30, flow_5d: 820000, Volspike: 1.1, accel: 'N', base_tech: 68, base_flow: 65, base_vol: 45 },
+            { ticker: '9988.HK', name: '阿里巴巴-W', sector: '大型科技', price: 78.50, flow_5d: -450000, Volspike: 1.3, accel: 'N', base_tech: 55, base_flow: 48, base_vol: 50 },
+            { ticker: '0939.HK', name: '建設銀行', sector: '金融', price: 5.83, flow_5d: 1950000, Volspike: 1.7, accel: 'Y', base_tech: 84, base_flow: 82, base_vol: 74 },
+            { ticker: '1299.HK', name: '友邦保險', sector: '金融', price: 62.50, flow_5d: -120000, Volspike: 0.8, accel: 'N', base_tech: 50, base_flow: 52, base_vol: 30 },
+            { ticker: '2318.HK', name: '中國平安', sector: '金融', price: 38.90, flow_5d: 740000, Volspike: 1.2, accel: 'Y', base_tech: 72, base_flow: 71, base_vol: 58 },
+            { ticker: '0388.HK', name: '香港交易所', sector: '權重藍籌', price: 258.40, flow_5d: 550000, Volspike: 1.0, accel: 'N', base_tech: 60, base_flow: 64, base_vol: 40 }
+        ];
+
+        // 瀏覽器本地自選觀察名單狀態儲存
+        let watchlist = JSON.parse(localStorage.getItem('dashboard_watchlist')) || ['NVDA', '0700.HK'];
+
+        // 2. 獲取 UI 控制元件
+        const wFlowSlider = document.getElementById('w-flow');
+        const wTechSlider = document.getElementById('w-tech');
+        const wVolSlider = document.getElementById('w-vol');
+        const filterVolSlider = document.getElementById('filter-vol');
+
+        const wFlowVal = document.getElementById('w-flow-val');
+        const wTechVal = document.getElementById('w-tech-val');
+        const wVolVal = document.getElementById('w-vol-val');
+        const filterVolVal = document.getElementById('filter-vol-val');
+
+        // 3. 核心矩陣運算與渲染函數
+        function runMatrixCalculation() {
+            // 讀取目前的滑桿控制數值
+            const wFlow = parseInt(wFlowSlider.value);
+            const wTech = parseInt(wTechSlider.value);
+            const wVol = parseInt(wVolSlider.value);
+            const minVolspike = parseInt(filterVolSlider.value) / 10; // 滑桿值10 = 1.0x
+
+            // 更新介面上的數值百分比顯示
+            wFlowVal.textContent = wFlow + '%';
+            wTechVal.textContent = wTech + '%';
+            wVolVal.textContent = wVol + '%';
+            filterVolVal.textContent = minVolspike.toFixed(1) + 'x';
+
+            const totalWeight = wFlow + wTech + wVol;
+
+            // 對資料庫進行即時動態評分與篩選
+            let processedStocks = stockDatabase.map(stock => {
+                // 加權得分算式 (避免分母為 0)
+                let score = 0;
+                if (totalWeight > 0) {
+                    score = ((stock.base_flow * wFlow) + (stock.base_tech * wTech) + (stock.base_vol * wVol)) / totalWeight;
+                }
+                return { ...stock, finalScore: score };
+            });
+
+            // 執行 Volspike 條件篩選
+            processedStocks = processedStocks.filter(stock => stock.Volspike >= minVolspike);
+
+            // 根據最終的綜合得分由高到低重新排序
+            processedStocks.sort((a, b) => b.finalScore - a.finalScore);
+
+            // 執行介面更新
+            renderTable(processedStocks);
+            renderSectorClusters(processedStocks);
+            document.getElementById('match-count').textContent = `${processedStocks.length} 隻符合篩選`;
+        }
+
+        // 4. 渲染底部智慧排序列表表格
+        function renderTable(stocks) {
+            const tbody = document.getElementById('stock-table-body');
+            tbody.innerHTML = '';
+
+            if (stocks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票</td></tr>`;
+                return;
+            }
+
+            stocks.forEach(stock => {
+                const isStarred = watchlist.includes(stock.ticker);
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors';
+
+                // 生成智慧動態標籤 HTML
+                let badgeHtml = '';
+                if (stock.Volspike >= 1.5) {
+                    badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold">🔥 ${stock.Volspike.toFixed(1)}x 爆量</span> `;
+                }
+                if (stock.accel === 'Y') {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold">⚡ 加速</span>`;
+                }
+                if (!badgeHtml) badgeHtml = `<span class="text-gray-600 text-xs">-</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center cursor-pointer text-base select-none" onclick="toggleStar('${stock.ticker}')">
+                        ${isStarred ? '⭐' : '☆'}
+                    </td>
+                    <td class="p-4 font-mono font-bold">
+                        <span class="text-blue-400">${stock.ticker}</span>
+                        <br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
+                    </td>
+                    <td class="p-4 text-gray-400 font-medium">${stock.sector}</td>
+                    <td class="p-4 text-right font-mono text-yellow-500 font-bold">${stock.price.toFixed(2)}</td>
+                    <td class="p-4 text-center">${badgeHtml}</td>
+                    <td class="p-4 text-right font-mono text-emerald-400 font-extrabold text-base pr-6">${stock.finalScore.toFixed(1)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 5. 渲染中部「板塊共振牆」 (按板塊分組展示聚類強度)
+        function renderSectorClusters(stocks) {
+            const container = document.getElementById('sector-grid');
+            container.innerHTML = '';
+
+            // 按板塊將股票打包分組
+            const sectorGroups = { '半導體': [], '大型科技': [], '金融': [], '權重藍籌': [] };
+            stocks.forEach(stock => {
+                if (sectorGroups[stock.sector]) {
+                    sectorGroups[stock.sector].push(stock);
+                }
+            });
+
+            // 為每個板塊建立一個動態群聚卡片
+            Object.keys(sectorGroups).forEach(sectorName => {
+                const groupStocks = sectorGroups[sectorName];
+                const card = document.createElement('div');
+                card.className = 'bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3';
+
+                // 計算該板塊的上榜數量與集體強度標籤
+                let badgeStyle = 'bg-gray-900 text-gray-500';
+                if (groupStocks.length >= 3) badgeStyle = 'bg-red-950 text-red-400 border border-red-900 animate-pulse font-bold';
+                else if (groupStocks.length > 0) badgeStyle = 'bg-indigo-950 text-indigo-400';
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
+                        <span class="font-bold text-xs text-gray-400">${sectorName}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-md ${badgeStyle}">${groupStocks.length} 隻共振</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 pt-1 min-h-[40px]">
+                        ${groupStocks.length === 0 ? '<span class="text-gray-700 text-xs italic">無符合對象</span>' : ''}
+                    </div>
+                `;
+
+                // 動態生成該板塊內部的股票微型方塊
+                const flexBox = card.querySelector('div:last-child');
+                groupStocks.forEach(stock => {
+                    const block = document.createElement('span');
+                    
+                    // 根據5日資金流調整方塊尺寸大小 (真實對應 Python 爬出來的 flow_5d)
+                    let sizeClass = 'text-xs px-2 py-1';
+                    if (Math.abs(stock.flow_5d) > 3000000) sizeClass = 'text-sm px-3 py-1.5 font-bold border border-emerald-500/30';
+                    
+                    // 根據綜合得分動態決定背景顏色的深淺透明度 (不指定死色，由 Tailwind 透明度控制)
+                    let bgOpacity = 'bg-emerald-950/30 text-emerald-500';
+                    if (stock.finalScore >= 85) bgOpacity = 'bg-emerald-500 text-gray-950 font-black shadow-lg shadow-emerald-500/10';
+                    else if (stock.finalScore >= 75) bgOpacity = 'bg-emerald-600/70 text-white font-bold';
+                    else if (stock.finalScore >= 60) bgOpacity = 'bg-emerald-800/40 text-emerald-300';
+
+                    block.className = `rounded-lg font-mono cursor-pointer transition-all hover:scale-105 select-none ${sizeClass} ${bgOpacity}`;
+                    block.innerHTML = stock.ticker;
+                    block.title = `${stock.name}\n綜合得分: ${stock.finalScore.toFixed(1)}\n5日資金流: ${(stock.flow_5d/1000000).toFixed(2)}M`;
+                    
+                    // 點擊方塊可以直接模擬加入自選
+                    block.onclick = () => toggleStar(stock.ticker);
+                    flexBox.appendChild(block);
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        // 6. 模擬點擊 🌟 觀察名單切換功能
+        window.toggleStar = function(ticker) {
+            if (watchlist.includes(ticker)) {
+                watchlist = watchlist.filter(t => t !== ticker);
+            } else {
+                watchlist.push(ticker);
+            }
+            localStorage.setItem('dashboard_watchlist', JSON.stringify(watchlist));
+            // 重新計算並刷新畫面
+            runMatrixCalculation();
+        };
+
+        // 7. 綁定滑桿事件監聽器，實現實時動態交互連動 (不需刷新網頁)
+        [wFlowSlider, wTechSlider, wVolSlider, filterVolSlider].forEach(slider => {
+            slider.addEventListener('input', runMatrixCalculation);
+        });
+
+        // 8. 首次進入網頁自動初始化運行
+        document.addEventListener('DOMContentLoaded', runMatrixCalculation);
+    </script>
+</body>
+</html>
