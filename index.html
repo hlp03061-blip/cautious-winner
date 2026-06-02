@@ -3,19 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球波段策略綜合決策儀表板 (大小寫修正版)</title>
+    <title>全球波段策略綜合決策儀表板 (終極防呆對照版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen p-6">
     <div class="max-w-7xl mx-auto space-y-6">
         
         <nav class="flex flex-wrap gap-3 mb-2">
-            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">
-                擠壓變盤焦 (Vol Squeeze)
-            </a>
-            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">
-                策略選股清單
-            </a>
+            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">擠壓變盤焦 (Vol Squeeze)</a>
+            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">策略選股清單</a>
             <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 3</a>
             <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 4</a>
             <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 5</a>
@@ -27,7 +23,7 @@
                     <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-400 bg-clip-text text-transparent">
                         🌍 港美股綜合決策儀表板 (跨市場對照)
                     </h1>
-                    <p class="text-xs text-gray-400 mt-1">即時權重運算 • 自動名單對照 VLOOKUP • 跨市場板塊共振</p>
+                    <p class="text-xs text-gray-400 mt-1">即時權重運算 • 智能容錯對照 VLOOKUP • 跨市場板塊共振</p>
                 </div>
                 
                 <div class="bg-gray-950 px-4 py-2 rounded-xl border border-gray-800 text-right">
@@ -110,11 +106,10 @@
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 📝 定義你的 4 張表格
-        const TABLE_FLOW_HK = 'money_flow_hk';           // 每日資金流
-        const TABLE_FLOW_US = 'money_flow_sp500';        // 每日資金流
-        const TABLE_LIST_HK = 'all_hkticker_list';       // 總表
-        const TABLE_LIST_US = 'all_sp500ticker_list';    // 總表
+        const TABLE_FLOW_HK = 'money_flow_hk';           
+        const TABLE_FLOW_US = 'money_flow_sp500';        
+        const TABLE_LIST_HK = 'all_hkticker_list';       
+        const TABLE_LIST_US = 'all_sp500ticker_list';    
 
         let latestMarketData = [];
         let autoSectorDictionary = {}; 
@@ -152,243 +147,31 @@
             try {
                 document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-indigo-400">📥 正在下載基礎名單與板塊資料...</td></tr>`;
 
-                // 🚀 修正 1：到總表抓資料時，精準使用大寫的 Ticker, Sector (不再去要求不存在的 Record_Date)
+                // 🚀 容錯升級 1：使用 select('*') 抓取全部欄位，避免因為大小寫打錯導致 400 錯誤
                 const [hkListRes, usListRes] = await Promise.all([
-                    supabase.from(TABLE_LIST_HK).select('Ticker, Sector').limit(5000),
-                    supabase.from(TABLE_LIST_US).select('Ticker, Sector').limit(5000)
+                    supabase.from(TABLE_LIST_HK).select('*').limit(5000),
+                    supabase.from(TABLE_LIST_US).select('*').limit(5000)
                 ]);
 
-                // 🚀 修正 2：建字典時，對應的是大寫的 Ticker 和 Sector
+                if (hkListRes.error) console.error("港股名單讀取錯誤:", hkListRes.error);
+                if (usListRes.error) console.error("美股名單讀取錯誤:", usListRes.error);
+
+                // 🚀 容錯升級 2：建字典時，無論你的欄位是大寫還是小寫，通通收錄！
                 if (hkListRes.data) {
-                    hkListRes.data.forEach(item => autoSectorDictionary[item.Ticker] = item.Sector);
+                    hkListRes.data.forEach(item => {
+                        const t = item.Ticker || item.ticker || item.TICKER;
+                        const s = item.Sector || item.sector || item.SECTOR;
+                        if (t) autoSectorDictionary[String(t).trim()] = s;
+                    });
                 }
                 if (usListRes.data) {
-                    usListRes.data.forEach(item => autoSectorDictionary[item.Ticker] = item.Sector ? `${item.Sector} (US)` : null);
+                    usListRes.data.forEach(item => {
+                        const t = item.Ticker || item.ticker || item.TICKER;
+                        const s = item.Sector || item.sector || item.SECTOR;
+                        if (t) autoSectorDictionary[String(t).trim()] = s ? `${s} (US)` : null;
+                    });
                 }
 
                 document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-emerald-400">🔄 板塊名單就緒，正在抓取最新資金流...</td></tr>`;
 
-                // 🚀 資金流表照舊，抓取 Record_Date
-                const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
-                    supabase.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                    supabase.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
-                ]);
-
-                const latestHkDate = hkDateData?.[0]?.Record_Date || '無資料';
-                const latestUsDate = usDateData?.[0]?.Record_Date || '無資料';
-                document.getElementById('latest-date').textContent = `${latestHkDate} | ${latestUsDate}`;
-
-                const [hkRes, usRes] = await Promise.all([
-                    latestHkDate !== '無資料' ? supabase.from(TABLE_FLOW_HK).select('*').eq('Record_Date', latestHkDate).limit(2000) : { data: [] },
-                    latestUsDate !== '無資料' ? supabase.from(TABLE_FLOW_US).select('*').eq('Record_Date', latestUsDate).limit(2000) : { data: [] }
-                ]);
-
-                if (hkRes.error) console.error("港股資金流讀取錯誤:", hkRes.error);
-                if (usRes.error) console.error("美股資金流讀取錯誤:", usRes.error);
-
-                const hkData = (hkRes.data || []).map(r => ({ ...r, market: 'HK' }));
-                const usData = (usRes.data || []).map(r => ({ ...r, market: 'US' }));
-
-                latestMarketData = [...hkData, ...usData];
-
-                if (latestMarketData.length === 0) {
-                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">目前資金流資料庫內無任何數據</td></tr>`;
-                    document.getElementById('sector-grid').innerHTML = '';
-                    return;
-                }
-
-                calculateAndRender();
-
-            } catch (err) {
-                console.error("連線 Supabase 失敗:", err);
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">讀取 Supabase 出錯: ${err.message}</td></tr>`;
-            }
-        }
-
-        function calculateAndRender() {
-            if (latestMarketData.length === 0) return;
-
-            const wFlow = parseInt(wFlowSlider.value);
-            const wTech = parseInt(wTechSlider.value);
-            const wVol = parseInt(wVolSlider.value);
-            const minVolspike = parseInt(filterVolSlider.value) / 10; 
-
-            wFlowVal.textContent = wFlow + '%';
-            wTechVal.textContent = wTech + '%';
-            wVolVal.textContent = wVol + '%';
-            filterVolVal.textContent = minVolspike.toFixed(1) + 'x';
-
-            const totalWeight = wFlow + wTech + wVol;
-
-            const maxFlow5D = Math.max(...latestMarketData.map(r => Math.abs(Number(r['5D_flow']) || 0)), 1);
-            const maxVolspike = Math.max(...latestMarketData.map(r => Number(r.Volspike) || 0), 1);
-
-            let processed = latestMarketData.map(r => {
-                const flowFlow = Number(r['5D_flow']) || 0;
-                let flowScore = flowFlow > 0 ? (flowFlow / maxFlow5D) * 100 : 0;
-
-                let techScore = 50;
-                if (Number(r.MACD) > 0) techScore += 25;
-                if (Number(r.RSI) >= 40 && Number(r.RSI) <= 65) techScore += 25;
-
-                const spikeVal = Number(r.Volspike) || 0;
-                let volScore = (spikeVal / maxVolspike) * 100;
-
-                let finalScore = 0;
-                if (totalWeight > 0) {
-                    finalScore = ((flowScore * wFlow) + (techScore * wTech) + (volScore * wVol)) / totalWeight;
-                }
-
-                // 🚀 拿資金流裡的小寫 ticker，去自動字典裡尋找對應的板塊
-                const finalSector = autoSectorDictionary[r.ticker] || '其他未分類板塊';
-
-                return {
-                    ticker: r.ticker,
-                    market: r.market,
-                    name: r.company_name || '未知公司',
-                    sector: finalSector, 
-                    price: Number(r.price) || 0,
-                    Volspike: spikeVal,
-                    accel: r.accel,
-                    flow_5d: flowFlow,
-                    finalScore: finalScore
-                };
-            });
-
-            processed = processed.filter(stock => stock.Volspike >= minVolspike);
-            processed.sort((a, b) => b.finalScore - a.finalScore);
-
-            renderTable(processed);
-            renderSectorClusters(processed);
-            document.getElementById('match-count').textContent = `${processed.length} 隻符合篩選`;
-        }
-
-        function renderTable(stocks) {
-            const tbody = document.getElementById('stock-table-body');
-            tbody.innerHTML = '';
-
-            if (stocks.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票</td></tr>`;
-                return;
-            }
-
-            stocks.forEach(stock => {
-                const watchId = `${stock.market}_${stock.ticker}`;
-                const isStarred = watchlist.includes(watchId);
-                const tr = document.createElement('tr');
-                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors';
-
-                const marketFlag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
-
-                let badgeHtml = '';
-                if (stock.Volspike >= 1.5) {
-                    badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold">🔥 ${stock.Volspike.toFixed(1)}x 爆量</span> `;
-                }
-                if (stock.accel === 'Y' || stock.accel === 'Yes') {
-                    badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold">⚡ 加速</span>`;
-                }
-                if (!badgeHtml) badgeHtml = `<span class="text-gray-600 text-xs">-</span>`;
-
-                tr.innerHTML = `
-                    <td class="p-4 text-center cursor-pointer text-base select-none text-yellow-500" data-watchid="${watchId}">
-                        ${isStarred ? '⭐' : '☆'}
-                    </td>
-                    <td class="p-4 font-mono font-bold">
-                        <span class="mr-1">${marketFlag}</span>
-                        <a href="${generateChartUrl(stock.ticker, stock.market)}" target="_blank" class="text-blue-400 hover:underline">🔗 ${stock.ticker}</a>
-                        <br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
-                    </td>
-                    <td class="p-4 text-gray-400 font-medium">${stock.sector}</td>
-                    <td class="p-4 text-right font-mono text-yellow-500 font-bold">${stock.price.toFixed(2)}</td>
-                    <td class="p-4 text-center">${badgeHtml}</td>
-                    <td class="p-4 text-right font-mono text-emerald-400 font-extrabold text-base pr-6">${stock.finalScore.toFixed(1)}</td>
-                `;
-
-                tr.querySelector('td').addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    toggleStar(this.getAttribute('data-watchid'));
-                });
-
-                tbody.appendChild(tr);
-            });
-        }
-
-        function renderSectorClusters(stocks) {
-            const container = document.getElementById('sector-grid');
-            container.innerHTML = '';
-
-            const sectorGroups = {};
-            stocks.forEach(stock => {
-                if (!sectorGroups[stock.sector]) sectorGroups[stock.sector] = [];
-                sectorGroups[stock.sector].push(stock);
-            });
-
-            const sortedSectors = Object.keys(sectorGroups).sort((a, b) => sectorGroups[b].length - sectorGroups[a].length);
-
-            sortedSectors.forEach(sectorName => {
-                const groupStocks = sectorGroups[sectorName];
-                const displayStocks = groupStocks.slice(0, 10); 
-
-                const card = document.createElement('div');
-                card.className = 'bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3';
-
-                let badgeStyle = 'bg-gray-900 text-gray-500';
-                if (groupStocks.length >= 4) badgeStyle = 'bg-red-950 text-red-400 border border-red-900 animate-pulse font-bold';
-                else if (groupStocks.length > 0) badgeStyle = 'bg-indigo-950 text-indigo-400';
-
-                card.innerHTML = `
-                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
-                        <span class="font-bold text-xs text-gray-400 truncate max-w-[150px]" title="${sectorName}">${sectorName}</span>
-                        <span class="text-[10px] px-2 py-0.5 rounded-md shrink-0 ${badgeStyle}">${groupStocks.length} 隻</span>
-                    </div>
-                    <div class="flex flex-wrap gap-2 pt-1 min-h-[40px]"></div>
-                `;
-
-                const flexBox = card.querySelector('div:last-child');
-                displayStocks.forEach(stock => {
-                    const block = document.createElement('span');
-                    
-                    let sizeClass = 'text-xs px-2 py-1';
-                    if (Math.abs(stock.flow_5d) > 2000000) sizeClass = 'text-sm px-2.5 py-1 font-bold border border-emerald-500/20';
-                    
-                    let bgOpacity = 'bg-emerald-950/30 text-emerald-500';
-                    if (stock.finalScore >= 75) bgOpacity = 'bg-emerald-500 text-gray-950 font-black shadow-lg';
-                    else if (stock.finalScore >= 55) bgOpacity = 'bg-emerald-600/70 text-white font-bold';
-                    else if (stock.finalScore >= 35) bgOpacity = 'bg-emerald-800/40 text-emerald-300';
-
-                    const flag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
-
-                    block.className = `rounded-lg font-mono cursor-pointer transition-all hover:scale-105 select-none truncate max-w-[100px] ${sizeClass} ${bgOpacity}`;
-                    block.innerHTML = `${flag} ${stock.ticker.replace('.HK', '')}`;
-                    block.title = `${stock.name}\n智慧得分: ${stock.finalScore.toFixed(1)}\n5日資金流: ${formatMoney(stock.flow_5d)}\nVolspike: ${stock.Volspike.toFixed(1)}x`;
-                    
-                    block.onclick = () => toggleStar(`${stock.market}_${stock.ticker}`);
-                    flexBox.appendChild(block);
-                });
-
-                container.appendChild(card);
-            });
-
-            if (sortedSectors.length === 0) {
-                container.innerHTML = `<div class="col-span-full text-center text-gray-600 py-4 text-xs">無符合條件的板塊數據</div>`;
-            }
-        }
-
-        function toggleStar(watchId) {
-            if (watchlist.includes(watchId)) {
-                watchlist = watchlist.filter(t => t !== watchId);
-            } else {
-                watchlist.push(watchId);
-            }
-            localStorage.setItem('global_dashboard_watchlist', JSON.stringify(watchlist));
-            calculateAndRender();
-        }
-
-        [wFlowSlider, wTechSlider, wVolSlider, filterVolSlider].forEach(slider => {
-            slider.addEventListener('input', calculateAndRender);
-        });
-
-        document.addEventListener('DOMContentLoaded', fetchSupabaseData);
-    </script>
-</body>
-</html>
+                const [{
