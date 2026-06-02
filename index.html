@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球波段策略綜合決策儀表板 (動態查表版)</title>
+    <title>全球波段策略綜合決策儀表板 (大小寫修正版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen p-6">
@@ -111,13 +111,13 @@
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // 📝 定義你的 4 張表格
-        const TABLE_FLOW_HK = 'money_flow_hk';           // 存放每日資金流 (無sector)
-        const TABLE_FLOW_US = 'money_flow_sp500';        // 存放每日資金流 (無sector)
-        const TABLE_LIST_HK = 'all_hkticker_list';       // 總表 (有sector)
-        const TABLE_LIST_US = 'all_sp500ticker_list';    // 總表 (有sector，請確保去除了 & 符號)
+        const TABLE_FLOW_HK = 'money_flow_hk';           // 每日資金流
+        const TABLE_FLOW_US = 'money_flow_sp500';        // 每日資金流
+        const TABLE_LIST_HK = 'all_hkticker_list';       // 總表
+        const TABLE_LIST_US = 'all_sp500ticker_list';    // 總表
 
         let latestMarketData = [];
-        let autoSectorDictionary = {}; // 🚀 這是我們的「自動字典」，用來存 VLOOKUP 的結果
+        let autoSectorDictionary = {}; 
         let watchlist = JSON.parse(localStorage.getItem('global_dashboard_watchlist')) || [];
 
         const wFlowSlider = document.getElementById('w-flow');
@@ -152,24 +152,23 @@
             try {
                 document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-indigo-400">📥 正在下載基礎名單與板塊資料...</td></tr>`;
 
-                // 🚀 第一步：先把兩張 ticker_list (總表) 抓下來，建立「自動字典」
+                // 🚀 修正 1：到總表抓資料時，精準使用大寫的 Ticker, Sector (不再去要求不存在的 Record_Date)
                 const [hkListRes, usListRes] = await Promise.all([
-                    supabase.from(TABLE_LIST_HK).select('ticker, sector').limit(5000),
-                    supabase.from(TABLE_LIST_US).select('ticker, sector').limit(5000)
+                    supabase.from(TABLE_LIST_HK).select('Ticker, Sector').limit(5000),
+                    supabase.from(TABLE_LIST_US).select('Ticker, Sector').limit(5000)
                 ]);
 
-                // 將抓下來的資料塞進我們的自動字典裡面 (類似 Excel VLOOKUP 的參照表)
+                // 🚀 修正 2：建字典時，對應的是大寫的 Ticker 和 Sector
                 if (hkListRes.data) {
-                    hkListRes.data.forEach(item => autoSectorDictionary[item.ticker] = item.sector);
+                    hkListRes.data.forEach(item => autoSectorDictionary[item.Ticker] = item.Sector);
                 }
                 if (usListRes.data) {
-                    // 為了區分美股板塊，可以選擇加上 (US) 標籤
-                    usListRes.data.forEach(item => autoSectorDictionary[item.ticker] = item.sector ? `${item.sector} (US)` : null);
+                    usListRes.data.forEach(item => autoSectorDictionary[item.Ticker] = item.Sector ? `${item.Sector} (US)` : null);
                 }
 
                 document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-emerald-400">🔄 板塊名單就緒，正在抓取最新資金流...</td></tr>`;
 
-                // 🚀 第二步：抓取每日資金流表格 (money_flow) 的最新日期
+                // 🚀 資金流表照舊，抓取 Record_Date
                 const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
                     supabase.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
                     supabase.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
@@ -179,7 +178,6 @@
                 const latestUsDate = usDateData?.[0]?.Record_Date || '無資料';
                 document.getElementById('latest-date').textContent = `${latestHkDate} | ${latestUsDate}`;
 
-                // 🚀 第三步：用最新日期去抓取詳細的資金流數據
                 const [hkRes, usRes] = await Promise.all([
                     latestHkDate !== '無資料' ? supabase.from(TABLE_FLOW_HK).select('*').eq('Record_Date', latestHkDate).limit(2000) : { data: [] },
                     latestUsDate !== '無資料' ? supabase.from(TABLE_FLOW_US).select('*').eq('Record_Date', latestUsDate).limit(2000) : { data: [] }
@@ -241,7 +239,7 @@
                     finalScore = ((flowScore * wFlow) + (techScore * wTech) + (volScore * wVol)) / totalWeight;
                 }
 
-                // 🌟 最關鍵的一步：從 autoSectorDictionary「自動字典」裡面找出對應的板塊！
+                // 🚀 拿資金流裡的小寫 ticker，去自動字典裡尋找對應的板塊
                 const finalSector = autoSectorDictionary[r.ticker] || '其他未分類板塊';
 
                 return {
