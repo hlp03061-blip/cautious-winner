@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>波段策略綜合決策儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <header class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-4 gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 bg-clip-text text-transparent">
+                        📊 波段策略綜合決策儀表板 (Multi-Criteria Dashboard)
+                    </h1>
+                    <p class="text-xs text-gray-400 mt-1">即時權重矩陣運算 • 視覺化板塊共振 • 智慧動態潛力排序</p>
+                </div>
+                <div class="bg-gray-950 px-4 py-2 rounded-xl border border-gray-800 text-right">
+                    <span class="text-gray-500 text-xs font-bold block">模擬數據基準日</span>
+                    <span class="text-sm font-mono text-pink-400 font-bold">2026-06-01 (美東) / 06-02 (港時)</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>💰 大單資金流權重</span>
+                        <span id="w-flow-val" class="text-indigo-400 font-mono">40%</span>
+                    </div>
+                    <input type="range" id="w-flow" min="0" max="100" value="40" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>📈 技術面指標權重</span>
+                        <span id="w-tech-val" class="text-purple-400 font-mono">30%</span>
+                    </div>
+                    <input type="range" id="w-tech" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>⚡ 量能爆發力權重</span>
+                        <span id="w-vol-val" class="text-pink-400 font-mono">30%</span>
+                    </div>
+                    <input type="range" id="w-vol" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-500">
+                </div>
+
+                <div class="space-y-2 bg-gray-950/50 p-2 rounded-xl border border-gray-800/60">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>🛑 最小成交量比 (Volspike)</span>
+                        <span id="filter-vol-val" class="text-yellow-400 font-mono">1.0x</span>
+                    </div>
+                    <input type="range" id="filter-vol" min="5" max="40" value="10" step="5" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-yellow-500">
+                </div>
+            </div>
+        </header>
+
+        <section class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-xl">
+            <h2 class="text-sm font-bold text-gray-400 mb-4 flex items-center gap-2">
+                🎯 資金板塊共振牆 (Sector Resonance Clusters) <span class="text-xs font-normal text-gray-500">(方塊大小代表5日資金流入，顏色深淺代表綜合得分)</span>
+            </h2>
+            <div id="sector-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                </div>
+        </section>
+
+        <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <h2 class="text-lg font-bold text-indigo-400 flex items-center gap-2">🚀 矩陣運算潛力清單</h2>
+                <span id="match-count" class="bg-indigo-950 text-indigo-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-indigo-800">15 隻追蹤中</span>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-3
