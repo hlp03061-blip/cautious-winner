@@ -3,72 +3,440 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>精選港股量能雷達</title>
+    <title>波段策略綜合決策儀表板 (Supabase 直連版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .detail-row { display: none; }
-        .detail-row.open { display: table-row; }
-    </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-6">
-    <div class="max-w-7xl mx-auto">
+<body class="bg-gray-950 text-gray-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
         
-        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-gray-700 pb-4 gap-4">
-            <div>
-                <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">📊 港股精選數據市場雷達</h1>
-                <p class="text-xs text-gray-400 mt-1">綜合近 5 日數據去重分析 • 點擊代號可看 AASTOCKS 圖表 • 點擊行可展開完整技術指標</p>
+        <nav class="flex flex-wrap gap-3 mb-2">
+            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">
+                擠壓變盤焦 (Vol Squeeze)
+            </a>
+            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">
+                策略選股清單
+            </a>
+            <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">
+                自訂連結 3
+            </a>
+            <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">
+                自訂連結 4
+            </a>
+            <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">
+                自訂連結 5
+            </a>
+        </nav>
+
+        <header class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-4 gap-4">
+                <div>
+                    <h1 id="dashboard-title" class="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 bg-clip-text text-transparent">
+                        📊 港股波段策略綜合決策儀表板
+                    </h1>
+                    <p class="text-xs text-gray-400 mt-1">即時權重矩陣運算 • 視覺化板塊共振 • 智慧動態潛力排序</p>
+                </div>
                 
-                <div class="mt-4 flex flex-wrap gap-3">
-                    <a href="strategy.html" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transition-colors border border-blue-500 inline-block">
-                        🎯 前往「策略選股清單」
-                    </a>
-                    <a href="sp500.html" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transition-colors border border-emerald-500 inline-block">
-                        🇺🇸 前往「S&P 500 頁面」
-                    </a>
+                <div class="flex items-center gap-4">
+                    <div class="flex bg-gray-950 p-1 rounded-lg border border-gray-800">
+                        <button id="btn-market-hk" class="px-4 py-1.5 bg-indigo-600 text-white rounded-md text-xs font-bold transition-colors">
+                            🇭🇰 港股
+                        </button>
+                        <button id="btn-market-us" class="px-4 py-1.5 bg-transparent text-gray-500 hover:text-gray-300 rounded-md text-xs font-bold transition-colors">
+                            🇺🇸 美股 (S&P500)
+                        </button>
+                    </div>
+
+                    <div class="bg-gray-950 px-4 py-2 rounded-xl border border-gray-800 text-right">
+                        <span class="text-gray-500 text-xs font-bold block">數據日期</span>
+                        <span id="latest-date" class="text-sm font-mono text-pink-400 font-bold">連線中...</span>
+                    </div>
                 </div>
             </div>
 
-            <div id="hsi-panel" class="bg-gray-800 p-3 rounded-xl border border-gray-700 flex items-center gap-4 min-w-[280px]">
-                <span class="text-gray-400 font-bold text-sm">🏛️ 恒生指數 (^HSI)</span>
-                <div class="ml-auto text-right">
-                    <span id="hsi-price" class="text-lg font-mono text-yellow-400 font-bold">-.--</span>
-                    <span id="hsi-macd" class="text-xs px-2 py-0.5 rounded ml-2 font-semibold">載入中</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>💰 大單資金流權重</span>
+                        <span id="w-flow-val" class="text-indigo-400 font-mono">40%</span>
+                    </div>
+                    <input type="range" id="w-flow" min="0" max="100" value="40" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>📈 技術面指標權重</span>
+                        <span id="w-tech-val" class="text-purple-400 font-mono">30%</span>
+                    </div>
+                    <input type="range" id="w-tech" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>⚡ 量能爆發力權重</span>
+                        <span id="w-vol-val" class="text-pink-400 font-mono">30%</span>
+                    </div>
+                    <input type="range" id="w-vol" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-500">
+                </div>
+
+                <div class="space-y-2 bg-gray-950/50 p-2 rounded-xl border border-gray-800/60">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>🛑 最小成交量比 (Volspike)</span>
+                        <span id="filter-vol-val" class="text-yellow-400 font-mono">1.0x</span>
+                    </div>
+                    <input type="range" id="filter-vol" min="5" max="40" value="10" step="5" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-yellow-500">
                 </div>
             </div>
         </header>
 
-        <div class="bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden">
-            <div class="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
-                <div class="flex items-center gap-4">
-                    <h2 class="text-xl font-bold text-blue-400 flex items-center gap-2">🚀 擠壓變盤聚焦 (Vol Squeeze 主控台)</h2>
-                    <button id="copy-btn" class="bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold py-1.5 px-3 rounded shadow transition-colors border border-gray-600">
-                        📋 複製已選股票號
-                    </button>
-                </div>
-                <span id="main-count" class="bg-blue-900 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded">0 隻策略追蹤中</span>
+        <section class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-xl">
+            <h2 class="text-sm font-bold text-gray-400 mb-4 flex items-center gap-2">
+                🎯 資金板塊共振牆 (Sector Resonance Clusters) <span class="text-xs font-normal text-gray-500">(方塊大小代表5日資金流入，顏色深淺代表綜合得分)</span>
+            </h2>
+            <div id="sector-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="col-span-full p-8 text-center text-gray-500">正在連線並歸類板塊數據...</div>
+            </div>
+        </section>
+
+        <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <h2 class="text-lg font-bold text-indigo-400 flex items-center gap-2">🚀 智慧矩陣選股潛力清單</h2>
+                <span id="match-count" class="bg-indigo-950 text-indigo-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-indigo-800">載入中...</span>
             </div>
             
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm text-gray-300">
                     <thead>
                         <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
-                            <th class="p-4 w-12"></th> 
-                            <th class="p-4 w-14 text-center whitespace-nowrap">選取</th> 
-                            <th class="p-4 whitespace-nowrap">股票代號</th>
-                            <th class="p-4 min-w-[200px]">公司名稱</th>
-                            <th class="p-4 text-right whitespace-nowrap">最新現價</th>
-                            <th class="p-4 text-center whitespace-nowrap">綜合評級</th>
-                            <th class="p-4 text-center whitespace-nowrap">5日擠壓頻次</th>
+                            <th class="p-4 w-12 text-center">🌟</th>
+                            <th class="p-4">股票代號 / 名稱</th>
+                            <th class="p-4">所屬板塊</th>
+                            <th class="p-4 text-right">最新現價</th>
+                            <th class="p-4 text-center">智慧標籤</th>
+                            <th class="p-4 text-right font-bold text-indigo-400 pr-6">綜合潛力得分</th>
                         </tr>
                     </thead>
-                    <tbody id="main-dashboard-body">
-                        <tr><td colspan="7" class="p-8 text-center text-gray-500">正在安全連線並精確過濾重複數據，請稍候...</td></tr>
+                    <tbody id="stock-table-body">
+                        <tr><td colspan="6" class="p-8 text-center text-gray-500">正在分析資料庫數據，請稍候...</td></tr>
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+        // 你的 Supabase 連線資訊
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
+        
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // 狀態管理：市場與資料表設定
+        let currentMarket = 'HK'; // 'HK' 或 'US'
+        let currentTable = 'money_flow_hk'; // 預設讀取港股表格
+
+        let latestMarketData = [];
+        let watchlist = JSON.parse(localStorage.getItem('hk_dashboard_watchlist')) || [];
+
+        // 獲取 UI 元件
+        const wFlowSlider = document.getElementById('w-flow');
+        const wTechSlider = document.getElementById('w-tech');
+        const wVolSlider = document.getElementById('w-vol');
+        const filterVolSlider = document.getElementById('filter-vol');
+
+        const wFlowVal = document.getElementById('w-flow-val');
+        const wTechVal = document.getElementById('w-tech-val');
+        const wVolVal = document.getElementById('w-vol-val');
+        const filterVolVal = document.getElementById('filter-vol-val');
+
+        // 圖表連結產生器 (根據當前市場動態切換 AASTOCKS 或 Yahoo Finance)
+        function generateChartUrl(ticker) {
+            if (currentMarket === 'HK') {
+                let cleanId = String(ticker).replace('.HK', '').trim();
+                if (cleanId.length <= 4 && !isNaN(cleanId)) {
+                    cleanId = cleanId.padStart(6, '0');
+                }
+                return `https://charts.aastocks.com/servlet/Charts?stockid=${cleanId}.HK&period=6&type=1`;
+            } else {
+                // 美股 S&P500 預設導向 Yahoo Finance
+                const cleanId = String(ticker).trim();
+                return `https://finance.yahoo.com/quote/${cleanId}`;
+            }
+        }
+
+        // 金額格式化
+        function formatMoney(value) {
+            if (value == null) return '-';
+            const num = Number(value);
+            const absNum = Math.abs(num);
+            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + ' M';
+            if (absNum >= 10000) return (num / 10000).toFixed(1) + ' 萬';
+            return num.toFixed(1);
+        }
+
+        // 核心：從 Supabase 讀取最新數據 (動態抓取 currentTable)
+        async function fetchSupabaseData() {
+            try {
+                // 1. 抓取最新的 Record_Date
+                const { data: dateData, error: dateError } = await supabase
+                    .from(currentTable)
+                    .select('Record_Date')
+                    .order('Record_Date', { ascending: false })
+                    .limit(1);
+
+                if (dateError) throw dateError;
+                if (!dateData || dateData.length === 0) {
+                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">${currentMarket === 'HK' ? '港股' : '美股'}資料庫內無數據</td></tr>`;
+                    document.getElementById('sector-grid').innerHTML = '';
+                    document.getElementById('latest-date').textContent = '無資料';
+                    return;
+                }
+
+                const latestDate = dateData[0].Record_Date;
+                document.getElementById('latest-date').textContent = latestDate;
+
+                // 2. 根據最新日期抓取該天所有股票
+                const { data, error } = await supabase
+                    .from(currentTable)
+                    .select('*')
+                    .eq('Record_Date', latestDate)
+                    .limit(2000);
+
+                if (error) throw error;
+
+                latestMarketData = data;
+
+                // 3. 觸發計算與渲染
+                calculateAndRender();
+
+            } catch (err) {
+                console.error("連線 Supabase 失敗:", err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">讀取 Supabase 出錯: ${err.message}</td></tr>`;
+            }
+        }
+
+        // 核心：權重矩陣實時運算
+        function calculateAndRender() {
+            if (latestMarketData.length === 0) return;
+
+            const wFlow = parseInt(wFlowSlider.value);
+            const wTech = parseInt(wTechSlider.value);
+            const wVol = parseInt(wVolSlider.value);
+            const minVolspike = parseInt(filterVolSlider.value) / 10; 
+
+            wFlowVal.textContent = wFlow + '%';
+            wTechVal.textContent = wTech + '%';
+            wVolVal.textContent = wVol + '%';
+            filterVolVal.textContent = minVolspike.toFixed(1) + 'x';
+
+            const totalWeight = wFlow + wTech + wVol;
+
+            // 1. 動態歸一化
+            const maxFlow5D = Math.max(...latestMarketData.map(r => Math.abs(Number(r['5D_flow']) || 0)), 1);
+            const maxVolspike = Math.max(...latestMarketData.map(r => Number(r.Volspike) || 0), 1);
+
+            let processed = latestMarketData.map(r => {
+                const flowFlow = Number(r['5D_flow']) || 0;
+                let flowScore = flowFlow > 0 ? (flowFlow / maxFlow5D) * 100 : 0;
+
+                let techScore = 50;
+                if (Number(r.MACD) > 0) techScore += 25;
+                if (Number(r.RSI) >= 40 && Number(r.RSI) <= 65) techScore += 25;
+
+                const spikeVal = Number(r.Volspike) || 0;
+                let volScore = (spikeVal / maxVolspike) * 100;
+
+                let finalScore = 0;
+                if (totalWeight > 0) {
+                    finalScore = ((flowScore * wFlow) + (techScore * wTech) + (volScore * wVol)) / totalWeight;
+                }
+
+                return {
+                    ticker: r.ticker,
+                    name: r.company_name || '未知公司',
+                    sector: r.sector || '其他板塊',
+                    price: Number(r.price) || 0,
+                    Volspike: spikeVal,
+                    accel: r.accel,
+                    flow_5d: flowFlow,
+                    finalScore: finalScore
+                };
+            });
+
+            // 2. Volspike 最小過濾
+            processed = processed.filter(stock => stock.Volspike >= minVolspike);
+
+            // 3. 排序
+            processed.sort((a, b) => b.finalScore - a.finalScore);
+
+            // 4. 渲染
+            renderTable(processed);
+            renderSectorClusters(processed);
+            document.getElementById('match-count').textContent = `${processed.length} 隻符合篩選`;
+        }
+
+        // 渲染表格
+        function renderTable(stocks) {
+            const tbody = document.getElementById('stock-table-body');
+            tbody.innerHTML = '';
+
+            if (stocks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票</td></tr>`;
+                return;
+            }
+
+            stocks.forEach(stock => {
+                // 為了避免港美股代號衝突，將市場前綴加入 watchlist 的 ID 中
+                const watchId = `${currentMarket}_${stock.ticker}`;
+                const isStarred = watchlist.includes(watchId);
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors';
+
+                let badgeHtml = '';
+                if (stock.Volspike >= 1.5) {
+                    badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold">🔥 ${stock.Volspike.toFixed(1)}x 爆量</span> `;
+                }
+                if (stock.accel === 'Y' || stock.accel === 'Yes') {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold">⚡ 加速</span>`;
+                }
+                if (!badgeHtml) badgeHtml = `<span class="text-gray-600 text-xs">-</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center cursor-pointer text-base select-none text-yellow-500" data-watchid="${watchId}">
+                        ${isStarred ? '⭐' : '☆'}
+                    </td>
+                    <td class="p-4 font-mono font-bold">
+                        <a href="${generateChartUrl(stock.ticker)}" target="_blank" class="text-blue-400 hover:underline">🔗 ${stock.ticker}</a>
+                        <br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
+                    </td>
+                    <td class="p-4 text-gray-400 font-medium">${stock.sector}</td>
+                    <td class="p-4 text-right font-mono text-yellow-500 font-bold">${stock.price.toFixed(2)}</td>
+                    <td class="p-4 text-center">${badgeHtml}</td>
+                    <td class="p-4 text-right font-mono text-emerald-400 font-extrabold text-base pr-6">${stock.finalScore.toFixed(1)}</td>
+                `;
+
+                tr.querySelector('td').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleStar(this.getAttribute('data-watchid'));
+                });
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 渲染「板塊共振牆」
+        function renderSectorClusters(stocks) {
+            const container = document.getElementById('sector-grid');
+            container.innerHTML = '';
+
+            const sectorGroups = {};
+            stocks.forEach(stock => {
+                if (!sectorGroups[stock.sector]) sectorGroups[stock.sector] = [];
+                sectorGroups[stock.sector].push(stock);
+            });
+
+            const sortedSectors = Object.keys(sectorGroups).sort((a, b) => sectorGroups[b].length - sectorGroups[a].length);
+
+            sortedSectors.forEach(sectorName => {
+                const groupStocks = sectorGroups[sectorName];
+                const displayStocks = groupStocks.slice(0, 8);
+
+                const card = document.createElement('div');
+                card.className = 'bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3';
+
+                let badgeStyle = 'bg-gray-900 text-gray-500';
+                if (groupStocks.length >= 4) badgeStyle = 'bg-red-950 text-red-400 border border-red-900 animate-pulse font-bold';
+                else if (groupStocks.length > 0) badgeStyle = 'bg-indigo-950 text-indigo-400';
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
+                        <span class="font-bold text-xs text-gray-400 truncate max-w-[150px]" title="${sectorName}">${sectorName}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-md shrink-0 ${badgeStyle}">${groupStocks.length} 隻符合</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 pt-1 min-h-[40px]"></div>
+                `;
+
+                const flexBox = card.querySelector('div:last-child');
+                displayStocks.forEach(stock => {
+                    const block = document.createElement('span');
+                    
+                    let sizeClass = 'text-xs px-2 py-1';
+                    if (Math.abs(stock.flow_5d) > 2000000) sizeClass = 'text-sm px-2.5 py-1 font-bold border border-emerald-500/20';
+                    
+                    let bgOpacity = 'bg-emerald-950/30 text-emerald-500';
+                    if (stock.finalScore >= 75) bgOpacity = 'bg-emerald-500 text-gray-950 font-black shadow-lg';
+                    else if (stock.finalScore >= 55) bgOpacity = 'bg-emerald-600/70 text-white font-bold';
+                    else if (stock.finalScore >= 35) bgOpacity = 'bg-emerald-800/40 text-emerald-300';
+
+                    block.className = `rounded-lg font-mono cursor-pointer transition-all hover:scale-105 select-none truncate max-w-[90px] ${sizeClass} ${bgOpacity}`;
+                    block.innerHTML = stock.ticker.replace('.HK', '');
+                    block.title = `${stock.name}\n智慧得分: ${stock.finalScore.toFixed(1)}\n5日資金流: ${formatMoney(stock.flow_5d)}\nVolspike: ${stock.Volspike.toFixed(1)}x`;
+                    
+                    block.onclick = () => toggleStar(`${currentMarket}_${stock.ticker}`);
+                    flexBox.appendChild(block);
+                });
+
+                container.appendChild(card);
+            });
+
+            if (sortedSectors.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center text-gray-600 py-4 text-xs">無符合條件的板塊數據</div>`;
+            }
+        }
+
+        // 自選觀察名單切換
+        function toggleStar(watchId) {
+            if (watchlist.includes(watchId)) {
+                watchlist = watchlist.filter(t => t !== watchId);
+            } else {
+                watchlist.push(watchId);
+            }
+            localStorage.setItem('hk_dashboard_watchlist', JSON.stringify(watchlist));
+            calculateAndRender();
+        }
+
+        // --- 事件綁定區域 ---
+
+        // 綁定市場切換按鈕
+        const btnHk = document.getElementById('btn-market-hk');
+        const btnUs = document.getElementById('btn-market-us');
+
+        function switchMarket(market) {
+            if (currentMarket === market) return; // 避免重複點擊
+            
+            currentMarket = market;
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">切換市場中，正在讀取數據...</td></tr>`;
+            document.getElementById('sector-grid').innerHTML = '';
+            latestMarketData = []; // 清空當前資料
+
+            if (market === 'HK') {
+                currentTable = 'money_flow_hk';
+                document.getElementById('dashboard-title').innerHTML = '📊 港股波段策略綜合決策儀表板';
+                // 更新按鈕樣式
+                btnHk.className = 'px-4 py-1.5 bg-indigo-600 text-white rounded-md text-xs font-bold transition-colors';
+                btnUs.className = 'px-4 py-1.5 bg-transparent text-gray-500 hover:text-gray-300 rounded-md text-xs font-bold transition-colors';
+            } else {
+                currentTable = 'money_flow_sp500';
+                document.getElementById('dashboard-title').innerHTML = '📊 美股 (S&P500) 波段策略綜合決策儀表板';
+                // 更新按鈕樣式
+                btnUs.className = 'px-4 py-1.5 bg-indigo-600 text-white rounded-md text-xs font-bold transition-colors';
+                btnHk.className = 'px-4 py-1.5 bg-transparent text-gray-500 hover:text-gray-300 rounded-md text-xs font-bold transition-colors';
+            }
+            
+            fetchSupabaseData(); // 重新抓取資料
+        }
+
+        btnHk.addEventListener('click', () => switchMarket('HK'));
+        btnUs.addEventListener('click', () => switchMarket('US'));
+
+        // 綁定滑桿即時連動
+        [wFlowSlider, wTechSlider, wVolSlider, filterVolSlider].forEach(slider => {
+            slider.addEventListener('input', calculateAndRender);
+        });
+
+        // 進入網頁自動加載
+        document.addEventListener('DOMContentLoaded', fetchSupabaseData);
+    </script>
 </body>
 </html>
