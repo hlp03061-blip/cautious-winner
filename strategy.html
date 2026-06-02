@@ -17,9 +17,21 @@
                 <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">🎯 波段策略選股清單</h1>
                 <p class="text-xs text-gray-400 mt-1">基於資金流向與技術指標的自動化篩選 (支援自選觀察名單)</p>
             </div>
-            <div id="date-panel" class="bg-gray-800 p-3 rounded-xl border border-gray-700">
-                <span class="text-gray-400 font-bold text-sm">📅 數據日期：</span>
-                <span id="latest-date" class="text-white font-mono font-bold">載入中...</span>
+            
+            <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <div id="market-selector" class="bg-gray-800 p-1.5 rounded-xl border border-gray-700 flex gap-1">
+                    <button id="market-hk" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white transition-all" onclick="switchMarket('HK')">
+                        🇭🇰 港股市場
+                    </button>
+                    <button id="market-sp500" class="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all" onclick="switchMarket('SP500')">
+                        🇺🇸 S&P 500
+                    </button>
+                </div>
+
+                <div id="date-panel" class="bg-gray-800 p-3 rounded-xl border border-gray-700">
+                    <span class="text-gray-400 font-bold text-sm">📅 數據日期：</span>
+                    <span id="latest-date" class="text-white font-mono font-bold">載入中...</span>
+                </div>
             </div>
         </header>
 
@@ -35,7 +47,7 @@
             </button>
         </div>
 
-        <div class="bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden flex flex-col">
+        <div class="bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden RichmondFlex flex flex-col">
             <div class="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
                 <h2 id="strategy-title" class="text-lg font-bold text-indigo-400">🕵️‍♂️ 策略載入中...</h2>
                 <span id="strategy-count" class="bg-gray-700 text-gray-300 text-xs font-semibold px-2.5 py-0.5 rounded">0 隻符合</span>
@@ -44,7 +56,7 @@
             <div class="overflow-x-auto flex-grow">
                 <table class="min-w-full text-left text-sm text-gray-300">
                     <thead id="table-head">
-                        </thead>
+                    </thead>
                     <tbody id="strategy-body">
                         <tr><td colspan="8" class="p-8 text-center text-gray-500">正在分析資金流向，請稍候...</td></tr>
                     </tbody>
@@ -58,8 +70,8 @@
                     </button>
                     <span id="copy-feedback" class="text-emerald-400 text-sm font-bold opacity-0 transition-opacity duration-300">✅ 複製成功！</span>
                 </div>
-                <div class="text-xs text-gray-400">
-                    勾選 🌟 可加入觀察名單 (將儲存於瀏覽器中)
+                <div id="watchlist-note" class="text-xs text-gray-400">
+                    勾選 🌟 可加入港股觀察名單 (將儲存於瀏覽器中)
                 </div>
             </div>
         </div>
