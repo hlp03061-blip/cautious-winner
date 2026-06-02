@@ -174,4 +174,228 @@
 
                 document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-emerald-400">🔄 板塊名單就緒，正在抓取最新資金流...</td></tr>`;
 
-                const [{
+                const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
+                    supabase.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                    supabase.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+                ]);
+
+                const latestHkDate = hkDateData?.[0]?.Record_Date || '無資料';
+                const latestUsDate = usDateData?.[0]?.Record_Date || '無資料';
+                document.getElementById('latest-date').textContent = `${latestHkDate} | ${latestUsDate}`;
+
+                const [hkRes, usRes] = await Promise.all([
+                    latestHkDate !== '無資料' ? supabase.from(TABLE_FLOW_HK).select('*').eq('Record_Date', latestHkDate).limit(2000) : { data: [] },
+                    latestUsDate !== '無資料' ? supabase.from(TABLE_FLOW_US).select('*').eq('Record_Date', latestUsDate).limit(2000) : { data: [] }
+                ]);
+
+                const hkData = (hkRes.data || []).map(r => ({ ...r, market: 'HK' }));
+                const usData = (usRes.data || []).map(r => ({ ...r, market: 'US' }));
+
+                latestMarketData = [...hkData, ...usData];
+
+                if (latestMarketData.length === 0) {
+                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">目前資金流資料庫內無任何數據</td></tr>`;
+                    document.getElementById('sector-grid').innerHTML = '';
+                    return;
+                }
+
+                calculateAndRender();
+
+            } catch (err) {
+                console.error("連線 Supabase 失敗:", err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">讀取 Supabase 出錯: ${err.message}</td></tr>`;
+            }
+        }
+
+        function calculateAndRender() {
+            if (latestMarketData.length === 0) return;
+
+            const wFlow = parseInt(wFlowSlider.value);
+            const wTech = parseInt(wTechSlider.value);
+            const wVol = parseInt(wVolSlider.value);
+            const minVolspike = parseInt(filterVolSlider.value) / 10; 
+
+            wFlowVal.textContent = wFlow + '%';
+            wTechVal.textContent = wTech + '%';
+            wVolVal.textContent = wVol + '%';
+            filterVolVal.textContent = minVolspike.toFixed(1) + 'x';
+
+            const totalWeight = wFlow + wTech + wVol;
+            const maxFlow5D = Math.max(...latestMarketData.map(r => Math.abs(Number(r['5D_flow']) || 0)), 1);
+            const maxVolspike = Math.max(...latestMarketData.map(r => Number(r.Volspike) || 0), 1);
+
+            let processed = latestMarketData.map(r => {
+                const flowFlow = Number(r['5D_flow']) || 0;
+                let flowScore = flowFlow > 0 ? (flowFlow / maxFlow5D) * 100 : 0;
+
+                let techScore = 50;
+                if (Number(r.MACD) > 0) techScore += 25;
+                if (Number(r.RSI) >= 40 && Number(r.RSI) <= 65) techScore += 25;
+
+                const spikeVal = Number(r.Volspike) || 0;
+                let volScore = (spikeVal / maxVolspike) * 100;
+
+                let finalScore = 0;
+                if (totalWeight > 0) {
+                    finalScore = ((flowScore * wFlow) + (techScore * wTech) + (volScore * wVol)) / totalWeight;
+                }
+
+                // 🚀 容錯升級 3：多重模糊比對！
+                // 不管你是 2596 還是 2596.HK，全部都試著去字典裡找找看
+                const flowTicker = String(r.ticker || r.Ticker).trim();
+                const sectorExact = autoSectorDictionary[flowTicker];
+                const sectorNoHK = autoSectorDictionary[flowTicker.replace('.HK', '')];
+                const sectorWithHK = autoSectorDictionary[flowTicker + '.HK'];
+                
+                const finalSector = sectorExact || sectorNoHK || sectorWithHK || '其他未分類板塊';
+
+                return {
+                    ticker: flowTicker,
+                    market: r.market,
+                    name: r.company_name || '未知公司',
+                    sector: finalSector, 
+                    price: Number(r.price) || 0,
+                    Volspike: spikeVal,
+                    accel: r.accel,
+                    flow_5d: flowFlow,
+                    finalScore: finalScore
+                };
+            });
+
+            processed = processed.filter(stock => stock.Volspike >= minVolspike);
+            processed.sort((a, b) => b.finalScore - a.finalScore);
+
+            renderTable(processed);
+            renderSectorClusters(processed);
+            document.getElementById('match-count').textContent = `${processed.length} 隻符合篩選`;
+        }
+
+        function renderTable(stocks) {
+            const tbody = document.getElementById('stock-table-body');
+            tbody.innerHTML = '';
+
+            if (stocks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票</td></tr>`;
+                return;
+            }
+
+            stocks.forEach(stock => {
+                const watchId = `${stock.market}_${stock.ticker}`;
+                const isStarred = watchlist.includes(watchId);
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors';
+
+                const marketFlag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
+
+                let badgeHtml = '';
+                if (stock.Volspike >= 1.5) {
+                    badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold">🔥 ${stock.Volspike.toFixed(1)}x 爆量</span> `;
+                }
+                if (stock.accel === 'Y' || stock.accel === 'Yes') {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold">⚡ 加速</span>`;
+                }
+                if (!badgeHtml) badgeHtml = `<span class="text-gray-600 text-xs">-</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center cursor-pointer text-base select-none text-yellow-500" data-watchid="${watchId}">
+                        ${isStarred ? '⭐' : '☆'}
+                    </td>
+                    <td class="p-4 font-mono font-bold">
+                        <span class="mr-1">${marketFlag}</span>
+                        <a href="${generateChartUrl(stock.ticker, stock.market)}" target="_blank" class="text-blue-400 hover:underline">🔗 ${stock.ticker}</a>
+                        <br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
+                    </td>
+                    <td class="p-4 text-gray-400 font-medium">${stock.sector}</td>
+                    <td class="p-4 text-right font-mono text-yellow-500 font-bold">${stock.price.toFixed(2)}</td>
+                    <td class="p-4 text-center">${badgeHtml}</td>
+                    <td class="p-4 text-right font-mono text-emerald-400 font-extrabold text-base pr-6">${stock.finalScore.toFixed(1)}</td>
+                `;
+
+                tr.querySelector('td').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleStar(this.getAttribute('data-watchid'));
+                });
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderSectorClusters(stocks) {
+            const container = document.getElementById('sector-grid');
+            container.innerHTML = '';
+
+            const sectorGroups = {};
+            stocks.forEach(stock => {
+                if (!sectorGroups[stock.sector]) sectorGroups[stock.sector] = [];
+                sectorGroups[stock.sector].push(stock);
+            });
+
+            const sortedSectors = Object.keys(sectorGroups).sort((a, b) => sectorGroups[b].length - sectorGroups[a].length);
+
+            sortedSectors.forEach(sectorName => {
+                const groupStocks = sectorGroups[sectorName];
+                const displayStocks = groupStocks.slice(0, 10); 
+
+                const card = document.createElement('div');
+                card.className = 'bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3';
+
+                let badgeStyle = 'bg-gray-900 text-gray-500';
+                if (groupStocks.length >= 4) badgeStyle = 'bg-red-950 text-red-400 border border-red-900 animate-pulse font-bold';
+                else if (groupStocks.length > 0) badgeStyle = 'bg-indigo-950 text-indigo-400';
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
+                        <span class="font-bold text-xs text-gray-400 truncate max-w-[150px]" title="${sectorName}">${sectorName}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-md shrink-0 ${badgeStyle}">${groupStocks.length} 隻</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 pt-1 min-h-[40px]"></div>
+                `;
+
+                const flexBox = card.querySelector('div:last-child');
+                displayStocks.forEach(stock => {
+                    const block = document.createElement('span');
+                    
+                    let sizeClass = 'text-xs px-2 py-1';
+                    if (Math.abs(stock.flow_5d) > 2000000) sizeClass = 'text-sm px-2.5 py-1 font-bold border border-emerald-500/20';
+                    
+                    let bgOpacity = 'bg-emerald-950/30 text-emerald-500';
+                    if (stock.finalScore >= 75) bgOpacity = 'bg-emerald-500 text-gray-950 font-black shadow-lg';
+                    else if (stock.finalScore >= 55) bgOpacity = 'bg-emerald-600/70 text-white font-bold';
+                    else if (stock.finalScore >= 35) bgOpacity = 'bg-emerald-800/40 text-emerald-300';
+
+                    const flag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
+
+                    block.className = `rounded-lg font-mono cursor-pointer transition-all hover:scale-105 select-none truncate max-w-[100px] ${sizeClass} ${bgOpacity}`;
+                    block.innerHTML = `${flag} ${stock.ticker.replace('.HK', '')}`;
+                    block.title = `${stock.name}\n智慧得分: ${stock.finalScore.toFixed(1)}\n5日資金流: ${formatMoney(stock.flow_5d)}\nVolspike: ${stock.Volspike.toFixed(1)}x`;
+                    
+                    block.onclick = () => toggleStar(`${stock.market}_${stock.ticker}`);
+                    flexBox.appendChild(block);
+                });
+
+                container.appendChild(card);
+            });
+
+            if (sortedSectors.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center text-gray-600 py-4 text-xs">無符合條件的板塊數據</div>`;
+            }
+        }
+
+        function toggleStar(watchId) {
+            if (watchlist.includes(watchId)) {
+                watchlist = watchlist.filter(t => t !== watchId);
+            } else {
+                watchlist.push(watchId);
+            }
+            localStorage.setItem('global_dashboard_watchlist', JSON.stringify(watchlist));
+            calculateAndRender();
+        }
+
+        [wFlowSlider, wTechSlider, wVolSlider, filterVolSlider].forEach(slider => {
+            slider.addEventListener('input', calculateAndRender);
+        });
+
+        document.addEventListener('DOMContentLoaded', fetchSupabaseData);
+    </script>
+</body>
+</html>
