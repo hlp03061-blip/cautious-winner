@@ -18,9 +18,12 @@
                 <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">📊 港股精選數據市場雷達</h1>
                 <p class="text-xs text-gray-400 mt-1">綜合近 5 日數據去重分析 • 點擊代號可看 AASTOCKS 圖表 • 點擊行可展開完整技術指標</p>
                 
-                <div class="mt-4">
+                <div class="mt-4 flex flex-wrap gap-3">
                     <a href="strategy.html" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transition-colors border border-blue-500 inline-block">
                         🎯 前往「策略選股清單」
+                    </a>
+                    <a href="sp500.html" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg transition-colors border border-emerald-500 inline-block">
+                        🇺🇸 前往「S&P 500 頁面」
                     </a>
                 </div>
             </div>
@@ -36,7 +39,12 @@
 
         <div class="bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden">
             <div class="p-5 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
-                <h2 class="text-xl font-bold text-blue-400 flex items-center gap-2">🚀 擠壓變盤聚焦 (Vol Squeeze 主控台)</h2>
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-bold text-blue-400 flex items-center gap-2">🚀 擠壓變盤聚焦 (Vol Squeeze 主控台)</h2>
+                    <button id="copy-btn" class="bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold py-1.5 px-3 rounded shadow transition-colors border border-gray-600">
+                        📋 複製已選股票號
+                    </button>
+                </div>
                 <span id="main-count" class="bg-blue-900 text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded">0 隻策略追蹤中</span>
             </div>
             
@@ -44,7 +52,9 @@
                 <table class="min-w-full text-left text-sm text-gray-300">
                     <thead>
                         <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
-                            <th class="p-4 w-12"></th> <th class="p-4">股票代號</th>
+                            <th class="p-4 w-12"></th> 
+                            <th class="p-4 w-12 text-center">選取</th> 
+                            <th class="p-4">股票代號</th>
                             <th class="p-4">公司名稱</th>
                             <th class="p-4 text-right">最新現價</th>
                             <th class="p-4 text-center">綜合評級</th>
@@ -52,7 +62,7 @@
                         </tr>
                     </thead>
                     <tbody id="main-dashboard-body">
-                        <tr><td colspan="6" class="p-8 text-center text-gray-500">正在安全連線並精確過濾重複數據，請稍候...</td></tr>
+                        <tr><td colspan="7" class="p-8 text-center text-gray-500">正在安全連線並精確過濾重複數據，請稍候...</td></tr>
                     </tbody>
                 </table>
             </div>
