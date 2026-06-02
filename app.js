@@ -118,7 +118,8 @@ async function loadDashboardData() {
 
     } catch (error) {
         console.error("處理數據失敗:", error);
-        document.getElementById('main-dashboard-body').innerHTML = `<tr><td colspan="6" class="text-red-400 p-4 text-center">系統優化出錯: ${error.message}</td></tr>`;
+        // colspan 改為 7
+        document.getElementById('main-dashboard-body').innerHTML = `<tr><td colspan="7" class="text-red-400 p-4 text-center">系統優化出錯: ${error.message}</td></tr>`;
     }
 }
 
@@ -128,7 +129,8 @@ function renderMainDashboard(stocks) {
     document.getElementById('main-count').textContent = `${stocks.length} 隻策略追蹤中`;
 
     if (stocks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合條件的股票</td></tr>`;
+        // colspan 改為 7
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-500">無符合條件的股票</td></tr>`;
         return;
     }
 
@@ -144,6 +146,12 @@ function renderMainDashboard(stocks) {
         tdArrow.className = 'p-4 text-center text-gray-500 text-xs';
         tdArrow.innerHTML = '▶';
         tr.appendChild(tdArrow);
+
+        // 修改 2：加入 Checkbox 列
+        const tdCheckbox = document.createElement('td');
+        tdCheckbox.className = 'p-4 text-center';
+        tdCheckbox.innerHTML = `<input type="checkbox" class="stock-checkbox w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded cursor-pointer" value="${stock.ticker}">`;
+        tr.appendChild(tdCheckbox);
 
         const tdTicker = document.createElement('td');
         tdTicker.className = 'p-4 font-mono font-bold flex items-center gap-2';
@@ -200,8 +208,9 @@ function renderMainDashboard(stocks) {
         const formattedMaxDd = stock.max_drawdown ? (stock.max_drawdown * 100).toFixed(1) + '%' : '-';
         const formattedVolPct = stock.money_vol_pct ? (stock.money_vol_pct * 100).toFixed(3) + '%' : '-';
 
+        // 前面的空td改為 colspan="2" (應對 Checkbox + 箭頭)
         detailTr.innerHTML = `
-            <td></td>
+            <td colspan="2"></td>
             <td colspan="5" class="p-5 bg-gray-900/40">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-300">
                     <div class="space-y-1.5 bg-gray-800/20 p-3 rounded-lg border border-gray-800">
@@ -240,8 +249,9 @@ function renderMainDashboard(stocks) {
         `;
         tbody.appendChild(detailTr);
 
+        // 修改 2：防止點擊 Checkbox 時觸發列展開
         tr.addEventListener('click', (e) => {
-            if (e.target.tagName === 'A') return;
+            if (e.target.tagName === 'A' || e.target.tagName === 'INPUT') return; 
 
             const isOpened = detailTr.classList.contains('open');
             if (isOpened) {
@@ -257,5 +267,40 @@ function renderMainDashboard(stocks) {
     });
 }
 
-document.addEventListener('DOMContentLoaded', loadDashboardData);
+// 事件監聽與初始化
+document.addEventListener('DOMContentLoaded', () => {
+    // 載入表格數據
+    loadDashboardData();
+
+    // 複製按鈕功能
+    const copyBtn = document.getElementById('copy-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const checkedBoxes = document.querySelectorAll('.stock-checkbox:checked');
+            if (checkedBoxes.length === 0) {
+                alert('請先勾選你要複製的股票！');
+                return;
+            }
+
+            // 提取勾選的值並以 ";" 分隔
+            const tickers = Array.from(checkedBoxes).map(cb => cb.value).join(';');
+            
+            navigator.clipboard.writeText(tickers).then(() => {
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '✅ 已複製！';
+                copyBtn.classList.replace('bg-gray-700', 'bg-green-700');
+                copyBtn.classList.replace('border-gray-600', 'border-green-600');
+                
+                setTimeout(() => { 
+                    copyBtn.innerHTML = originalText;
+                    copyBtn.classList.replace('bg-green-700', 'bg-gray-700');
+                    copyBtn.classList.replace('border-green-600', 'border-gray-600');
+                }, 2000);
+            }).catch(err => {
+                console.error('複製失敗:', err);
+                alert('複製失敗，請檢查瀏覽器權限');
+            });
+        });
+    }
+});
 // === 程式碼結束標記 ===
