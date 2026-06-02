@@ -2,18 +2,23 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 // 你的 Supabase 連線資訊
 const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
-const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
-const TABLE_NAME = 'money_flow_hk'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; // 修正為你先前提到的金鑰
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+let currentMarket = 'HK'; // 預設市場：'HK' 或 'SP500'
+let currentTableName = 'money_flow_hk'; // 預設資料表
 let latestMarketData = [];
 let currentTab = 1;
 let currentDisplayedTickers = []; // 用來儲存目前畫面上顯示的股票代號，供複製使用
 
 // --- 觀察名單 (Watchlist) 管理功能 ---
+function getWatchlistKey() {
+    return currentMarket === 'HK' ? 'hk_watchlist' : 'sp500_watchlist';
+}
+
 function getWatchlist() {
-    const list = localStorage.getItem('hk_watchlist');
+    const list = localStorage.getItem(getWatchlistKey());
     return list ? JSON.parse(list) : [];
 }
 
@@ -24,23 +29,29 @@ function toggleWatchlist(ticker) {
     } else {
         list.push(ticker); // 加入
     }
-    localStorage.setItem('hk_watchlist', JSON.stringify(list));
+    localStorage.setItem(getWatchlistKey(), JSON.stringify(list));
 }
 // ------------------------------------
 
-function generateAastocksUrl(ticker) {
-    let cleanId = String(ticker).replace('.HK', '').trim();
-    if (cleanId.length <= 4 && !isNaN(cleanId)) {
-        cleanId = cleanId.padStart(6, '0');
+// 智慧型圖表網址產生器 (港股去 AASTOCKS，美股去 TradingView)
+function generateStockChartUrl(ticker) {
+    if (currentMarket === 'SP500') {
+        // 美股例如 AAPL, TSLA 直接前往 TradingView
+        return `https://www.tradingview.com/symbols/NASDAQ-${ticker}/?coinbound_by_gpts=true`;
+    } else {
+        // 港股走原有 AASTOCKS 邏輯
+        let cleanId = String(ticker).replace('.HK', '').trim();
+        if (cleanId.length <= 4 && !isNaN(cleanId)) {
+            cleanId = cleanId.padStart(6, '0');
+        }
+        return `https://charts.aastocks.com/servlet/Charts?fontsize=12&15MinDelay=T&lang=1&titlestyle=1&vol=1&Indicator=1&indpara1=10&indpara2=20&indpara3=50&indpara4=100&indpara5=150&subChart1=2&ref1para1=14&ref1para2=0&ref1para3=0&subChart2=3&ref2para1=12&ref2para2=26&ref2para3=9&subChart3=12&ref3para1=0&ref3para2=0&ref3para3=0&subChart4=9&ref4para1=0&ref4para2=0&ref4para3=0&subChart5=6&ref5para1=20&ref5para2=5&ref5para3=0&scheme=3&com=100&chartwidth=870&chartheight=1000&stockid=${cleanId}.HK&period=6&type=1&logoStyle=1&`;
     }
-    return `https://charts.aastocks.com/servlet/Charts?fontsize=12&15MinDelay=T&lang=1&titlestyle=1&vol=1&Indicator=1&indpara1=10&indpara2=20&indpara3=50&indpara4=100&indpara5=150&subChart1=2&ref1para1=14&ref1para2=0&ref1para3=0&subChart2=3&ref2para1=12&ref2para2=26&ref2para3=9&subChart3=12&ref3para1=0&ref3para2=0&ref3para3=0&subChart4=9&ref4para1=0&ref4para2=0&ref4para3=0&subChart5=6&ref5para1=20&ref5para2=5&ref5para3=0&scheme=3&com=100&chartwidth=870&chartheight=1000&stockid=${cleanId}.HK&period=6&type=1&logoStyle=1&`;
 }
 
 function formatMoney(value) {
     if (value == null) return '-';
     const num = Number(value);
     const absNum = Math.abs(num);
-    // 解決 +- 顯示問題，保留原本的正負號邏輯
     const sign = num > 0 ? '+' : ''; 
     let formatted = '';
 
@@ -62,17 +73,22 @@ function isSpike(val) {
     return val === true || val === '1' || val === 1 || val === 'Yes' || val === 'true';
 }
 
+// 核心載入數據邏輯
 async function loadStrategyData() {
+    const tbody = document.getElementById('strategy-body');
+    tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-gray-500">正在連線資料庫 [${currentTableName}]，請稍候...</td></tr>`;
+    document.getElementById('latest-date').textContent = "載入中...";
+
     try {
         const { data: dateData, error: dateError } = await supabase
-            .from(TABLE_NAME)
+            .from(currentTableName)
             .select('Record_Date')
             .order('Record_Date', { ascending: false })
             .limit(1);
 
         if (dateError) throw dateError;
         if (!dateData || dateData.length === 0) {
-            document.getElementById('strategy-body').innerHTML = `<tr><td colspan="8" class="p-4 text-center">找不到任何數據，請檢查資料庫</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center">找不到任何數據，請檢查資料庫名稱</td></tr>`;
             return;
         }
 
@@ -80,7 +96,7 @@ async function loadStrategyData() {
         document.getElementById('latest-date').textContent = latestDate;
 
         const { data, error } = await supabase
-            .from(TABLE_NAME)
+            .from(currentTableName)
             .select('*')
             .eq('Record_Date', latestDate)
             .limit(3000); 
@@ -88,12 +104,37 @@ async function loadStrategyData() {
         if (error) throw error;
         
         latestMarketData = data;
-        renderStrategy(1);
+        renderStrategy(currentTab);
 
     } catch (error) {
         console.error("載入策略資料失敗:", error);
-        document.getElementById('strategy-body').innerHTML = `<tr><td colspan="8" class="text-red-400 p-4 text-center">讀取資料出錯: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-red-400 p-4 text-center">讀取資料出錯: ${error.message}</td></tr>`;
     }
+}
+
+// 切換市場功能 (HK / SP500)
+window.switchMarket = function(marketCode) {
+    if (currentMarket === marketCode) return;
+    currentMarket = marketCode;
+    currentTableName = marketCode === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
+
+    // UI 切換按鈕樣式更新
+    const hkBtn = document.getElementById('market-hk');
+    const spBtn = document.getElementById('market-sp500');
+    const noteEl = document.getElementById('watchlist-note');
+
+    if (marketCode === 'HK') {
+        hkBtn.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white transition-all";
+        spBtn.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all";
+        noteEl.textContent = "勾選 🌟 可加入港股觀察名單 (將儲存於瀏覽器中)";
+    } else {
+        spBtn.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white transition-all";
+        hkBtn.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all";
+        noteEl.textContent = "勾選 🌟 可加入 S&P 500 觀察名單 (將儲存於瀏覽器中)";
+    }
+
+    // 重新加載數據
+    loadStrategyData();
 }
 
 window.switchTab = function(tabId) {
@@ -119,12 +160,12 @@ function renderStrategy(tabId) {
     let filteredData = [];
     let theadHTML = '';
     let title = '';
-    const watchlist = getWatchlist(); // 取得目前的觀察名單
+    const watchlist = getWatchlist(); 
 
     const thead = document.getElementById('table-head');
     const tbody = document.getElementById('strategy-body');
 
-    // Tab 1: 密密吸納 (適合波段找底)
+    // Tab 1: 密密吸納
     if (tabId === 1) {
         title = '🕵️‍♂️ 策略：股價低於10日線 + RSI超賣(<40) + 5日資金連續流入 + MFI>RSI';
         filteredData = latestMarketData.filter(r => 
@@ -147,7 +188,7 @@ function renderStrategy(tabId) {
                 <td class="p-4 text-center">
                     <input type="checkbox" class="watchlist-cb w-4 h-4 cursor-pointer accent-yellow-500" data-ticker="${r.ticker}" ${watchlist.includes(r.ticker) ? 'checked' : ''}>
                 </td>
-                <td class="p-4 font-mono font-bold"><a href="${generateAastocksUrl(r.ticker)}" target="_blank" class="text-blue-400 hover:underline">${r.ticker}</a> <br><span class="text-xs text-gray-500 font-sans">${r.company_name}</span></td>
+                <td class="p-4 font-mono font-bold"><a href="${generateStockChartUrl(r.ticker)}" target="_blank" class="text-blue-400 hover:underline">${r.ticker}</a> <br><span class="text-xs text-gray-500 font-sans">${r.company_name || '-'}</span></td>
                 <td class="p-4 text-yellow-400 font-mono">${Number(r.price).toFixed(2)}</td>
                 <td class="p-4 text-gray-400 font-mono">${Number(r['10D_price']).toFixed(2)}</td>
                 <td class="p-4 text-red-400 font-mono">${Number(r.RSI).toFixed(1)}</td>
@@ -156,14 +197,14 @@ function renderStrategy(tabId) {
             </tr>
         `).join('');
     }
-    // Tab 2: 波段動能 (加入 1D與5D 雙重確認，濾除一日遊)
+    // Tab 2: 波段動能
     else if (tabId === 2) {
         title = '🚀 策略：站上5日線 + MACD多頭 + 1日與5日資金皆正向流入 + 爆量';
         filteredData = latestMarketData.filter(r => 
             Number(r.MACD) > 0 && 
             Number(r.price) > Number(r['5D_price']) &&
             Number(r['1D_flow']) > 0 && 
-            Number(r['5D_flow']) > 0 && // 新增：確保5天也是流入的 (波段思維)
+            Number(r['5D_flow']) > 0 && 
             isSpike(r.Volspike)
         ).sort((a, b) => Number(b.accel) - Number(a.accel)); 
 
@@ -179,7 +220,7 @@ function renderStrategy(tabId) {
                 <td class="p-4 text-center">
                     <input type="checkbox" class="watchlist-cb w-4 h-4 cursor-pointer accent-yellow-500" data-ticker="${r.ticker}" ${watchlist.includes(r.ticker) ? 'checked' : ''}>
                 </td>
-                <td class="p-4 font-mono font-bold"><a href="${generateAastocksUrl(r.ticker)}" target="_blank" class="text-blue-400 hover:underline">${r.ticker}</a> <br><span class="text-xs text-gray-500 font-sans">${r.company_name}</span></td>
+                <td class="p-4 font-mono font-bold"><a href="${generateStockChartUrl(r.ticker)}" target="_blank" class="text-blue-400 hover:underline">${r.ticker}</a> <br><span class="text-xs text-gray-500 font-sans">${r.company_name || '-'}</span></td>
                 <td class="p-4 text-yellow-400 font-mono">${Number(r.price).toFixed(2)}</td>
                 <td class="p-4 text-center"><span class="bg-red-900 text-red-300 text-[10px] px-2 py-1 rounded font-bold">🔥 SPIKE</span></td>
                 <td class="p-4 text-right text-yellow-400 font-mono">${Number(r.accel).toFixed(2)}</td>
@@ -208,11 +249,11 @@ function renderStrategy(tabId) {
                 <td class="p-4 text-center">
                     <input type="checkbox" class="watchlist-cb w-4 h-4 cursor-pointer accent-yellow-500" data-ticker="${r.ticker}" ${watchlist.includes(r.ticker) ? 'checked' : ''}>
                 </td>
-                <td class="p-4 font-mono font-bold"><a href="${generateAastocksUrl(r.ticker)}" target="_blank" class="text-blue-400 hover:underline">${r.ticker}</a> <br><span class="text-xs text-gray-500 font-sans">${r.company_name}</span></td>
+                <td class="p-4 font-mono font-bold"><a href="${generateStockChartUrl(r.ticker)}" target="_blank" class="text-blue-400 hover:underline">${r.ticker}</a> <br><span class="text-xs text-gray-500 font-sans">${r.company_name || '-'}</span></td>
                 <td class="p-4 text-yellow-400 font-mono">${Number(r.price).toFixed(2)}</td>
                 <td class="p-4 text-gray-400 font-mono">${formatMoney(r.Mkt_cap)}</td>
                 <td class="p-4 text-right text-emerald-400 font-mono">${formatMoney(r['1D_flow'])}</td>
-                <td class="p-4 text-right text-pink-400 font-mono font-bold">${Number(r.Flow_Cap).toFixed(4)}</td>
+                <td class="p-4 text-right text-pink-400 font-mono font-bold">${RichmondFixFlowCap(r.Flow_Cap)}</td>
             </tr>
         `).join('');
     }
@@ -221,9 +262,7 @@ function renderStrategy(tabId) {
         tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-gray-500">今日無股票符合此策略條件</td></tr>`;
     }
 
-    // 更新當前顯示的 Ticker 陣列，供複製功能使用
     currentDisplayedTickers = filteredData.map(r => r.ticker);
-
     document.getElementById('strategy-title').textContent = title;
     
     const countBadge = document.getElementById('strategy-count');
@@ -236,7 +275,7 @@ function renderStrategy(tabId) {
     
     thead.innerHTML = theadHTML;
 
-    // 綁定 Checkbox 點擊事件，存入 Watchlist
+    // 重新綁定 Checkbox 點擊事件
     document.querySelectorAll('.watchlist-cb').forEach(cb => {
         cb.addEventListener('change', function() {
             const ticker = this.getAttribute('data-ticker');
@@ -245,24 +284,28 @@ function renderStrategy(tabId) {
     });
 }
 
+// 輔助函式：確保 Flow_Cap 顯示正常
+function RichmondFixFlowCap(val) {
+    return val ? Number(val).toFixed(4) : '-';
+}
+
 // 綁定複製按鈕事件
 document.getElementById('copy-btn').addEventListener('click', () => {
     if (currentDisplayedTickers.length === 0) return;
     
-    // 將代號陣列用分號組合起來，例如：0992.HK;0354.HK
     const copyString = currentDisplayedTickers.join(';');
     
-    // 寫入剪貼簿
     navigator.clipboard.writeText(copyString).then(() => {
         const feedback = document.getElementById('copy-feedback');
         feedback.classList.remove('opacity-0');
         setTimeout(() => {
             feedback.classList.add('opacity-0');
-        }, 2000); // 2秒後提示消失
+        }, 2000);
     }).catch(err => {
         console.error('複製失敗: ', err);
         alert('瀏覽器不支援自動複製，請手動選取複製。');
     });
 });
 
+// 初始化載入
 document.addEventListener('DOMContentLoaded', loadStrategyData);
