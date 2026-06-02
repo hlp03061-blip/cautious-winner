@@ -118,7 +118,6 @@ async function loadDashboardData() {
 
     } catch (error) {
         console.error("處理數據失敗:", error);
-        // colspan 改為 7
         document.getElementById('main-dashboard-body').innerHTML = `<tr><td colspan="7" class="text-red-400 p-4 text-center">系統優化出錯: ${error.message}</td></tr>`;
     }
 }
@@ -129,7 +128,6 @@ function renderMainDashboard(stocks) {
     document.getElementById('main-count').textContent = `${stocks.length} 隻策略追蹤中`;
 
     if (stocks.length === 0) {
-        // colspan 改為 7
         tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-500">無符合條件的股票</td></tr>`;
         return;
     }
@@ -142,26 +140,30 @@ function renderMainDashboard(stocks) {
         tr.id = mainTrId;
         tr.className = 'border-b border-gray-700/50 hover:bg-gray-700/20 cursor-pointer transition-colors';
         
+        // 箭頭
         const tdArrow = document.createElement('td');
         tdArrow.className = 'p-4 text-center text-gray-500 text-xs';
         tdArrow.innerHTML = '▶';
         tr.appendChild(tdArrow);
 
-        // 修改 2：加入 Checkbox 列
+        // 2. 注入 Checkbox 欄位
         const tdCheckbox = document.createElement('td');
         tdCheckbox.className = 'p-4 text-center';
         tdCheckbox.innerHTML = `<input type="checkbox" class="stock-checkbox w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded cursor-pointer" value="${stock.ticker}">`;
         tr.appendChild(tdCheckbox);
 
+        // 3. 股票代號（整合防換行與寬度優化）
         const tdTicker = document.createElement('td');
-        tdTicker.className = 'p-4 font-mono font-bold flex items-center gap-2';
+        tdTicker.className = 'p-4 font-mono font-bold';
         
         const aastocksUrl = generateAastocksUrl(stock.ticker);
-        tdTicker.innerHTML = `<a href="${aastocksUrl}" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1" title="點擊前往 AASTOCKS 圖表">🔗 ${stock.ticker}</a>`;
+        let tickerHtml = `<a href="${aastocksUrl}" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1" title="點擊前往 AASTOCKS 圖表">🔗 ${stock.ticker}</a>`;
         
         if (stock.has_buy_dip) {
-            tdTicker.innerHTML += `<span class="bg-emerald-950 text-emerald-400 border border-emerald-500 text-[10px] px-1.5 py-0.5 rounded font-sans font-bold animate-pulse">🏷️ BUY DIP</span>`;
+            tickerHtml += `<span class="bg-emerald-950 text-emerald-400 border border-emerald-500 text-[10px] px-1.5 py-0.5 rounded font-sans font-bold animate-pulse shrink-0">🏷️ BUY DIP</span>`;
         }
+        
+        tdTicker.innerHTML = `<div class="flex items-center gap-2 whitespace-nowrap">${tickerHtml}</div>`;
         tr.appendChild(tdTicker);
 
         const tdName = document.createElement('td');
@@ -196,6 +198,7 @@ function renderMainDashboard(stocks) {
 
         tbody.appendChild(tr);
 
+        // 詳細展開面板
         const detailTr = document.createElement('tr');
         detailTr.id = detailTrId;
         detailTr.className = 'detail-row bg-gray-900/60 border-b border-gray-800 text-xs text-gray-400';
@@ -208,7 +211,7 @@ function renderMainDashboard(stocks) {
         const formattedMaxDd = stock.max_drawdown ? (stock.max_drawdown * 100).toFixed(1) + '%' : '-';
         const formattedVolPct = stock.money_vol_pct ? (stock.money_vol_pct * 100).toFixed(3) + '%' : '-';
 
-        // 前面的空td改為 colspan="2" (應對 Checkbox + 箭頭)
+        // 前端空 td 設為 colspan="2" 以適應箭頭及選取欄位
         detailTr.innerHTML = `
             <td colspan="2"></td>
             <td colspan="5" class="p-5 bg-gray-900/40">
@@ -249,7 +252,7 @@ function renderMainDashboard(stocks) {
         `;
         tbody.appendChild(detailTr);
 
-        // 修改 2：防止點擊 Checkbox 時觸發列展開
+        // 行點擊：排除點擊連結和 Checkbox 的情況
         tr.addEventListener('click', (e) => {
             if (e.target.tagName === 'A' || e.target.tagName === 'INPUT') return; 
 
@@ -267,12 +270,12 @@ function renderMainDashboard(stocks) {
     });
 }
 
-// 事件監聽與初始化
+// 事件綁定與初始化
 document.addEventListener('DOMContentLoaded', () => {
-    // 載入表格數據
+    // 執行載入 Supabase 數據
     loadDashboardData();
 
-    // 複製按鈕功能
+    // 複製按鈕邏輯
     const copyBtn = document.getElementById('copy-btn');
     if (copyBtn) {
         copyBtn.addEventListener('click', () => {
@@ -282,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // 提取勾選的值並以 ";" 分隔
+            // 用 ";" 合併勾選的股票代號
             const tickers = Array.from(checkedBoxes).map(cb => cb.value).join(';');
             
             navigator.clipboard.writeText(tickers).then(() => {
@@ -303,4 +306,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-// === 程式碼結束標記 ===
