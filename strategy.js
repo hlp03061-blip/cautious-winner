@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 // 你的 Supabase 連線資訊
 const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
-const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; // 修正為你先前提到的金鑰
+const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -10,7 +10,7 @@ let currentMarket = 'HK'; // 預設市場：'HK' 或 'SP500'
 let currentTableName = 'money_flow_hk'; // 預設資料表
 let latestMarketData = [];
 let currentTab = 1;
-let currentDisplayedTickers = []; // 用來儲存目前畫面上顯示的股票代號，供複製使用
+let currentDisplayedTickers = []; 
 
 // --- 觀察名單 (Watchlist) 管理功能 ---
 function getWatchlistKey() {
@@ -25,21 +25,18 @@ function getWatchlist() {
 function toggleWatchlist(ticker) {
     let list = getWatchlist();
     if (list.includes(ticker)) {
-        list = list.filter(t => t !== ticker); // 移除
+        list = list.filter(t => t !== ticker); 
     } else {
-        list.push(ticker); // 加入
+        list.push(ticker); 
     }
     localStorage.setItem(getWatchlistKey(), JSON.stringify(list));
 }
 // ------------------------------------
 
-// 智慧型圖表網址產生器 (港股去 AASTOCKS，美股去 TradingView)
 function generateStockChartUrl(ticker) {
     if (currentMarket === 'SP500') {
-        // 美股例如 AAPL, TSLA 直接前往 TradingView
         return `https://www.tradingview.com/symbols/NASDAQ-${ticker}/?coinbound_by_gpts=true`;
     } else {
-        // 港股走原有 AASTOCKS 邏輯
         let cleanId = String(ticker).replace('.HK', '').trim();
         if (cleanId.length <= 4 && !isNaN(cleanId)) {
             cleanId = cleanId.padStart(6, '0');
@@ -63,10 +60,6 @@ function formatMoney(value) {
         formatted = absNum.toFixed(2);
     }
     return `${sign}${num < 0 ? '-' : ''}${formatted}`;
-}
-
-function isNotSpike(val) {
-    return !val || val === '0' || val === 0 || val === 'No' || val === 'false';
 }
 
 function isSpike(val) {
@@ -93,7 +86,19 @@ async function loadStrategyData() {
         }
 
         const latestDate = dateData[0].Record_Date;
-        document.getElementById('latest-date').textContent = latestDate;
+        let displayDate = latestDate;
+
+        // 【修改1：處理 S&P 500 的時差日期顯示】
+        if (currentMarket === 'SP500') {
+            const d = new Date(latestDate);
+            d.setDate(d.getDate() - 1); // 減去一天
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            displayDate = `${yyyy}-${mm}-${dd} (美國交易日)`;
+        }
+        
+        document.getElementById('latest-date').textContent = displayDate;
 
         const { data, error } = await supabase
             .from(currentTableName)
@@ -112,13 +117,11 @@ async function loadStrategyData() {
     }
 }
 
-// 切換市場功能 (HK / SP500)
 window.switchMarket = function(marketCode) {
     if (currentMarket === marketCode) return;
     currentMarket = marketCode;
     currentTableName = marketCode === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
 
-    // UI 切換按鈕樣式更新
     const hkBtn = document.getElementById('market-hk');
     const spBtn = document.getElementById('market-sp500');
     const noteEl = document.getElementById('watchlist-note');
@@ -132,8 +135,6 @@ window.switchMarket = function(marketCode) {
         hkBtn.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all";
         noteEl.textContent = "勾選 🌟 可加入 S&P 500 觀察名單 (將儲存於瀏覽器中)";
     }
-
-    // 重新加載數據
     loadStrategyData();
 }
 
@@ -165,15 +166,14 @@ function renderStrategy(tabId) {
     const thead = document.getElementById('table-head');
     const tbody = document.getElementById('strategy-body');
 
-    // Tab 1: 密密吸納
+    // Tab 1: 密密吸納 (放寬條件)
     if (tabId === 1) {
-        title = '🕵️‍♂️ 策略：股價低於10日線 + RSI超賣(<40) + 5日資金連續流入 + MFI>RSI';
+        title = '🕵️‍♂️ 策略：股價低於10日線 + 5日資金淨流入 + MFI>RSI (底背離)';
+        // 【修改2：拿掉 RSI < 40 與 isNotSpike 的硬性規定，讓更多有背離潛力的股票浮現】
         filteredData = latestMarketData.filter(r => 
             Number(r.price) < Number(r['10D_price']) && 
-            Number(r.RSI) < 40 && 
             Number(r['5D_flow']) > 0 && 
-            Number(r.MFI) > Number(r.RSI) &&
-            isNotSpike(r.Volspike) 
+            Number(r.MFI) > Number(r.RSI)
         ).sort((a, b) => Number(b['5D_flow']) - Number(a['5D_flow'])); 
 
         theadHTML = `
@@ -197,15 +197,15 @@ function renderStrategy(tabId) {
             </tr>
         `).join('');
     }
-    // Tab 2: 波段動能
+    // Tab 2: 波段動能 (放寬條件)
     else if (tabId === 2) {
-        title = '🚀 策略：站上5日線 + MACD多頭 + 1日與5日資金皆正向流入 + 爆量';
+        title = '🚀 策略：站上5日線 + MACD多頭 + 1日與5日資金皆正向流入';
+        // 【修改3：拿掉 isSpike 必須為 true 的硬性規定，改為只要資金連日流入即可】
         filteredData = latestMarketData.filter(r => 
             Number(r.MACD) > 0 && 
             Number(r.price) > Number(r['5D_price']) &&
             Number(r['1D_flow']) > 0 && 
-            Number(r['5D_flow']) > 0 && 
-            isSpike(r.Volspike)
+            Number(r['5D_flow']) > 0
         ).sort((a, b) => Number(b.accel) - Number(a.accel)); 
 
         theadHTML = `
@@ -222,14 +222,14 @@ function renderStrategy(tabId) {
                 </td>
                 <td class="p-4 font-mono font-bold"><a href="${generateStockChartUrl(r.ticker)}" target="_blank" class="text-blue-400 hover:underline">${r.ticker}</a> <br><span class="text-xs text-gray-500 font-sans">${r.company_name || '-'}</span></td>
                 <td class="p-4 text-yellow-400 font-mono">${Number(r.price).toFixed(2)}</td>
-                <td class="p-4 text-center"><span class="bg-red-900 text-red-300 text-[10px] px-2 py-1 rounded font-bold">🔥 SPIKE</span></td>
+                <td class="p-4 text-center">${isSpike(r.Volspike) ? '<span class="bg-red-900 text-red-300 text-[10px] px-2 py-1 rounded font-bold">🔥 SPIKE</span>' : '-'}</td>
                 <td class="p-4 text-right text-yellow-400 font-mono">${Number(r.accel).toFixed(2)}</td>
                 <td class="p-4 text-right text-emerald-400 font-mono font-bold">${formatMoney(r['1D_flow'])}</td>
                 <td class="p-4 text-right text-emerald-400 font-mono">${formatMoney(r['5D_flow'])}</td>
             </tr>
         `).join('');
     }
-    // Tab 3: 熱錢狙擊
+    // Tab 3: 熱錢狙擊 (維持不變)
     else if (tabId === 3) {
         title = '🔥 策略：今日資金流入佔市值比重最高 (Flow_Cap) 排行榜';
         filteredData = latestMarketData.filter(r => 
@@ -275,7 +275,6 @@ function renderStrategy(tabId) {
     
     thead.innerHTML = theadHTML;
 
-    // 重新綁定 Checkbox 點擊事件
     document.querySelectorAll('.watchlist-cb').forEach(cb => {
         cb.addEventListener('change', function() {
             const ticker = this.getAttribute('data-ticker');
@@ -284,12 +283,10 @@ function renderStrategy(tabId) {
     });
 }
 
-// 輔助函式：確保 Flow_Cap 顯示正常
 function RichmondFixFlowCap(val) {
     return val ? Number(val).toFixed(4) : '-';
 }
 
-// 綁定複製按鈕事件
 document.getElementById('copy-btn').addEventListener('click', () => {
     if (currentDisplayedTickers.length === 0) return;
     
@@ -307,5 +304,4 @@ document.getElementById('copy-btn').addEventListener('click', () => {
     });
 });
 
-// 初始化載入
 document.addEventListener('DOMContentLoaded', loadStrategyData);
