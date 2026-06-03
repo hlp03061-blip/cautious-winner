@@ -21,12 +21,21 @@
                     <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-400 bg-clip-text text-transparent">
                         🌍 港美股綜合決策儀表板 (Global Market Dashboard)
                     </h1>
-                    <p class="text-xs text-gray-400 mt-1">即時權重運算 (Live Weighting) • 直連資金流數據 (Direct Data Feed) • 跨市場板塊共振 (Cross-Market Synergy)</p>
+                    <p class="text-xs text-gray-400 mt-1">獨立市場時間軸 • 歷史回溯引擎 • 零延遲動態趨勢圖 (Dynamic Sparklines)</p>
                 </div>
                 
-                <div class="bg-gray-950 px-4 py-2 rounded-xl border border-gray-800 text-right">
-                    <span class="text-gray-500 text-xs font-bold block">數據日期 (Data Date HK | US)</span>
-                    <span id="latest-date" class="text-sm font-mono text-emerald-400 font-bold">連線中 (Connecting)...</span>
+                <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 flex flex-wrap items-end gap-3 shadow-inner">
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold block mb-1">🇭🇰 港股數據日 (HK Date)</label>
+                        <input type="date" id="hk-date" class="bg-gray-900 border border-gray-700 rounded text-sm px-2 py-1.5 text-emerald-400 font-mono outline-none focus:border-emerald-500 cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold block mb-1">🇺🇸 美股數據日 (US Date)</label>
+                        <input type="date" id="us-date" class="bg-gray-900 border border-gray-700 rounded text-sm px-2 py-1.5 text-blue-400 font-mono outline-none focus:border-blue-500 cursor-pointer">
+                    </div>
+                    <button id="btn-load-date" class="bg-indigo-900/80 hover:bg-indigo-700 text-indigo-100 border border-indigo-700 text-xs font-bold px-4 py-2 rounded-lg transition shadow-lg flex items-center gap-1">
+                        🔄 載入 (Load)
+                    </button>
                 </div>
             </div>
 
@@ -65,10 +74,10 @@
         <section class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-xl">
             <h2 class="text-sm font-bold text-gray-400 mb-4 flex items-center gap-2">
                 🎯 跨市場板塊共振牆 (Sector Synergy Map) 
-                <span class="text-xs font-normal text-gray-500">(合併同名板塊 | 方塊大小: 資金流 | 顏色: 綜合得分)</span>
+                <span class="text-xs font-normal text-gray-500">(合併同名板塊 | 方塊大小: 5日資金流 | 顏色: 綜合得分)</span>
             </h2>
             <div id="sector-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="col-span-full p-8 text-center text-gray-500">正在處理板塊分佈數據 (Processing sector clusters)...</div>
+                <div class="col-span-full p-8 text-center text-gray-500">系統初始化中 (Initializing system)...</div>
             </div>
         </section>
 
@@ -86,12 +95,13 @@
                             <th class="p-4 leading-tight">市場/代號<br><span class="text-[10px] text-gray-500">Market/Ticker</span></th>
                             <th class="p-4 leading-tight">所屬板塊<br><span class="text-[10px] text-gray-500">Sector</span></th>
                             <th class="p-4 text-right leading-tight">最新現價<br><span class="text-[10px] text-gray-500">Latest Price</span></th>
+                            <th class="p-4 text-center leading-tight">資金趨勢段<br><span class="text-[10px] text-gray-500">Flow Trend</span></th>
                             <th class="p-4 text-center leading-tight">智慧標籤<br><span class="text-[10px] text-gray-500">Smart Tags</span></th>
                             <th class="p-4 text-right font-bold text-indigo-400 pr-6 leading-tight">潛力得分<br><span class="text-[10px] text-indigo-500/70">Total Score</span></th>
                         </tr>
                     </thead>
                     <tbody id="stock-table-body">
-                        <tr><td colspan="6" class="p-8 text-center text-gray-500">正在下載最新雲端數據 (Downloading cloud data)...</td></tr>
+                        <tr><td colspan="7" class="p-8 text-center text-gray-500">正在下載最新雲端數據 (Downloading cloud data)...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -107,8 +117,11 @@
 
         const TABLE_FLOW_HK = 'money_flow_hk';           
         const TABLE_FLOW_US = 'money_flow_sp500';        
+        const TABLE_LIST_HK = 'all_hkticker_list';       
+        const TABLE_LIST_US = 'all_sp500ticker_list';    
 
         let latestMarketData = [];
+        let autoSectorDictionary = {}; 
         let watchlist = JSON.parse(localStorage.getItem('global_dashboard_watchlist')) || [];
 
         const wFlowSlider = document.getElementById('w-flow');
@@ -119,6 +132,10 @@
         const wTechVal = document.getElementById('w-tech-val');
         const wVolVal = document.getElementById('w-vol-val');
         const filterVolVal = document.getElementById('filter-vol-val');
+        
+        const hkDatePicker = document.getElementById('hk-date');
+        const usDatePicker = document.getElementById('us-date');
+        const btnLoadDate = document.getElementById('btn-load-date');
 
         function generateChartUrl(ticker, market) {
             if (market === 'HK') {
@@ -139,23 +156,71 @@
             return num.toFixed(1);
         }
 
-        async function fetchSupabaseData() {
+        // 模組化 1：網頁開啟時下載一次備用字典
+        async function initDashboard() {
             try {
-                // 修改 1: 移除讀取 Ticker List 表格的冗餘代碼，大幅加快載入速度
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-emerald-400">🔄 正在抓取最新市場資金流 (Fetching money flow)...</td></tr>`;
-
-                const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
-                    supabase.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                    supabase.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-indigo-400">📥 正在初始化系統字典 (Initializing Dictionary)...</td></tr>`;
+                
+                const [hkListRes, usListRes] = await Promise.all([
+                    supabase.from(TABLE_LIST_HK).select('*').limit(5000),
+                    supabase.from(TABLE_LIST_US).select('*').limit(5000)
                 ]);
 
-                const latestHkDate = hkDateData?.[0]?.Record_Date || '無資料';
-                const latestUsDate = usDateData?.[0]?.Record_Date || '無資料';
-                document.getElementById('latest-date').textContent = `${latestHkDate} | ${latestUsDate}`;
+                if (hkListRes.data) {
+                    hkListRes.data.forEach(item => {
+                        const t = item.Ticker || item.ticker;
+                        const s = item.Sector || item.sector;
+                        if (t) autoSectorDictionary[String(t).trim()] = s;
+                    });
+                }
+                if (usListRes.data) {
+                    usListRes.data.forEach(item => {
+                        const t = item.Ticker || item.ticker;
+                        const s = item.Sector || item.sector;
+                        if (t) autoSectorDictionary[String(t).trim()] = s ? `${s} (US)` : null;
+                    });
+                }
 
+                // 獲取兩市場最新可用日期並設定日曆預設值
+                await fetchLatestDatesAndSetPickers();
+                
+                // 執行初次數據加載
+                await fetchFlowDataByDate();
+
+            } catch (err) {
+                console.error("系統初始化失敗:", err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-400">初始化出錯: ${err.message}</td></tr>`;
+            }
+        }
+
+        // 模組化 2：自動探測資料庫最新日期
+        async function fetchLatestDatesAndSetPickers() {
+            const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
+                supabase.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                supabase.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+            ]);
+
+            if (hkDateData && hkDateData.length > 0) hkDatePicker.value = hkDateData[0].Record_Date;
+            if (usDateData && usDateData.length > 0) usDatePicker.value = usDateData[0].Record_Date;
+        }
+
+        // 模組化 3：依據日曆自訂日期穿梭獲取數據 (時光機回溯核心)
+        async function fetchFlowDataByDate() {
+            const targetHkDate = hkDatePicker.value;
+            const targetUsDate = usDatePicker.value;
+
+            if (!targetHkDate && !targetUsDate) {
+                alert("請至少選擇一個市場的查詢日期！");
+                return;
+            }
+
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-emerald-400 animate-pulse">🔄 正在穿梭時空，撈取指定日期的資金數據...</td></tr>`;
+            document.getElementById('sector-grid').innerHTML = `<div class="col-span-full p-8 text-center text-gray-500">更新板塊數據中...</div>`;
+
+            try {
                 const [hkRes, usRes] = await Promise.all([
-                    latestHkDate !== '無資料' ? supabase.from(TABLE_FLOW_HK).select('*').eq('Record_Date', latestHkDate).limit(2000) : { data: [] },
-                    latestUsDate !== '無資料' ? supabase.from(TABLE_FLOW_US).select('*').eq('Record_Date', latestUsDate).limit(2000) : { data: [] }
+                    targetHkDate ? supabase.from(TABLE_FLOW_HK).select('*').eq('Record_Date', targetHkDate).limit(2000) : { data: [] },
+                    targetUsDate ? supabase.from(TABLE_FLOW_US).select('*').eq('Record_Date', targetUsDate).limit(2000) : { data: [] }
                 ]);
 
                 const hkData = (hkRes.data || []).map(r => ({ ...r, market: 'HK' }));
@@ -164,16 +229,17 @@
                 latestMarketData = [...hkData, ...usData];
 
                 if (latestMarketData.length === 0) {
-                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">目前資金流資料庫內無任何數據 (No data available)</td></tr>`;
+                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-400">該特定日期無數據存檔，請選擇其他開市交易日。</td></tr>`;
                     document.getElementById('sector-grid').innerHTML = '';
+                    document.getElementById('match-count').textContent = `0 隻符合篩選`;
                     return;
                 }
 
                 calculateAndRender();
 
             } catch (err) {
-                console.error("連線 Supabase 失敗:", err);
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">讀取 Supabase 出錯: ${err.message}</td></tr>`;
+                console.error("下載資金流失敗:", err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-400">讀取 Supabase 出錯: ${err.message}</td></tr>`;
             }
         }
 
@@ -198,11 +264,10 @@
                 const flowFlow = Number(r['5D_flow']) || 0;
                 let flowScore = flowFlow > 0 ? (flowFlow / maxFlow5D) * 100 : 0;
 
-                // 修改 4: 把 MFI 和 MACD 的數據運用到加分邏輯中
                 let techScore = 40; 
                 if (Number(r.MACD) > 0) techScore += 20;
                 if (Number(r.RSI) >= 40 && Number(r.RSI) <= 65) techScore += 20;
-                if (Number(r.MFI) > 0 && Number(r.MFI) < 30) techScore += 20; // MFI 超賣反彈訊號加分
+                if (Number(r.MFI) > 0 && Number(r.MFI) < 30) techScore += 20; 
 
                 const spikeVal = Number(r.Volspike) || 0;
                 let volScore = (spikeVal / maxVolspike) * 100;
@@ -212,9 +277,17 @@
                     finalScore = ((flowScore * wFlow) + (techScore * wTech) + (volScore * wVol)) / totalWeight;
                 }
 
-                // 修改 3: 廢除 VLOOKUP，直接讀取 DB 的 sector，系統會自動將相同字串的板塊歸類在一起
                 const flowTicker = String(r.ticker || r.Ticker).trim();
-                const finalSector = r.sector ? String(r.sector).trim() : '未分類 (Unclassified)';
+                let finalSector = r.sector ? String(r.sector).trim() : null;
+                
+                if (!finalSector || finalSector === 'Unknown' || finalSector === 'null') {
+                    finalSector = autoSectorDictionary[flowTicker] || autoSectorDictionary[flowTicker.replace('.HK', '')] || autoSectorDictionary[flowTicker + '.HK'] || '未分類 (Unclassified)';
+                }
+
+                // 核心算法：從現成欄位解構 3 階段連續資金流歷史趨勢
+                const f10_5 = (Number(r['10D_flow']) || 0) - (Number(r['5D_flow']) || 0); // 遠期
+                const f5_1 = (Number(r['5D_flow']) || 0) - (Number(r['1D_flow']) || 0);   // 中期
+                const f1 = Number(r['1D_flow']) || 0;                                     // 今日
 
                 return {
                     ticker: flowTicker,
@@ -225,8 +298,9 @@
                     Volspike: spikeVal,
                     accel: r.accel,
                     flow_5d: flowFlow,
-                    mfi: Number(r.MFI) || null, // 記錄供 tooltip 顯示
+                    mfi: Number(r.MFI) || null, 
                     rsi: Number(r.RSI) || null,
+                    flowTrend: { f10_5, f5_1, f1 }, // 封裝趨勢數據
                     finalScore: finalScore
                 };
             });
@@ -244,7 +318,7 @@
             tbody.innerHTML = '';
 
             if (stocks.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票 (No matches found)</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票 (No matches found)</td></tr>`;
                 return;
             }
 
@@ -256,6 +330,7 @@
 
                 const marketFlag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
 
+                // 智慧標籤建立
                 let badgeHtml = '';
                 if (stock.Volspike >= 1.5) {
                     badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block">🔥 ${stock.Volspike.toFixed(1)}x 爆量 (Spike)</span><br>`;
@@ -263,12 +338,37 @@
                 if (stock.accel === 'Y' || stock.accel === 'Yes') {
                     badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block">⚡ 加速 (Accel)</span> `;
                 }
-                // 加入 MFI 提示標籤
                 if (stock.mfi !== null && stock.mfi < 30) {
                     badgeHtml += `<span class="bg-teal-950 text-teal-400 border border-teal-900 text-[10px] px-2 py-0.5 rounded-md font-bold inline-block">🟢 MFI 超賣 (Oversold)</span>`;
                 }
-
                 if (!badgeHtml) badgeHtml = `<span class="text-gray-600 text-xs">-</span>`;
+
+                // 動態生成 3 柱 SVG 資金流向 Sparkline
+                const trend = stock.flowTrend;
+                const maxAbs = Math.max(Math.abs(trend.f10_5), Math.abs(trend.f5_1), Math.abs(trend.f1), 1);
+                
+                // 將數值縮放到 SVG 坐標系高度 (正負各 12 像素)
+                const h1 = (trend.f10_5 / maxAbs) * 12;
+                const h2 = (trend.f5_1 / maxAbs) * 12;
+                const h3 = (trend.f1 / maxAbs) * 12;
+
+                const drawBar = (h, x) => {
+                    let y, barH, color;
+                    if (h > 0) {
+                        y = 15 - h; barH = h; color = '#10B981'; // 正流向: 綠色向上
+                    } else if (h < 0) {
+                        y = 15; barH = Math.abs(h); color = '#EF4444'; // 負流向: 紅色向下
+                    } else {
+                        y = 14; barH = 2; color = '#4B5563'; // 零流向
+                    }
+                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
+                };
+
+                const svgHtml = `
+                    <svg class="w-20 h-8 mx-auto" viewBox="0 0 60 30" style="overflow: visible;">
+                        <line x1="0" y1="15" x2="60" y2="15" stroke="#374151" stroke-width="1" stroke-dasharray="2,2" />
+                        ${drawBar(h1, 4)}   ${drawBar(h2, 24)}  ${drawBar(h3, 44)}  </svg>
+                `;
 
                 tr.innerHTML = `
                     <td class="p-4 text-center cursor-pointer text-base select-none text-yellow-500" data-watchid="${watchId}">
@@ -281,6 +381,9 @@
                     </td>
                     <td class="p-4 text-gray-400 font-medium">${stock.sector}</td>
                     <td class="p-4 text-right font-mono text-yellow-500 font-bold">${stock.price.toFixed(2)}</td>
+                    <td class="p-4 text-center" title="歷史 3 階段資金演進趨勢：\n1. 遠期段 (前10D至5D): ${formatMoney(trend.f10_5)}\n2. 中期段 (前5D至1D): ${formatMoney(trend.f5_1)}\n3. 近期段 (今日1D): ${formatMoney(trend.f1)}">
+                        ${svgHtml}
+                    </td>
                     <td class="p-4 text-center">${badgeHtml}</td>
                     <td class="p-4 text-right font-mono text-emerald-400 font-extrabold text-base pr-6">${stock.finalScore.toFixed(1)}</td>
                 `;
@@ -304,7 +407,6 @@
                 sectorGroups[stock.sector].push(stock);
             });
 
-            // 根據板塊內的股票數量進行排序 (大板塊排前面)
             const sortedSectors = Object.keys(sectorGroups).sort((a, b) => sectorGroups[b].length - sectorGroups[a].length);
 
             sortedSectors.forEach(sectorName => {
@@ -339,8 +441,6 @@
                     else if (stock.finalScore >= 35) bgOpacity = 'bg-emerald-800/40 text-emerald-300';
 
                     const flag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
-
-                    // Tooltip 加入更多技術指標數據
                     const mfiText = stock.mfi !== null ? `\nMFI: ${stock.mfi.toFixed(1)}` : '';
                     const rsiText = stock.rsi !== null ? `\nRSI: ${stock.rsi.toFixed(1)}` : '';
 
@@ -370,11 +470,13 @@
             calculateAndRender();
         }
 
+        btnLoadDate.addEventListener('click', fetchFlowDataByDate);
+
         [wFlowSlider, wTechSlider, wVolSlider, filterVolSlider].forEach(slider => {
             slider.addEventListener('input', calculateAndRender);
         });
 
-        document.addEventListener('DOMContentLoaded', fetchSupabaseData);
+        document.addEventListener('DOMContentLoaded', initDashboard);
     </script>
 </body>
 </html>
