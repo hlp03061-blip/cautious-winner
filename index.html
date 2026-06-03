@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球波段策略綜合決策儀表板 (終極防呆對照版)</title>
+    <title>全球波段策略綜合決策儀表板 (Global Swing Trading Dashboard)</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen p-6">
@@ -11,52 +11,50 @@
         
         <nav class="flex flex-wrap gap-3 mb-2">
             <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">擠壓變盤焦 (Vol Squeeze)</a>
-            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">策略選股清單</a>
-            <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 3</a>
-            <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 4</a>
-            <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 5</a>
+            <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">策略選股清單 (Stock Screener)</a>
+            <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 3 (Link 3)</a>
         </nav>
 
         <header class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-4 gap-4">
                 <div>
                     <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-400 bg-clip-text text-transparent">
-                        🌍 港美股綜合決策儀表板 (跨市場對照)
+                        🌍 港美股綜合決策儀表板 (Global Market Dashboard)
                     </h1>
-                    <p class="text-xs text-gray-400 mt-1">即時權重運算 • 智能容錯對照 VLOOKUP • 跨市場板塊共振</p>
+                    <p class="text-xs text-gray-400 mt-1">即時權重運算 (Live Weighting) • 直連資金流數據 (Direct Data Feed) • 跨市場板塊共振 (Cross-Market Synergy)</p>
                 </div>
                 
                 <div class="bg-gray-950 px-4 py-2 rounded-xl border border-gray-800 text-right">
-                    <span class="text-gray-500 text-xs font-bold block">數據日期 (HK | US)</span>
-                    <span id="latest-date" class="text-sm font-mono text-emerald-400 font-bold">連線中...</span>
+                    <span class="text-gray-500 text-xs font-bold block">數據日期 (Data Date HK | US)</span>
+                    <span id="latest-date" class="text-sm font-mono text-emerald-400 font-bold">連線中 (Connecting)...</span>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
                 <div class="space-y-2">
                     <div class="flex justify-between text-xs font-bold text-gray-400">
-                        <span>💰 大單資金流權重</span>
+                        <span>💰 資金流權重 (Flow Weight)</span>
                         <span id="w-flow-val" class="text-indigo-400 font-mono">40%</span>
                     </div>
                     <input type="range" id="w-flow" min="0" max="100" value="40" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
                 </div>
                 <div class="space-y-2">
                     <div class="flex justify-between text-xs font-bold text-gray-400">
-                        <span>📈 技術面指標權重</span>
+                        <span>📈 技術指標權重 (Tech Weight)</span>
                         <span id="w-tech-val" class="text-purple-400 font-mono">30%</span>
                     </div>
                     <input type="range" id="w-tech" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-purple-500">
                 </div>
                 <div class="space-y-2">
                     <div class="flex justify-between text-xs font-bold text-gray-400">
-                        <span>⚡ 量能爆發力權重</span>
+                        <span>⚡ 爆發力量權重 (Vol Weight)</span>
                         <span id="w-vol-val" class="text-pink-400 font-mono">30%</span>
                     </div>
                     <input type="range" id="w-vol" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-500">
                 </div>
                 <div class="space-y-2 bg-gray-950/50 p-2 rounded-xl border border-gray-800/60">
                     <div class="flex justify-between text-xs font-bold text-gray-400">
-                        <span>🛑 最小成交量比 (Volspike)</span>
+                        <span>🛑 最低成交量比 (Min Volspike)</span>
                         <span id="filter-vol-val" class="text-yellow-400 font-mono">1.0x</span>
                     </div>
                     <input type="range" id="filter-vol" min="5" max="40" value="10" step="5" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-yellow-500">
@@ -66,16 +64,17 @@
 
         <section class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-xl">
             <h2 class="text-sm font-bold text-gray-400 mb-4 flex items-center gap-2">
-                🎯 跨市場板塊共振牆 <span class="text-xs font-normal text-gray-500">(方塊大小代表5日資金流入，顏色深淺代表綜合得分)</span>
+                🎯 跨市場板塊共振牆 (Sector Synergy Map) 
+                <span class="text-xs font-normal text-gray-500">(合併同名板塊 | 方塊大小: 資金流 | 顏色: 綜合得分)</span>
             </h2>
             <div id="sector-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="col-span-full p-8 text-center text-gray-500">正在自動比對板塊名單與資金數據...</div>
+                <div class="col-span-full p-8 text-center text-gray-500">正在處理板塊分佈數據 (Processing sector clusters)...</div>
             </div>
         </section>
 
         <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
             <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
-                <h2 class="text-lg font-bold text-indigo-400 flex items-center gap-2">🚀 港美股潛力清單 (綜合排行)</h2>
+                <h2 class="text-lg font-bold text-indigo-400 flex items-center gap-2">🚀 港美股潛力清單 (Screener Results)</h2>
                 <span id="match-count" class="bg-indigo-950 text-indigo-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-indigo-800">載入中...</span>
             </div>
             
@@ -84,15 +83,15 @@
                     <thead>
                         <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
                             <th class="p-4 w-12 text-center">🌟</th>
-                            <th class="p-4">市場/股票代號</th>
-                            <th class="p-4">所屬板塊</th>
-                            <th class="p-4 text-right">最新現價</th>
-                            <th class="p-4 text-center">智慧標籤</th>
-                            <th class="p-4 text-right font-bold text-indigo-400 pr-6">綜合潛力得分</th>
+                            <th class="p-4 leading-tight">市場/代號<br><span class="text-[10px] text-gray-500">Market/Ticker</span></th>
+                            <th class="p-4 leading-tight">所屬板塊<br><span class="text-[10px] text-gray-500">Sector</span></th>
+                            <th class="p-4 text-right leading-tight">最新現價<br><span class="text-[10px] text-gray-500">Latest Price</span></th>
+                            <th class="p-4 text-center leading-tight">智慧標籤<br><span class="text-[10px] text-gray-500">Smart Tags</span></th>
+                            <th class="p-4 text-right font-bold text-indigo-400 pr-6 leading-tight">潛力得分<br><span class="text-[10px] text-indigo-500/70">Total Score</span></th>
                         </tr>
                     </thead>
                     <tbody id="stock-table-body">
-                        <tr><td colspan="6" class="p-8 text-center text-gray-500">正在合併雙市場數據，請稍候...</td></tr>
+                        <tr><td colspan="6" class="p-8 text-center text-gray-500">正在下載最新雲端數據 (Downloading cloud data)...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -108,11 +107,8 @@
 
         const TABLE_FLOW_HK = 'money_flow_hk';           
         const TABLE_FLOW_US = 'money_flow_sp500';        
-        const TABLE_LIST_HK = 'all_hkticker_list';       
-        const TABLE_LIST_US = 'all_sp500ticker_list';    
 
         let latestMarketData = [];
-        let autoSectorDictionary = {}; 
         let watchlist = JSON.parse(localStorage.getItem('global_dashboard_watchlist')) || [];
 
         const wFlowSlider = document.getElementById('w-flow');
@@ -145,34 +141,8 @@
 
         async function fetchSupabaseData() {
             try {
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-indigo-400">📥 正在下載基礎名單與板塊資料...</td></tr>`;
-
-                // 🚀 容錯升級 1：使用 select('*') 抓取全部欄位，避免因為大小寫打錯導致 400 錯誤
-                const [hkListRes, usListRes] = await Promise.all([
-                    supabase.from(TABLE_LIST_HK).select('*').limit(5000),
-                    supabase.from(TABLE_LIST_US).select('*').limit(5000)
-                ]);
-
-                if (hkListRes.error) console.error("港股名單讀取錯誤:", hkListRes.error);
-                if (usListRes.error) console.error("美股名單讀取錯誤:", usListRes.error);
-
-                // 🚀 容錯升級 2：建字典時，無論你的欄位是大寫還是小寫，通通收錄！
-                if (hkListRes.data) {
-                    hkListRes.data.forEach(item => {
-                        const t = item.Ticker || item.ticker || item.TICKER;
-                        const s = item.Sector || item.sector || item.SECTOR;
-                        if (t) autoSectorDictionary[String(t).trim()] = s;
-                    });
-                }
-                if (usListRes.data) {
-                    usListRes.data.forEach(item => {
-                        const t = item.Ticker || item.ticker || item.TICKER;
-                        const s = item.Sector || item.sector || item.SECTOR;
-                        if (t) autoSectorDictionary[String(t).trim()] = s ? `${s} (US)` : null;
-                    });
-                }
-
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-emerald-400">🔄 板塊名單就緒，正在抓取最新資金流...</td></tr>`;
+                // 修改 1: 移除讀取 Ticker List 表格的冗餘代碼，大幅加快載入速度
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-emerald-400">🔄 正在抓取最新市場資金流 (Fetching money flow)...</td></tr>`;
 
                 const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
                     supabase.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
@@ -194,7 +164,7 @@
                 latestMarketData = [...hkData, ...usData];
 
                 if (latestMarketData.length === 0) {
-                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">目前資金流資料庫內無任何數據</td></tr>`;
+                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">目前資金流資料庫內無任何數據 (No data available)</td></tr>`;
                     document.getElementById('sector-grid').innerHTML = '';
                     return;
                 }
@@ -228,9 +198,11 @@
                 const flowFlow = Number(r['5D_flow']) || 0;
                 let flowScore = flowFlow > 0 ? (flowFlow / maxFlow5D) * 100 : 0;
 
-                let techScore = 50;
-                if (Number(r.MACD) > 0) techScore += 25;
-                if (Number(r.RSI) >= 40 && Number(r.RSI) <= 65) techScore += 25;
+                // 修改 4: 把 MFI 和 MACD 的數據運用到加分邏輯中
+                let techScore = 40; 
+                if (Number(r.MACD) > 0) techScore += 20;
+                if (Number(r.RSI) >= 40 && Number(r.RSI) <= 65) techScore += 20;
+                if (Number(r.MFI) > 0 && Number(r.MFI) < 30) techScore += 20; // MFI 超賣反彈訊號加分
 
                 const spikeVal = Number(r.Volspike) || 0;
                 let volScore = (spikeVal / maxVolspike) * 100;
@@ -240,14 +212,9 @@
                     finalScore = ((flowScore * wFlow) + (techScore * wTech) + (volScore * wVol)) / totalWeight;
                 }
 
-                // 🚀 容錯升級 3：多重模糊比對！
-                // 不管你是 2596 還是 2596.HK，全部都試著去字典裡找找看
+                // 修改 3: 廢除 VLOOKUP，直接讀取 DB 的 sector，系統會自動將相同字串的板塊歸類在一起
                 const flowTicker = String(r.ticker || r.Ticker).trim();
-                const sectorExact = autoSectorDictionary[flowTicker];
-                const sectorNoHK = autoSectorDictionary[flowTicker.replace('.HK', '')];
-                const sectorWithHK = autoSectorDictionary[flowTicker + '.HK'];
-                
-                const finalSector = sectorExact || sectorNoHK || sectorWithHK || '其他未分類板塊';
+                const finalSector = r.sector ? String(r.sector).trim() : '未分類 (Unclassified)';
 
                 return {
                     ticker: flowTicker,
@@ -258,6 +225,8 @@
                     Volspike: spikeVal,
                     accel: r.accel,
                     flow_5d: flowFlow,
+                    mfi: Number(r.MFI) || null, // 記錄供 tooltip 顯示
+                    rsi: Number(r.RSI) || null,
                     finalScore: finalScore
                 };
             });
@@ -267,7 +236,7 @@
 
             renderTable(processed);
             renderSectorClusters(processed);
-            document.getElementById('match-count').textContent = `${processed.length} 隻符合篩選`;
+            document.getElementById('match-count').textContent = `${processed.length} 隻符合篩選 (Filtered)`;
         }
 
         function renderTable(stocks) {
@@ -275,7 +244,7 @@
             tbody.innerHTML = '';
 
             if (stocks.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">無符合當前 Volspike 篩選標準的股票 (No matches found)</td></tr>`;
                 return;
             }
 
@@ -289,11 +258,16 @@
 
                 let badgeHtml = '';
                 if (stock.Volspike >= 1.5) {
-                    badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold">🔥 ${stock.Volspike.toFixed(1)}x 爆量</span> `;
+                    badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block">🔥 ${stock.Volspike.toFixed(1)}x 爆量 (Spike)</span><br>`;
                 }
                 if (stock.accel === 'Y' || stock.accel === 'Yes') {
-                    badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold">⚡ 加速</span>`;
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block">⚡ 加速 (Accel)</span> `;
                 }
+                // 加入 MFI 提示標籤
+                if (stock.mfi !== null && stock.mfi < 30) {
+                    badgeHtml += `<span class="bg-teal-950 text-teal-400 border border-teal-900 text-[10px] px-2 py-0.5 rounded-md font-bold inline-block">🟢 MFI 超賣 (Oversold)</span>`;
+                }
+
                 if (!badgeHtml) badgeHtml = `<span class="text-gray-600 text-xs">-</span>`;
 
                 tr.innerHTML = `
@@ -302,7 +276,7 @@
                     </td>
                     <td class="p-4 font-mono font-bold">
                         <span class="mr-1">${marketFlag}</span>
-                        <a href="${generateChartUrl(stock.ticker, stock.market)}" target="_blank" class="text-blue-400 hover:underline">🔗 ${stock.ticker}</a>
+                        <a href="${generateChartUrl(stock.ticker, stock.market)}" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors">🔗 ${stock.ticker}</a>
                         <br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
                     </td>
                     <td class="p-4 text-gray-400 font-medium">${stock.sector}</td>
@@ -330,6 +304,7 @@
                 sectorGroups[stock.sector].push(stock);
             });
 
+            // 根據板塊內的股票數量進行排序 (大板塊排前面)
             const sortedSectors = Object.keys(sectorGroups).sort((a, b) => sectorGroups[b].length - sectorGroups[a].length);
 
             sortedSectors.forEach(sectorName => {
@@ -346,7 +321,7 @@
                 card.innerHTML = `
                     <div class="flex justify-between items-center border-b border-gray-800 pb-1.5">
                         <span class="font-bold text-xs text-gray-400 truncate max-w-[150px]" title="${sectorName}">${sectorName}</span>
-                        <span class="text-[10px] px-2 py-0.5 rounded-md shrink-0 ${badgeStyle}">${groupStocks.length} 隻</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-md shrink-0 ${badgeStyle}">${groupStocks.length} 隻 (Stocks)</span>
                     </div>
                     <div class="flex flex-wrap gap-2 pt-1 min-h-[40px]"></div>
                 `;
@@ -365,9 +340,13 @@
 
                     const flag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
 
+                    // Tooltip 加入更多技術指標數據
+                    const mfiText = stock.mfi !== null ? `\nMFI: ${stock.mfi.toFixed(1)}` : '';
+                    const rsiText = stock.rsi !== null ? `\nRSI: ${stock.rsi.toFixed(1)}` : '';
+
                     block.className = `rounded-lg font-mono cursor-pointer transition-all hover:scale-105 select-none truncate max-w-[100px] ${sizeClass} ${bgOpacity}`;
                     block.innerHTML = `${flag} ${stock.ticker.replace('.HK', '')}`;
-                    block.title = `${stock.name}\n智慧得分: ${stock.finalScore.toFixed(1)}\n5日資金流: ${formatMoney(stock.flow_5d)}\nVolspike: ${stock.Volspike.toFixed(1)}x`;
+                    block.title = `${stock.name}\n得分 (Score): ${stock.finalScore.toFixed(1)}\n5日資金 (5D Flow): ${formatMoney(stock.flow_5d)}\n爆量 (Volspike): ${stock.Volspike.toFixed(1)}x${mfiText}${rsiText}`;
                     
                     block.onclick = () => toggleStar(`${stock.market}_${stock.ticker}`);
                     flexBox.appendChild(block);
@@ -377,7 +356,7 @@
             });
 
             if (sortedSectors.length === 0) {
-                container.innerHTML = `<div class="col-span-full text-center text-gray-600 py-4 text-xs">無符合條件的板塊數據</div>`;
+                container.innerHTML = `<div class="col-span-full text-center text-gray-600 py-4 text-xs">無符合條件的板塊數據 (No sector data matched)</div>`;
             }
         }
 
