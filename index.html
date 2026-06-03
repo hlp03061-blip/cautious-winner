@@ -13,7 +13,7 @@
         
         <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
             <div class="flex flex-wrap gap-3">
-                <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">擠壓變盤焦 (Vol Squeeze)</a>
+                <a href="volsqueeze.html" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">擠壓變盤焦 (Vol Squeeze)</a>
                 <a href="#" class="px-4 py-2 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded-lg text-sm font-semibold border border-indigo-800/50 transition-colors shadow-sm">策略選股清單 (Stock Screener)</a>
                 <a href="#" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">自訂連結 3 (Link 3)</a>
             </div>
@@ -30,7 +30,7 @@
                     <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-400 bg-clip-text text-transparent">
                         🌍 港美股綜合決策儀表板 (Global Market Dashboard)
                     </h1>
-                    <p class="text-xs text-gray-400 mt-1">獨立市場時間軸 • Top 50 活躍資金池 • 板塊資金動態流 (Dynamic Flows)</p>
+                    <p class="text-xs text-gray-400 mt-1">獨立市場時間軸 • 港美股各 Top 50 資金流入池 • 板塊資金動態流</p>
                 </div>
                 
                 <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 flex flex-wrap items-end gap-3 shadow-inner">
@@ -76,7 +76,7 @@
         <section class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-xl">
             <h2 class="text-sm font-bold text-gray-400 mb-4 flex items-center justify-between">
                 <span class="flex items-center gap-2">🎯 跨市場板塊共振牆 (Sector Synergy Map)</span>
-                <span class="text-xs font-normal text-gray-500">按板塊 1D 資金流入排列 | 顯示 Top 50 活躍股 | 點擊板塊顯示全部成份股</span>
+                <span class="text-xs font-normal text-gray-500">按板塊 1D 資金流入排列 | 顯示各市場 Top 50 流入股 | 點選查看詳情</span>
             </h2>
             <div id="sector-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="col-span-full p-8 text-center text-gray-500">等待載入數據...</div>
@@ -85,7 +85,7 @@
 
         <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
             <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
-                <h2 id="table-title" class="text-lg font-bold text-indigo-400 flex items-center gap-2 transition-all">🚀 港美股潛力清單 (Top 50 活躍榜)</h2>
+                <h2 id="table-title" class="text-lg font-bold text-indigo-400 flex items-center gap-2 transition-all">🚀 港美股潛力清單 (各市場 Top 50 資金流入榜)</h2>
                 <span id="match-count" class="bg-indigo-950 text-indigo-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-indigo-800">載入中...</span>
             </div>
             
@@ -132,7 +132,7 @@
         let latestMarketData = [];
         let autoSectorDictionary = {}; 
         let watchlist = JSON.parse(localStorage.getItem('global_dashboard_watchlist')) || [];
-        window.selectedSectorFilter = null; // 新增：用於記錄目前點選的板塊
+        window.selectedSectorFilter = null; 
 
         const wFlowSlider = document.getElementById('w-flow');
         const wTechSlider = document.getElementById('w-tech');
@@ -148,7 +148,7 @@
         const btnLoadDate = document.getElementById('btn-load-date');
 
         window.copyTickerList = function(event, btnElement, tickers) {
-            event.stopPropagation(); // 防止觸發板塊點擊事件
+            if (event) event.stopPropagation(); // 防止觸發板塊點擊事件
             navigator.clipboard.writeText(tickers).then(() => {
                 const originalHtml = btnElement.innerHTML;
                 btnElement.innerHTML = `<span class="text-emerald-400">✅ 已複製</span>`;
@@ -161,9 +161,9 @@
 
         window.toggleSectorFilter = function(sectorName) {
             if (window.selectedSectorFilter === sectorName) {
-                window.selectedSectorFilter = null; // 取消過濾
+                window.selectedSectorFilter = null; 
             } else {
-                window.selectedSectorFilter = sectorName; // 套用過濾
+                window.selectedSectorFilter = sectorName; 
             }
             calculateAndRender();
         };
@@ -348,30 +348,38 @@
                 // 按板塊 1D 資金流(由大至少)排序
                 const sortedSectors = Object.keys(sectorStats).sort((a, b) => sectorStats[b].f1 - sectorStats[a].f1);
 
-                // 3. 抽出 50 個成交最活躍(絕對 1D_flow 最大)的股票
-                let top50Stocks = [...processed].sort((a, b) => Math.abs(b.flow_1d) - Math.abs(a.flow_1d)).slice(0, 50);
+                // Enhancement 1: 港股及美股各抽出 50 個 1D 資金流入最多 (flow_1d 最高) 的股票
+                let hkTop50 = processed.filter(s => s.market === 'HK').sort((a, b) => b.flow_1d - a.flow_1d).slice(0, 50);
+                let usTop50 = processed.filter(s => s.market === 'US').sort((a, b) => b.flow_1d - a.flow_1d).slice(0, 50);
+                
+                let top100Stocks = [...hkTop50, ...usTop50];
 
-                // 如果正在搜尋，覆蓋 Top 50 顯示
-                if (searchTerm) top50Stocks = processed;
+                // 如果正在搜尋，覆蓋顯示
+                if (searchTerm) top100Stocks = processed;
 
-                // 渲染板塊牆 (將 Top 50 股票派入排序好的板塊中)
-                renderSectorClusters(sortedSectors, sectorStats, top50Stocks);
+                // 渲染板塊牆 (將這 100 隻股票派入排序好的板塊中)
+                renderSectorClusters(sortedSectors, sectorStats, top100Stocks);
 
                 // 4. 根據是否選擇了特定板塊來決定表格顯示的內容
                 let tableStocks = window.selectedSectorFilter 
                     ? processed.filter(s => s.sector === window.selectedSectorFilter) 
-                    : top50Stocks;
+                    : top100Stocks;
 
                 tableStocks.sort((a, b) => b.finalScore - a.finalScore);
                 renderTable(tableStocks);
                 
-                // 更新標題及計數
+                // Enhancement 2: 更新標題及計數，選定板塊時顯示專屬複製按鈕
                 const tableTitle = document.getElementById('table-title');
                 if (window.selectedSectorFilter) {
-                    tableTitle.innerHTML = `📊 板塊全覽: <span class="text-emerald-400">${window.selectedSectorFilter}</span> <button onclick="toggleSectorFilter('${window.selectedSectorFilter}')" class="text-[10px] bg-red-900/50 hover:bg-red-800 border border-red-800 px-2 py-1 rounded text-red-200 ml-3 transition-colors">❌ 清除過濾</button>`;
+                    // 準備複製的字串，去除 .HK 以方便外部軟體匯入
+                    const tableTickers = tableStocks.map(s => s.ticker.replace('.HK', '')).join(';');
+                    
+                    tableTitle.innerHTML = `📊 板塊全覽: <span class="text-emerald-400">${window.selectedSectorFilter}</span> 
+                        <button onclick="copyTickerList(event, this, '${tableTickers}')" class="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 px-2 py-1 rounded text-gray-300 ml-3 transition-colors cursor-pointer">📋 複製代號</button>
+                        <button onclick="toggleSectorFilter('${window.selectedSectorFilter}')" class="text-[10px] bg-red-900/50 hover:bg-red-800 border border-red-800 px-2 py-1 rounded text-red-200 ml-2 transition-colors cursor-pointer">❌ 清除過濾</button>`;
                     document.getElementById('match-count').textContent = `全部 ${tableStocks.length} 隻`;
                 } else {
-                    const matchLabel = searchTerm ? '搜尋結果' : 'Top 50 活躍榜';
+                    const matchLabel = searchTerm ? '搜尋結果' : '各市場 Top 50 流入榜';
                     tableTitle.innerHTML = `🚀 港美股潛力清單 (${matchLabel})`;
                     document.getElementById('match-count').textContent = `${tableStocks.length} 隻入選`;
                 }
@@ -470,19 +478,18 @@
             });
         }
 
-        function renderSectorClusters(sortedSectors, sectorStats, top50Stocks) {
+        function renderSectorClusters(sortedSectors, sectorStats, top100Stocks) {
             const container = document.getElementById('sector-grid');
             container.innerHTML = '';
 
-            // 只顯示包含 Top 50 股票的板塊，以保持畫面專注
-            const activeSectors = sortedSectors.filter(sec => top50Stocks.some(s => s.sector === sec));
+            // 只顯示包含 Top 100 股票的板塊
+            const activeSectors = sortedSectors.filter(sec => top100Stocks.some(s => s.sector === sec));
 
             activeSectors.forEach(sectorName => {
-                const groupStocks = top50Stocks.filter(s => s.sector === sectorName);
+                const groupStocks = top100Stocks.filter(s => s.sector === sectorName);
                 const allTickersString = groupStocks.map(s => s.ticker.replace('.HK', '')).join(';');
                 const stats = sectorStats[sectorName];
 
-                // 建立板塊頂部的 10D, 5D, 1D Sparkline
                 const maxVal = Math.max(Math.abs(stats.f10), Math.abs(stats.f5), Math.abs(stats.f1), 1);
                 const drawSectorBar = (val, x) => {
                     const h = (val / maxVal) * 8; 
@@ -513,7 +520,7 @@
                 card.innerHTML = `
                     <div class="flex justify-between items-center border-b border-gray-800 pb-2 cursor-pointer" onclick="toggleSectorFilter('${sectorName}')">
                         <div class="flex items-center gap-1 flex-1 min-w-0">
-                            <span class="font-bold text-[13px] ${isSelected ? 'text-emerald-400' : 'text-gray-300'} truncate" title="點擊展開此板塊所有股票">${sectorName}</span>
+                            <span class="font-bold text-[13px] ${isSelected ? 'text-emerald-400' : 'text-gray-300'} truncate" title="點選展開此板塊所有股票">${sectorName}</span>
                             ${sparklineSvg}
                             <button onclick="copyTickerList(event, this, '${allTickersString}')" class="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded cursor-pointer flex-shrink-0 ml-1" title="複製此處代號">
                                 📋
