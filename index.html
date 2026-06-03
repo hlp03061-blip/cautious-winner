@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>全球波段策略綜合決策儀表板 (Global Swing Trading Dashboard)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen p-6">
     <div class="max-w-7xl mx-auto space-y-6">
@@ -50,4 +51,372 @@
                 <div class="space-y-2">
                     <div class="flex justify-between text-xs font-bold text-gray-400">
                         <span>💰 資金流權重 (Flow Weight)</span>
-                        <span id
+                        <span id="w-flow-val" class="text-indigo-400 font-mono">40%</span>
+                    </div>
+                    <input type="range" id="w-flow" min="0" max="100" value="40" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                </div>
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>📈 技術指標權重 (Tech Weight)</span>
+                        <span id="w-tech-val" class="text-purple-400 font-mono">30%</span>
+                    </div>
+                    <input type="range" id="w-tech" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                </div>
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>⚡ 爆發力量權重 (Vol Weight)</span>
+                        <span id="w-vol-val" class="text-pink-400 font-mono">30%</span>
+                    </div>
+                    <input type="range" id="w-vol" min="0" max="100" value="30" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-pink-500">
+                </div>
+                <div class="space-y-2 bg-gray-950/50 p-2 rounded-xl border border-gray-800/60">
+                    <div class="flex justify-between text-xs font-bold text-gray-400">
+                        <span>🛑 最低成交量比 (Min Volspike)</span>
+                        <span id="filter-vol-val" class="text-yellow-400 font-mono">1.0x</span>
+                    </div>
+                    <input type="range" id="filter-vol" min="5" max="40" value="10" step="5" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-yellow-500">
+                </div>
+            </div>
+        </header>
+
+        <section class="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-xl">
+            <h2 class="text-sm font-bold text-gray-400 mb-4 flex items-center gap-2">
+                🎯 跨市場板塊共振牆 (Sector Synergy Map) 
+                <span class="text-xs font-normal text-gray-500">(合併同名板塊 | 方塊大小: 5日資金流 | 顏色: 綜合得分)</span>
+            </h2>
+            <div id="sector-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="col-span-full p-8 text-center text-gray-500">系統初始化中 (Initializing system)...</div>
+            </div>
+        </section>
+
+        <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <h2 class="text-lg font-bold text-indigo-400 flex items-center gap-2">🚀 港美股潛力清單 (Screener Results)</h2>
+                <span id="match-count" class="bg-indigo-950 text-indigo-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-indigo-800">載入中...</span>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
+                            <th class="p-4 w-12 text-center">🌟</th>
+                            <th class="p-4 leading-tight">市場/代號<br><span class="text-[10px] text-gray-500">Market/Ticker</span></th>
+                            <th class="p-4 leading-tight">所屬板塊<br><span class="text-[10px] text-gray-500">Sector</span></th>
+                            <th class="p-4 text-right leading-tight">最新現價<br><span class="text-[10px] text-gray-500">Latest Price</span></th>
+                            <th class="p-4 text-center leading-tight">資金趨勢段<br><span class="text-[10px] text-gray-500">Flow Trend</span></th>
+                            <th class="p-4 text-center leading-tight">智慧標籤<br><span class="text-[10px] text-gray-500">Smart Tags</span></th>
+                            <th class="p-4 text-right font-bold text-indigo-400 pr-6 leading-tight">潛力得分<br><span class="text-[10px] text-indigo-500/70">Total Score</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-table-body">
+                        <tr><td colspan="7" class="p-8 text-center text-gray-500">正在下載最新雲端數據 (Downloading cloud data)...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const TABLE_FLOW_HK = 'money_flow_hk';           
+        const TABLE_FLOW_US = 'money_flow_sp500';        
+        const TABLE_LIST_HK = 'all_hkticker_list';       
+        const TABLE_LIST_US = 'all_sp500ticker_list';    
+
+        let latestMarketData = [];
+        let autoSectorDictionary = {}; 
+        let watchlist = JSON.parse(localStorage.getItem('global_dashboard_watchlist')) || [];
+
+        const wFlowSlider = document.getElementById('w-flow');
+        const wTechSlider = document.getElementById('w-tech');
+        const wVolSlider = document.getElementById('w-vol');
+        const filterVolSlider = document.getElementById('filter-vol');
+        const searchInput = document.getElementById('search-ticker'); 
+        
+        const wFlowVal = document.getElementById('w-flow-val');
+        const wTechVal = document.getElementById('w-tech-val');
+        const wVolVal = document.getElementById('w-vol-val');
+        const filterVolVal = document.getElementById('filter-vol-val');
+        
+        const hkDatePicker = document.getElementById('hk-date');
+        const usDatePicker = document.getElementById('us-date');
+        const btnLoadDate = document.getElementById('btn-load-date');
+
+        // 全域複製功能
+        window.copyTickerList = function(btnElement, tickers) {
+            navigator.clipboard.writeText(tickers).then(() => {
+                const originalHtml = btnElement.innerHTML;
+                btnElement.innerHTML = `<span class="text-emerald-400">✅ 已複製</span>`;
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHtml;
+                }, 1500);
+            }).catch(err => {
+                console.error('複製失敗:', err);
+                btnElement.innerHTML = `<span class="text-red-400">❌ 失敗</span>`;
+            });
+        };
+
+        function generateChartUrl(ticker, market) {
+            if (market === 'HK') {
+                let cleanId = String(ticker).replace('.HK', '').trim();
+                if (cleanId.length <= 4 && !isNaN(cleanId)) cleanId = cleanId.padStart(6, '0');
+                return `https://charts.aastocks.com/servlet/Charts?stockid=${cleanId}.HK&period=6&type=1`;
+            } else {
+                return `https://finance.yahoo.com/quote/${String(ticker).trim()}`;
+            }
+        }
+
+        function formatMoney(value) {
+            if (value == null) return '-';
+            const num = Number(value);
+            const absNum = Math.abs(num);
+            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + ' M';
+            if (absNum >= 10000) return (num / 10000).toFixed(1) + ' 萬';
+            return num.toFixed(1);
+        }
+
+        // 系統初始化
+        async function initDashboard() {
+            try {
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-indigo-400">📥 正在初始化系統字典 (Initializing Dictionary)...</td></tr>`;
+                
+                // 【修復 1】：改回安全穩定的 select('*')，防呆避免特定大小寫欄位不存在引發的 400 崩潰
+                const [hkListRes, usListRes] = await Promise.all([
+                    supabase.from(TABLE_LIST_HK).select('*').limit(5000),
+                    supabase.from(TABLE_LIST_US).select('*').limit(5000)
+                ]);
+
+                if (hkListRes.error) console.error("港股主表字典讀取失敗:", hkListRes.error);
+                if (usListRes.error) console.error("美股主表字典讀取失敗:", usListRes.error);
+
+                if (hkListRes.data) {
+                    hkListRes.data.forEach(item => {
+                        const t = item.Ticker || item.ticker || item.TICKER;
+                        const s = item.Sector || item.sector || item.SECTOR;
+                        if (t) autoSectorDictionary[String(t).trim()] = s;
+                    });
+                }
+                if (usListRes.data) {
+                    usListRes.data.forEach(item => {
+                        const t = item.Ticker || item.ticker || item.TICKER;
+                        const s = item.Sector || item.sector || item.SECTOR;
+                        if (t) autoSectorDictionary[String(t).trim()] = s ? `${s} (US)` : null;
+                    });
+                }
+
+                // 自動探測最新日期並填入日曆
+                await fetchLatestDatesAndSetPickers();
+                
+                // 讀取資金流數據
+                await fetchFlowDataByDate();
+
+            } catch (err) {
+                console.error("❌ 系統初始化階段發生崩潰性錯誤:", err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-400">初始化出錯: ${err.message} (請打開網頁 Console 查看具體報錯)</td></tr>`;
+            }
+        }
+
+        // 自動定位最新日期
+        async function fetchLatestDatesAndSetPickers() {
+            try {
+                const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
+                    supabase.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                    supabase.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+                ]);
+
+                // 【修復 2】：使用 .slice(0, 10) 精準截取，確保完全符合 HTML5 日曆控制項所嚴格規定的 YYYY-MM-DD 格式
+                if (hkDateData && hkDateData.length > 0 && hkDateData[0].Record_Date) {
+                    hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
+                }
+                if (usDateData && usDateData.length > 0 && usDateData[0].Record_Date) {
+                    usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
+                }
+            } catch (e) {
+                console.error("讀取最新日期失敗:", e);
+            }
+        }
+
+        // 依據日曆抓取對應資金流數據
+        async function fetchFlowDataByDate() {
+            const targetHkDate = hkDatePicker.value;
+            const targetUsDate = usDatePicker.value;
+
+            console.log(`正在請求數據 - 港股目標日: ${targetHkDate}, 美股目標日: ${targetUsDate}`);
+
+            if (!targetHkDate && !targetUsDate) {
+                alert("請至少選擇一個市場的查詢日期！");
+                return;
+            }
+
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-emerald-400 animate-pulse">🔄 正在載入雲端數據 (Fetching money flow)...</td></tr>`;
+            document.getElementById('sector-grid').innerHTML = `<div class="col-span-full p-8 text-center text-gray-500">更新板塊數據中...</div>`;
+
+            try {
+                const [hkRes, usRes] = await Promise.all([
+                    targetHkDate ? supabase.from(TABLE_FLOW_HK).select('*').eq('Record_Date', targetHkDate).limit(2000) : { data: [] },
+                    targetUsDate ? supabase.from(TABLE_FLOW_US).select('*').eq('Record_Date', targetUsDate).limit(2000) : { data: [] }
+                ]);
+
+                if (hkRes.error) console.error("港股資金流下載錯誤:", hkRes.error);
+                if (usRes.error) console.error("美股資金流下載錯誤:", usRes.error);
+
+                const hkData = (hkRes.data || []).map(r => ({ ...r, market: 'HK' }));
+                const usData = (usRes.data || []).map(r => ({ ...r, market: 'US' }));
+
+                latestMarketData = [...hkData, ...usData];
+                console.log(`本次成功合併下載數據，總計: ${latestMarketData.length} 筆`);
+
+                if (latestMarketData.length === 0) {
+                    document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-400">當前選定的日期查無數據，請確認 Python 指令碼是否已完成該日上傳。</td></tr>`;
+                    document.getElementById('sector-grid').innerHTML = '';
+                    document.getElementById('match-count').textContent = `0 隻符合篩選`;
+                    return;
+                }
+
+                calculateAndRender();
+
+            } catch (err) {
+                console.error("❌ 下載資金流數據發生網路或語法錯誤:", err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-400">讀取 Supabase 出錯: ${err.message}</td></tr>`;
+            }
+        }
+
+        function calculateAndRender() {
+            if (latestMarketData.length === 0) return;
+
+            try {
+                const wFlow = parseInt(wFlowSlider.value);
+                const wTech = parseInt(wTechSlider.value);
+                const wVol = parseInt(wVolSlider.value);
+                const minVolspike = parseInt(filterVolSlider.value) / 10; 
+                const searchTerm = searchInput.value.trim().toUpperCase(); 
+
+                wFlowVal.textContent = wFlow + '%';
+                wTechVal.textContent = wTech + '%';
+                wVolVal.textContent = wVol + '%';
+                filterVolVal.textContent = minVolspike.toFixed(1) + 'x';
+
+                const totalWeight = wFlow + wTech + wVol;
+                const maxFlow5D = Math.max(...latestMarketData.map(r => Math.abs(Number(r['5D_flow']) || 0)), 1);
+                const maxVolspike = Math.max(...latestMarketData.map(r => Number(r.Volspike) || 0), 1);
+
+                let processed = latestMarketData.map(r => {
+                    const flowFlow = Number(r['5D_flow']) || 0;
+                    let flowScore = flowFlow > 0 ? (flowFlow / maxFlow5D) * 100 : 0;
+
+                    let techScore = 40; 
+                    if (Number(r.MACD) > 0) techScore += 20;
+                    if (Number(r.RSI) >= 40 && Number(r.RSI) <= 65) techScore += 20;
+                    if (Number(r.MFI) > 0 && Number(r.MFI) < 30) techScore += 20; 
+
+                    const spikeVal = Number(r.Volspike) || 0;
+                    let volScore = (spikeVal / maxVolspike) * 100;
+
+                    let finalScore = 0;
+                    if (totalWeight > 0) {
+                        finalScore = ((flowScore * wFlow) + (techScore * wTech) + (volScore * wVol)) / totalWeight;
+                    }
+
+                    const flowTicker = String(r.ticker || r.Ticker || '').trim();
+                    let finalSector = r.sector || r.Sector;
+                    
+                    if (!finalSector || finalSector === 'Unknown' || finalSector === 'null') {
+                        finalSector = autoSectorDictionary[flowTicker] || autoSectorDictionary[flowTicker.replace('.HK', '')] || autoSectorDictionary[flowTicker + '.HK'] || '未分類 (Unclassified)';
+                    }
+
+                    const f10_5 = (Number(r['10D_flow']) || 0) - (Number(r['5D_flow']) || 0);
+                    const f5_1 = (Number(r['5D_flow']) || 0) - (Number(r['1D_flow']) || 0);   
+                    const f1 = Number(r['1D_flow']) || 0;                                     
+
+                    return {
+                        ticker: flowTicker,
+                        market: r.market,
+                        name: r.company_name || r.Company_Name || '未知公司',
+                        sector: String(finalSector).trim(), 
+                        price: Number(r.price) || 0,
+                        Volspike: spikeVal,
+                        accel: r.accel,
+                        flow_5d: flowFlow,
+                        mfi: r.MFI != null ? Number(r.MFI) : null, 
+                        rsi: r.RSI != null ? Number(r.RSI) : null,
+                        flowTrend: { f10_5, f5_1, f1 },
+                        finalScore: finalScore
+                    };
+                });
+
+                // 搜尋優先過濾
+                processed = processed.filter(stock => {
+                    if (searchTerm) {
+                        return stock.ticker.toUpperCase().includes(searchTerm) || 
+                               stock.name.toUpperCase().includes(searchTerm);
+                    }
+                    return stock.Volspike >= minVolspike;
+                });
+
+                processed.sort((a, b) => b.finalScore - a.finalScore);
+
+                renderTable(processed);
+                renderSectorClusters(processed);
+                
+                const matchLabel = searchTerm ? '搜尋結果' : '符合篩選';
+                document.getElementById('match-count').textContent = `${processed.length} 隻${matchLabel}`;
+
+            } catch (calcErr) {
+                console.error("渲染或運算邏輯發生內部錯誤:", calcErr);
+            }
+        }
+
+        function renderTable(stocks) {
+            const tbody = document.getElementById('stock-table-body');
+            tbody.innerHTML = '';
+
+            if (stocks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-500">無符合目前篩選標準的股票 (No matches found)</td></tr>`;
+                return;
+            }
+
+            stocks.forEach(stock => {
+                const watchId = `${stock.market}_${stock.ticker}`;
+                const isStarred = watchlist.includes(watchId);
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors';
+
+                const marketFlag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
+
+                let badgeHtml = '';
+                if (stock.Volspike >= 1.5) {
+                    badgeHtml += `<span class="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block">🔥 ${stock.Volspike.toFixed(1)}x 爆量 (Spike)</span><br>`;
+                }
+                if (stock.accel === 'Y' || stock.accel === 'Yes') {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-400 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block">⚡ 加速 (Accel)</span> `;
+                }
+                if (stock.mfi !== null && stock.mfi < 30) {
+                    badgeHtml += `<span class="bg-teal-950 text-teal-400 border border-teal-900 text-[10px] px-2 py-0.5 rounded-md font-bold inline-block">🟢 MFI 超賣 (Oversold)</span>`;
+                }
+                if (!badgeHtml) badgeHtml = `<span class="text-gray-600 text-xs">-</span>`;
+
+                const trend = stock.flowTrend;
+                const maxAbs = Math.max(Math.abs(trend.f10_5), Math.abs(trend.f5_1), Math.abs(trend.f1), 1);
+                
+                const h1 = (trend.f10_5 / maxAbs) * 12;
+                const h2 = (trend.f5_1 / maxAbs) * 12;
+                const h3 = (trend.f1 / maxAbs) * 12;
+
+                const drawBar = (h, x) => {
+                    let y, barH, color;
+                    if (h > 0) {
+                        y = 15 - h; barH = h; color = '#10B981'; 
+                    } else if (h < 0) {
+                        y = 15; barH = Math.abs(h); color = '#EF4444'; 
+                    } else {
+                        y = 14; barH = 2; color = '#4B5563'; 
+                    }
+                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
+                };
+
+                const svgHtml =
