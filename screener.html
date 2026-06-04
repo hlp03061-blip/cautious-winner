@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略選股清單 - 抄底資金流 (Bottom-Fishing Screener)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div class="flex flex-wrap gap-3">
+                <a href="index.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">📊 綜合決策儀表板 (Dashboard)</a>
+                <a href="#" class="px-4 py-2 bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 rounded-lg text-sm font-semibold border border-emerald-800/50 transition-colors shadow-sm">🎣 策略選股清單 (Stock Screener)</a>
+                <a href="volsqueeze.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">擠壓變盤焦 (Vol Squeeze)</a>
+            </div>
+            
+            <div class="relative w-full sm:w-72">
+                <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
+                       class="w-full bg-gray-900 border border-gray-700 rounded-lg text-sm px-4 py-2 text-emerald-100 placeholder-gray-500 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-inner">
+            </div>
+        </nav>
+
+        <header class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
+                        🎣 底部背離抄底策略 (Bottom-Fishing Screener)
+                    </h1>
+                    <p class="text-xs text-gray-400 mt-1">
+                        演算法邏輯：尋找 5D & 10D 資金正流入，但 MFI < 45 的量價背離股。<br>
+                        排序權重：綜合抄底分 (MFI 越低 + 資金越大 + 爆量 = 分數越高)。
+                    </p>
+                </div>
+                
+                <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 flex flex-wrap items-end gap-3 shadow-inner">
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold block mb-1">🇭🇰 港股數據日 (HK Date)</label>
+                        <input type="date" id="hk-date" class="bg-gray-900 border border-gray-700 rounded text-sm px-2 py-1.5 text-emerald-400 font-mono outline-none focus:border-emerald-500 cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold block mb-1">🇺🇸 美股數據日 (US Date)</label>
+                        <input type="date" id="us-date" class="bg-gray-900 border border-gray-700 rounded text-sm px-2 py-1.5 text-blue-400 font-mono outline-none focus:border-blue-500 cursor-pointer">
+                    </div>
+                    <button id="btn-load-date" class="bg-emerald-900/80 hover:bg-emerald-700 text-emerald-100 border border-emerald-700 text-xs font-bold px-4 py-2 rounded-lg transition shadow-lg flex items-center gap-1 cursor-pointer">
+                        🔄 載入 (Load)
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <h2 class="text-lg font-bold text-emerald-400 flex items-center gap-2 transition-all">
+                    🎯 抄底黃金坑清單
+                </h2>
+                <div class="flex items-center gap-3">
+                    <span id="match-count" class="text-gray-400 text-xs font-semibold px-2">載入中...</span>
+                    <button id="btn-copy-all" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1">
+                        📋 複製所有代號
+                    </button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
+                            <th class="p-4 leading-tight">市場/代號<br><span class="text-[10px] text-gray-500">Market/Ticker</span></th>
+                            <th class="p-4 leading-tight">公司板塊<br><span class="text-[10px] text-gray-500">Sector</span></th>
+                            <th class="p-4 text-right leading-tight">最新現價<br><span class="text-[10px] text-gray-500">Latest Price</span></th>
+                            <th class="p-4 text-right leading-tight">MFI 指標<br><span class="text-[10px] text-gray-500">MFI (<45)</span></th>
+                            <th class="p-4 text-right leading-tight">5日資金流入<br><span class="text-[10px] text-gray-500">5D Flow (>0)</span></th>
+                            <th class="p-4 text-center leading-tight">狀態標籤<br><span class="text-[10px] text-gray-500">Tags</span></th>
+                            <th class="p-4 text-right font-bold text-emerald-400 pr-6 leading-tight" title="MFI越低(40%) + 5D資金越大(40%) + 爆量(20%)">抄底值搏分<br><span class="text-[10px] text-emerald-500/70">Bottom Score</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-table-body">
+                        <tr><td colspan="7" class="p-8 text-center text-gray-500">正在下載最新雲端數據 (Downloading cloud data)...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // 初始化 Supabase
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const TABLE_FLOW_HK = 'money_flow_hk';          
+        const TABLE_FLOW_US = 'money_flow_sp500';      
+
+        let latestMarketData = [];
+        let filteredScreenerData = []; // 儲存符合抄底條件的數據
+
+        const hkDatePicker = document.getElementById('hk-date');
+        const usDatePicker = document.getElementById('us-date');
+        const btnLoadDate = document.getElementById('btn-load-date');
+        const searchInput = document.getElementById('search-ticker'); 
+        const btnCopyAll = document.getElementById('btn-copy-all');
+
+        // 格式化代號 (匯入看盤軟體專用)
+        function formatCopyTicker(ticker, market) {
+            let t = String(ticker).trim();
+            if (market === 'HK') {
+                t = t.replace(/\.HK$/i, ''); 
+                if (/^\d+$/.test(t)) {
+                    t = t.padStart(4, '0'); 
+                }
+                return t + '.HK';
+            }
+            return t; 
+        }
+
+        // 金額格式化
+        function formatMoney(value) {
+            if (value == null || value === 0) return '-';
+            const num = Number(value);
+            const absNum = Math.abs(num);
+            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + ' M';
+            if (absNum >= 10000) return (num / 10000).toFixed(1) + ' 萬';
+            return num.toFixed(1);
+        }
+
+        // 複製清單功能
+        btnCopyAll.addEventListener('click', () => {
+            if (filteredScreenerData.length === 0) return;
+            const tickers = filteredScreenerData.map(s => formatCopyTicker(s.ticker, s.market)).join(';');
+            navigator.clipboard.writeText(tickers).then(() => {
+                const originalText = btnCopyAll.innerHTML;
+                btnCopyAll.innerHTML = `✅ 已複製 ${filteredScreenerData.length} 隻`;
+                btnCopyAll.classList.replace('bg-gray-800', 'bg-emerald-800');
+                setTimeout(() => { 
+                    btnCopyAll.innerHTML = originalText; 
+                    btnCopyAll.classList.replace('bg-emerald-800', 'bg-gray-800');
+                }, 2000);
+            });
+        });
+
+        // 初始載入
+        async function initScreener() {
+            try {
+                await fetchLatestDatesAndSetPickers();
+                await fetchFlowDataByDate();
+            } catch (err) {
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 bg-red-950/20">🚨 初始化出錯: ${err.message}</td></tr>`;
+            }
+        }
+
+        async function fetchLatestDatesAndSetPickers() {
+            const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
+                supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+            ]);
+            if (hkDateData && hkDateData.length > 0 && hkDateData[0].Record_Date) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
+            if (usDateData && usDateData.length > 0 && usDateData[0].Record_Date) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
+        }
+
+        async function fetchFlowDataByDate() {
+            const targetHkDate = hkDatePicker.value;
+            const targetUsDate = usDatePicker.value;
+
+            if (!targetHkDate && !targetUsDate) {
+                alert("請至少選擇一個市場的查詢日期！"); return;
+            }
+
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-emerald-400 animate-pulse">🔄 正在載入與運算抄底邏輯 (Fetching and Calculating)...</td></tr>`;
+
+            try {
+                const [hkRes, usRes] = await Promise.all([
+                    targetHkDate ? supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', targetHkDate).limit(2000) : { data: [] },
+                    targetUsDate ? supabaseClient.from(TABLE_FLOW_US).select('*').eq('Record_Date', targetUsDate).limit(2000) : { data: [] }
+                ]);
+
+                const hkData = (hkRes.data || []).map(r => ({ ...r, market: 'HK' }));
+                const usData = (usRes.data || []).map(r => ({ ...r, market: 'US' }));
+
+                latestMarketData = [...hkData, ...usData];
+                executeScreenerLogic();
+
+            } catch (err) {
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-500 bg-red-950/20">🚨 讀取 Supabase 出錯: ${err.message}</td></tr>`;
+            }
+        }
+
+        // 核心：抄底過濾與評分演算法
+        function executeScreenerLogic() {
+            const searchTerm = searchInput.value.trim().toUpperCase();
+
+            // 1. 嚴格過濾：5D為正、10D為正、MFI小於45
+            let rawFiltered = latestMarketData.filter(r => {
+                const f5 = Number(r['5D_flow']) || 0;
+                const f10 = Number(r['10D_flow']) || 0;
+                const mfi = r.MFI != null ? Number(r.MFI) : 100;
+                return f5 > 0 && f10 > 0 && mfi < 45;
+            });
+
+            // 如果沒有資料，直接返回
+            if (rawFiltered.length === 0) {
+                filteredScreenerData = [];
+                renderTable();
+                return;
+            }
+
+            // 2. 找出當前入選池子裡的「最大 5D 資金流」，用於算分正規化
+            const maxF5 = Math.max(...rawFiltered.map(r => Number(r['5D_flow'])));
+
+            // 3. 計算綜合抄底分 (Bottom-Fishing Score)
+            filteredScreenerData = rawFiltered.map(r => {
+                const f5 = Number(r['5D_flow']);
+                const f10 = Number(r['10D_flow']);
+                const mfi = Number(r.MFI);
+                const volSpike = Number(r.Volspike) || 0;
+
+                // 評分邏輯 (滿分 100)：
+                // MFI 越低越好 (佔 40 分): 如果 MFI=45 得 0 分，MFI=15 得滿分 (設定下限 15)
+                const clampedMfi = Math.max(mfi, 15);
+                const mfiScore = ((45 - clampedMfi) / 30) * 40; 
+
+                // 資金流越大越好 (佔 40 分)
+                const flowScore = (f5 / maxF5) * 40;
+
+                // 成交量激增 (佔 20 分): 爆量 2 倍即拿滿分
+                const volScore = Math.min(volSpike / 2.0, 1) * 20;
+
+                const bottomScore = mfiScore + flowScore + volScore;
+
+                return {
+                    ticker: String(r.ticker || r.Ticker || '').trim(),
+                    market: r.market,
+                    name: r.company_name || r.Company_Name || '未知',
+                    sector: r.sector || r.Sector || '未分類',
+                    price: Number(r.price) || 0,
+                    mfi: mfi,
+                    flow_5d: f5,
+                    flow_10d: f10,
+                    accel: String(r.accel || '').trim().toUpperCase(),
+                    volSpike: volSpike,
+                    bottomScore: bottomScore
+                };
+            });
+
+            // 搜尋過濾
+            if (searchTerm) {
+                filteredScreenerData = filteredScreenerData.filter(s => 
+                    s.ticker.toUpperCase().includes(searchTerm) || 
+                    s.name.toUpperCase().includes(searchTerm)
+                );
+            }
+
+            // 4. 排序：(3)->(2)->(1) 綜合分優先 -> 5D資金量 -> MFI絕對值
+            filteredScreenerData.sort((a, b) => {
+                if (Math.abs(b.bottomScore - a.bottomScore) > 0.1) return b.bottomScore - a.bottomScore;
+                if (Math.abs(b.flow_5d - a.flow_5d) > 1000) return b.flow_5d - a.flow_5d;
+                return a.mfi - b.mfi; 
+            });
+
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('stock-table-body');
+            document.getElementById('match-count').textContent = `入選 ${filteredScreenerData.length} 隻`;
+            tbody.innerHTML = '';
+
+            if (filteredScreenerData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-500">今日無符合抄底條件 (5D/10D > 0, MFI < 45) 的股票。</td></tr>`;
+                return;
+            }
+
+            filteredScreenerData.forEach(stock => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
+                const marketFlag = stock.market === 'HK' ? '🇭🇰' : '🇺🇸';
+
+                // MFI 顏色突顯 (越低越綠)
+                let mfiColor = 'text-gray-300';
+                if (stock.mfi < 25) mfiColor = 'text-emerald-400 font-extrabold animate-pulse';
+                else if (stock.mfi < 35) mfiColor = 'text-emerald-300 font-bold';
+                else mfiColor = 'text-teal-200';
+
+                // 標籤徽章
+                let badgeHtml = '';
+                if (stock.volSpike >= 1.5) {
+                    badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
+                }
+                if (stock.accel === 'THIN') {
+                    badgeHtml += `<span class="bg-gray-900 text-gray-400 border border-gray-700 text-[10px] px-2 py-0.5 rounded-md inline-block">靜悄悄 (Thin)</span>`;
+                } else {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="p-4 font-mono font-bold">
+                        <span class="mr-1">${marketFlag}</span>
+                        <span class="text-blue-400">${stock.ticker}</span>
+                        <br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
+                    </td>
+                    <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
+                    <td class="p-4 text-right font-mono text-yellow-500">${stock.price.toFixed(2)}</td>
+                    <td class="p-4 text-right font-mono ${mfiColor} text-lg">${stock.mfi.toFixed(1)}</td>
+                    <td class="p-4 text-right font-mono text-emerald-400">
+                        ${formatMoney(stock.flow_5d)}
+                        <br><span class="text-[10px] text-gray-500">10D: ${formatMoney(stock.flow_10d)}</span>
+                    </td>
+                    <td class="p-4 text-center">${badgeHtml}</td>
+                    <td class="p-4 text-right font-mono text-emerald-400 font-black text-xl pr-6 bg-emerald-950/10">
+                        ${stock.bottomScore.toFixed(1)}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 綁定事件
+        btnLoadDate.addEventListener('click', fetchFlowDataByDate);
+        searchInput.addEventListener('input', executeScreenerLogic);
+        document.addEventListener('DOMContentLoaded', initScreener);
+
+    </script>
+</body>
+</html>
