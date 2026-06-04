@@ -8,31 +8,13 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* 自訂 Checkbox 樣式 */
         .stock-checkbox {
-            appearance: none;
-            background-color: #1f2937;
-            margin: 0;
-            font: inherit;
-            color: currentColor;
-            width: 1.15em;
-            height: 1.15em;
-            border: 1px solid #4b5563;
-            border-radius: 0.25em;
-            display: grid;
-            place-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
+            appearance: none; background-color: #1f2937; margin: 0; font: inherit; color: currentColor;
+            width: 1.15em; height: 1.15em; border: 1px solid #4b5563; border-radius: 0.25em; display: grid; place-content: center; cursor: pointer; transition: all 0.2s;
         }
         .stock-checkbox::before {
-            content: "";
-            width: 0.65em;
-            height: 0.65em;
-            transform: scale(0);
-            transition: 120ms transform ease-in-out;
-            box-shadow: inset 1em 1em #34d399; /* emerald-400 */
-            transform-origin: center;
-            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+            content: ""; width: 0.65em; height: 0.65em; transform: scale(0); transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em #34d399; transform-origin: center; clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
         }
         .stock-checkbox:checked { border-color: #34d399; }
         .stock-checkbox:checked::before { transform: scale(1); }
@@ -79,7 +61,6 @@
             <div class="bg-gray-950/50 p-4 rounded-lg border border-gray-800 text-sm text-gray-300">
                 <p class="font-bold text-emerald-400 mb-2">📌 當前篩選邏輯與參數：</p>
                 <ul class="list-disc list-inside space-y-1 text-xs text-gray-400">
-                    <li><strong class="text-gray-200">基本門檻：</strong>過濾市值極小與流動性極差之股票 (由 Python 後台處理)。</li>
                     <li><strong class="text-gray-200">資金背離條件：</strong>過去 5 日與 10 日資金皆為正流入 (5D/10D Flow > 0)。</li>
                     <li><strong class="text-gray-200">股價未過熱條件：</strong>資金流量指標 (MFI) 必須小於 45。</li>
                     <li><strong class="text-gray-200">排序權重 (抄底值搏分)：</strong>極度冷門 (MFI越低 40%) + 吸籌力道 (5D資金流越大 40%) + 點火跡象 (成交量爆增 20%)。</li>
@@ -119,9 +100,9 @@
                             <th class="p-4">市場/代號</th>
                             <th class="p-4">板塊</th>
                             <th class="p-4 text-right">昨日收市價<br><span class="text-[10px] text-gray-500">(Supabase)</span></th>
-                            <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-emerald-500">(API)</span></th>
+                            <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-emerald-500">(模擬 API)</span></th>
                             <th class="p-4 text-right">MFI (<45)</th>
-                            <th class="p-4 text-right">5D 資金流</th>
+                            <th class="p-4 text-center">歷史 3 段資金演進<br><span class="text-[10px] text-gray-500">10D ➔ 5D ➔ 1D</span></th>
                             <th class="p-4 text-center">狀態標籤</th>
                             <th class="p-4 text-right font-bold text-emerald-400 pr-6">抄底值搏分</th>
                         </tr>
@@ -144,13 +125,12 @@
 
         let latestMarketData = [];
         let filteredScreenerData = []; 
-        let activeMarket = 'HK'; // 預設顯示港股
+        let activeMarket = 'HK'; 
 
         const hkDatePicker = document.getElementById('hk-date');
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 格式化代號
         function formatCopyTicker(ticker, market) {
             let t = String(ticker).trim();
             if (market === 'HK') {
@@ -170,11 +150,8 @@
             return num.toFixed(1);
         }
 
-        // 切換市場 Tab
         window.switchTab = function(market) {
             activeMarket = market;
-            
-            // 更新 UI 樣式
             document.querySelectorAll('.market-tab').forEach(tab => {
                 tab.classList.remove('bg-gray-900', 'text-emerald-400', 'border-emerald-500');
                 tab.classList.add('bg-gray-950', 'text-gray-500', 'border-transparent');
@@ -182,14 +159,11 @@
             const activeTab = document.getElementById(`tab-${market.toLowerCase()}`);
             activeTab.classList.remove('bg-gray-950', 'text-gray-500', 'border-transparent');
             activeTab.classList.add('bg-gray-900', 'text-emerald-400', 'border-emerald-500');
-
             executeScreenerLogic();
         };
 
-        // 模擬取得即時報價 (未來可替換為 Finnhub 等 API)
         async function fetchLiveQuotesMock(stocks) {
             return stocks.map(stock => {
-                // 模擬報價：以昨收價為基準，隨機產生 -2% 到 +2% 的波動
                 const changePct = (Math.random() * 4) - 2; 
                 const livePrice = stock.price * (1 + (changePct / 100));
                 return { ...stock, livePrice: livePrice, changePct: changePct };
@@ -224,7 +198,6 @@
         async function executeScreenerLogic() {
             const searchTerm = searchInput.value.trim().toUpperCase();
 
-            // 1. 根據 Tab 和 抄底條件 過濾
             let rawFiltered = latestMarketData.filter(r => {
                 if (r.market !== activeMarket) return false;
                 const f5 = Number(r['5D_flow']) || 0;
@@ -241,10 +214,10 @@
 
             const maxF5 = Math.max(...rawFiltered.map(r => Number(r['5D_flow'])));
 
-            // 2. 計算分數
             let processedData = rawFiltered.map(r => {
                 const f5 = Number(r['5D_flow']);
                 const f10 = Number(r['10D_flow']);
+                const f1 = Number(r['1D_flow']) || 0; // 新增 1D 用於畫圖
                 const mfi = Number(r.MFI);
                 const volSpike = Number(r.Volspike) || 0;
 
@@ -258,8 +231,9 @@
                     market: r.market,
                     name: r.company_name || r.Company_Name || '未知',
                     sector: r.sector || r.Sector || '未分類',
-                    price: Number(r.price) || 0, // 昨日收市
+                    price: Number(r.price) || 0,
                     mfi: mfi,
+                    flow_1d: f1,
                     flow_5d: f5,
                     flow_10d: f10,
                     accel: String(r.accel || '').trim().toUpperCase(),
@@ -278,7 +252,6 @@
                 return a.mfi - b.mfi; 
             });
 
-            // 取得即時報價 (模擬)
             filteredScreenerData = await fetchLiveQuotesMock(processedData);
             renderTable();
         }
@@ -295,19 +268,58 @@
                 return;
             }
 
-            filteredScreenerData.forEach((stock, index) => {
+            filteredScreenerData.forEach((stock) => {
                 const tr = document.createElement('tr');
                 tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
                 
-                // 即時報價顏色
                 let livePriceColor = 'text-gray-300';
                 if (stock.changePct > 0) livePriceColor = 'text-emerald-400';
                 else if (stock.changePct < 0) livePriceColor = 'text-red-400';
 
-                // 標籤
+                // ==========================================
+                // ★ 完美復原：你專屬的標籤徽章邏輯
+                // ==========================================
                 let badgeHtml = '';
-                if (stock.volSpike >= 1.5) badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
-                badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">${stock.accel}</span>`;
+                if (stock.volSpike >= 1.5) {
+                    badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
+                }
+                if (stock.accel === 'THIN') {
+                    badgeHtml += `<span class="bg-gray-900 text-gray-400 border border-gray-700 text-[10px] px-2 py-0.5 rounded-md inline-block">靜悄悄 (Thin)</span>`;
+                } else {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
+                }
+
+                // ==========================================
+                // ★ 新增移植：主頁的 5D Sparkline 資金流動圖
+                // ==========================================
+                const f10_5 = stock.flow_10d - stock.flow_5d;
+                const f5_1 = stock.flow_5d - stock.flow_1d;
+                const f1 = stock.flow_1d;
+                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
+                
+                const h1 = (f10_5 / maxAbs) * 12;
+                const h2 = (f5_1 / maxAbs) * 12;
+                const h3 = (f1 / maxAbs) * 12;
+
+                const drawBar = (h, x) => {
+                    let y, barH, color;
+                    if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
+                    else if (h < 0) { y = 15; barH = Math.abs(h); color = '#EF4444'; } 
+                    else { y = 14; barH = 2; color = '#4B5563'; }
+                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
+                };
+
+                const sparklineSvg = `
+                    <div class="flex items-center justify-center gap-2" title="歷史 3 階段資金演進：\n1. 前10至5D: ${formatMoney(f10_5)}\n2. 前5至1D: ${formatMoney(f5_1)}\n3. 今日1D: ${formatMoney(f1)}">
+                        <span class="text-emerald-400 font-mono w-16 text-right">${formatMoney(stock.flow_5d)}</span>
+                        <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
+                            <line x1="0" y1="15" x2="60" y2="15" stroke="#374151" stroke-width="1" stroke-dasharray="2,2" />
+                            ${drawBar(h1, 4)}   
+                            ${drawBar(h2, 24)}  
+                            ${drawBar(h3, 44)}  
+                        </svg>
+                    </div>
+                `;
 
                 tr.innerHTML = `
                     <td class="p-4 text-center">
@@ -323,14 +335,13 @@
                         <span class="text-[10px] ${stock.changePct > 0 ? 'text-emerald-500/70' : 'text-red-500/70'}">${stock.changePct > 0 ? '+' : ''}${stock.changePct.toFixed(2)}%</span>
                     </td>
                     <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
-                    <td class="p-4 text-right font-mono text-emerald-400">${formatMoney(stock.flow_5d)}</td>
+                    <td class="p-4 text-center">${sparklineSvg}</td>
                     <td class="p-4 text-center">${badgeHtml}</td>
                     <td class="p-4 text-right font-mono text-emerald-400 font-black text-xl pr-6">${stock.bottomScore.toFixed(1)}</td>
                 `;
                 tbody.appendChild(tr);
             });
 
-            // 綁定 Checkbox 事件
             bindCheckboxEvents();
         }
 
@@ -350,19 +361,15 @@
                 updateCount();
             });
 
-            rowChecks.forEach(chk => {
-                chk.addEventListener('change', updateCount);
-            });
+            rowChecks.forEach(chk => chk.addEventListener('change', updateCount));
         }
 
-        // 執行複製已選取
         document.getElementById('btn-copy-selected').addEventListener('click', () => {
             const checkedBoxes = document.querySelectorAll('.row-check:checked');
             if (checkedBoxes.length === 0) {
                 alert("請先勾選要複製的股票！");
                 return;
             }
-            
             const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
             navigator.clipboard.writeText(tickers).then(() => {
                 const btn = document.getElementById('btn-copy-selected');
