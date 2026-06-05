@@ -63,24 +63,20 @@
     </div>
 
     <script>
-        // ==========================================
-        // 1. 系統設定與初始化
-        // ==========================================
-        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; // 替換為你的
-        const SUPABASE_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; // 替換為你的 ANON KEY
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // 1. 系統設定與初始化 (解決命名衝突，改用 supabaseClient)
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
+        const SUPABASE_KEY = 'mask'; // ⚠️ 請將 mask 替換為你真實的 ANON KEY
         
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let currentSignals = [];
 
-        // ==========================================
         // 2. 獲取並渲染資料庫數據
-        // ==========================================
         async function loadData() {
             const tbody = document.getElementById('signals-table-body');
             tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-indigo-400 animate-pulse">📥 正在載入 AI 策略數據...</td></tr>`;
 
             try {
-                const { data, error } = await supabase.from('trading_signals').select('*').order('created_at', { ascending: false });
+                const { data, error } = await supabaseClient.from('trading_signals').select('*').order('created_at', { ascending: false });
                 if (error) throw error;
 
                 currentSignals = data || [];
@@ -157,18 +153,15 @@
         function isExpired(expireDateStr) {
             if (!expireDateStr) return false;
             const today = new Date().toISOString().split('T')[0];
-            return expireDateStr < today;
+            return expireDateStr < today; // 如果過期日小於今天，回傳 true
         }
 
-        // ==========================================
         // 3. 核心報價引擎 (透過 CORS Proxy 取得 Yahoo 報價)
-        // ==========================================
         async function fetchLivePrice(ticker) {
             try {
-                // 將 0700.HK 轉為 Yahoo 格式
                 const cleanTicker = ticker.trim();
                 const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${cleanTicker}`;
-                // 使用 allorigins 作為免費代理
+                // 使用 allorigins 作為代理，避開瀏覽器 CORS 阻擋
                 const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
                 
                 const response = await fetch(proxyUrl);
@@ -187,16 +180,14 @@
             }
         }
 
-        // ==========================================
         // 4. 一鍵掃描與邏輯判斷
-        // ==========================================
         async function checkPrices() {
             const btn = document.getElementById('btn-check-prices');
             btn.innerHTML = `<span>⏳ 掃描中...請稍候</span>`;
             btn.disabled = true;
             btn.classList.add('opacity-70', 'cursor-not-allowed');
 
-            let updatesNeeded = []; // 收集需要更新到 Supabase 的資料
+            let updatesNeeded = []; 
 
             // 只挑選還在等待中 (PENDING) 的訊號進行查價
             const pendingSignals = currentSignals.filter(s => s.status === 'PENDING');
@@ -214,35 +205,30 @@
 
                 // 顯示即時股價
                 priceCell.textContent = `$${livePrice.toFixed(2)}`;
-                priceCell.classList.add('text-emerald-300'); // 亮起顏色
+                priceCell.classList.add('text-emerald-300'); 
 
                 let newStatus = 'PENDING';
 
-                // 邏輯判定 1: 是否已過期
+                // 判斷邏輯
                 if (isExpired(signal.expire_date)) {
                     newStatus = 'EXPIRED';
                 } 
-                // 邏輯判定 2: 是否跌破止蝕 (保護機制)
                 else if (signal.stop_loss && livePrice <= signal.stop_loss) {
                     newStatus = 'STOPPED';
                 }
-                // 邏輯判定 3: 是否觸發策略
                 else {
                     if (signal.trigger_type === 'BREAKOUT') {
-                        // 突破：現價高於觸發價，且低於最高限價
                         if (livePrice >= signal.min_price && livePrice <= signal.max_price) newStatus = 'TRIGGERED';
                     } else if (signal.trigger_type === 'RANGE') {
-                        // 回調：現價跌入吸納區間
                         if (livePrice <= signal.max_price && livePrice >= signal.min_price) newStatus = 'TRIGGERED';
                     }
                 }
 
-                // 如果狀態有改變，準備更新 UI 與資料庫
+                // 準備更新資料庫與 UI
                 if (newStatus !== 'PENDING') {
-                    signal.status = newStatus; // 更新本地端
+                    signal.status = newStatus; 
                     updatesNeeded.push({ id: signal.id, status: newStatus });
                     
-                    // 更新 UI 徽章
                     const statusCell = document.getElementById(`status-${signal.id}`);
                     if (newStatus === 'TRIGGERED') statusCell.innerHTML = `<span class="bg-emerald-500 text-gray-950 px-2 py-1 rounded text-xs font-black shadow-[0_0_8px_rgba(16,185,129,0.5)]">🟢 已到價</span>`;
                     else if (newStatus === 'EXPIRED') statusCell.innerHTML = `<span class="bg-gray-800 text-gray-500 px-2 py-1 rounded text-xs">⏳ 已過期</span>`;
@@ -250,15 +236,14 @@
                 }
             }
 
-            // 批次更新回 Supabase
+            // 批次寫回 Supabase
             if (updatesNeeded.length > 0) {
                 for (const update of updatesNeeded) {
-                    await supabase.from('trading_signals').update({ status: update.status }).eq('id', update.id);
+                    await supabaseClient.from('trading_signals').update({ status: update.status }).eq('id', update.id);
                 }
                 console.log(`✅ 成功更新 ${updatesNeeded.length} 筆狀態至資料庫`);
             }
 
-            // 恢復按鈕狀態並更新統計
             updateStats();
             btn.innerHTML = `<span>⚡ 掃描完成 (再次點擊可刷新)</span>`;
             btn.disabled = false;
@@ -269,9 +254,7 @@
             }, 3000);
         }
 
-        // ==========================================
         // 5. 事件綁定
-        // ==========================================
         document.getElementById('btn-check-prices').addEventListener('click', checkPrices);
         document.addEventListener('DOMContentLoaded', loadData);
 
