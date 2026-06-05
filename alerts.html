@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 建倉到價提示系統 (Trading Signals Alerts)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div class="flex flex-wrap gap-3">
+                <a href="index.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">⬅ 返回主儀表板</a>
+                <a href="#" class="px-4 py-2 bg-emerald-900/50 text-emerald-300 rounded-lg text-sm font-semibold border border-emerald-800/50 shadow-sm cursor-default">🤖 AI 策略提示池</a>
+            </div>
+            
+            <button id="btn-check-prices" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-5 py-2.5 rounded-lg transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)] flex items-center gap-2">
+                <span>⚡ 一鍵掃描即時股價</span>
+            </button>
+        </nav>
+
+        <header class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
+            <div>
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-400 bg-clip-text text-transparent">
+                    🎯 AI 建倉條件與即時到價監控
+                </h1>
+                <p class="text-xs text-gray-400 mt-1">整合 Yahoo Finance 即時報價 • 自動對比目標區間與到期日</p>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 pt-2">
+                <div class="bg-gray-950 border border-gray-800 p-3 rounded-lg text-center"><div class="text-[10px] text-gray-500 font-bold mb-1">總訊號數</div><div id="stat-total" class="text-lg font-mono text-gray-300">0</div></div>
+                <div class="bg-gray-950 border border-gray-800 p-3 rounded-lg text-center"><div class="text-[10px] text-amber-500 font-bold mb-1">🟡 等待中 (PENDING)</div><div id="stat-pending" class="text-lg font-mono text-amber-400">0</div></div>
+                <div class="bg-gray-950 border border-emerald-900/50 p-3 rounded-lg text-center"><div class="text-[10px] text-emerald-500 font-bold mb-1">🟢 已到價 (TRIGGERED)</div><div id="stat-triggered" class="text-lg font-mono text-emerald-400">0</div></div>
+                <div class="bg-gray-950 border border-red-900/50 p-3 rounded-lg text-center"><div class="text-[10px] text-red-500 font-bold mb-1">🔴 已止蝕 (STOPPED)</div><div id="stat-stopped" class="text-lg font-mono text-red-400">0</div></div>
+                <div class="bg-gray-950 border border-gray-800 p-3 rounded-lg text-center"><div class="text-[10px] text-gray-500 font-bold mb-1">⏳ 已過期 (EXPIRED)</div><div id="stat-expired" class="text-lg font-mono text-gray-500">0</div></div>
+            </div>
+        </header>
+
+        <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40 text-xs">
+                            <th class="p-3 w-12 text-center">來源</th>
+                            <th class="p-3">股票名稱 (代號)</th>
+                            <th class="p-3">策略類型 / 備註</th>
+                            <th class="p-3 text-center border-l border-gray-800">觸發區間 (Limit)</th>
+                            <th class="p-3 text-center">即時現價 (Live)</th>
+                            <th class="p-3 text-center border-l border-gray-800">目標 / 止蝕</th>
+                            <th class="p-3 text-center">期限</th>
+                            <th class="p-3 text-center">狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody id="signals-table-body">
+                        <tr><td colspan="8" class="p-8 text-center text-gray-500">正在連接資料庫...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 系統設定與初始化
+        // ==========================================
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; // 替換為你的
+        const SUPABASE_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; // 替換為你的 ANON KEY
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        let currentSignals = [];
+
+        // ==========================================
+        // 2. 獲取並渲染資料庫數據
+        // ==========================================
+        async function loadData() {
+            const tbody = document.getElementById('signals-table-body');
+            tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-indigo-400 animate-pulse">📥 正在載入 AI 策略數據...</td></tr>`;
+
+            try {
+                const { data, error } = await supabase.from('trading_signals').select('*').order('created_at', { ascending: false });
+                if (error) throw error;
+
+                currentSignals = data || [];
+                renderTable();
+                updateStats();
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-red-500 bg-red-950/20">🚨 讀取失敗: ${err.message}</td></tr>`;
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('signals-table-body');
+            tbody.innerHTML = '';
+
+            if (currentSignals.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-gray-500">目前沒有任何建倉提示</td></tr>`;
+                return;
+            }
+
+            currentSignals.forEach(signal => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors';
+                
+                // 行內標籤設計
+                const botBadge = `<span class="text-[9px] bg-purple-900/50 text-purple-300 border border-purple-800 px-1.5 py-0.5 rounded truncate max-w-[60px] inline-block" title="${signal.bot_name}">${signal.bot_name}</span>`;
+                const typeColor = signal.trigger_type === 'BREAKOUT' ? 'text-indigo-400 bg-indigo-950 border-indigo-900' : 'text-teal-400 bg-teal-950 border-teal-900';
+                const stratBadge = `<span class="text-[10px] ${typeColor} border px-2 py-0.5 rounded font-bold">${signal.strategy_type || signal.trigger_type}</span>`;
+                
+                // 狀態徽章設計
+                let statusHtml = '';
+                if (signal.status === 'TRIGGERED') statusHtml = `<span class="bg-emerald-500 text-gray-950 px-2 py-1 rounded text-xs font-black shadow-[0_0_8px_rgba(16,185,129,0.5)]">🟢 已到價</span>`;
+                else if (signal.status === 'PENDING') statusHtml = `<span class="bg-amber-950 text-amber-500 border border-amber-900 px-2 py-1 rounded text-xs font-bold">🟡 等待中</span>`;
+                else if (signal.status === 'EXPIRED') statusHtml = `<span class="bg-gray-800 text-gray-500 px-2 py-1 rounded text-xs">⏳ 已過期</span>`;
+                else if (signal.status === 'STOPPED') statusHtml = `<span class="bg-red-950 text-red-500 border border-red-900 px-2 py-1 rounded text-xs font-bold">🔴 已止蝕</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-3 text-center">${botBadge}<br><span class="text-[10px] text-gray-500 mt-1">${signal.signal_date.slice(5)}</span></td>
+                    <td class="p-3">
+                        <div class="font-bold text-sm text-gray-200">${signal.stock_name}</div>
+                        <div class="font-mono text-xs text-blue-400">${signal.stock_code}</div>
+                    </td>
+                    <td class="p-3 text-xs text-gray-400 max-w-[180px]">
+                        ${stratBadge} <span class="text-gray-500 ml-1 truncate block mt-1" title="${signal.reason}">${signal.reason}</span>
+                    </td>
+                    <td class="p-3 text-center border-l border-gray-800 font-mono text-yellow-500 font-bold bg-gray-900/30">
+                        $${signal.min_price?.toFixed(2)} - $${signal.max_price?.toFixed(2)}
+                    </td>
+                    <td class="p-3 text-center border-l border-gray-800 font-mono font-black text-lg text-white" id="price-${signal.id}">
+                        -
+                    </td>
+                    <td class="p-3 text-center font-mono text-xs">
+                        <div class="text-emerald-400 mb-0.5">🎯 $${signal.target_price?.toFixed(2)}</div>
+                        <div class="text-red-400">🛑 $${signal.stop_loss?.toFixed(2)}</div>
+                    </td>
+                    <td class="p-3 text-center font-mono text-xs ${isExpired(signal.expire_date) && signal.status === 'PENDING' ? 'text-red-500 font-bold' : 'text-gray-500'}">
+                        ${signal.expire_date}
+                    </td>
+                    <td class="p-3 text-center" id="status-${signal.id}">
+                        ${statusHtml}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total').textContent = currentSignals.length;
+            document.getElementById('stat-pending').textContent = currentSignals.filter(s => s.status === 'PENDING').length;
+            document.getElementById('stat-triggered').textContent = currentSignals.filter(s => s.status === 'TRIGGERED').length;
+            document.getElementById('stat-stopped').textContent = currentSignals.filter(s => s.status === 'STOPPED').length;
+            document.getElementById('stat-expired').textContent = currentSignals.filter(s => s.status === 'EXPIRED').length;
+        }
+
+        function isExpired(expireDateStr) {
+            if (!expireDateStr) return false;
+            const today = new Date().toISOString().split('T')[0];
+            return expireDateStr < today;
+        }
+
+        // ==========================================
+        // 3. 核心報價引擎 (透過 CORS Proxy 取得 Yahoo 報價)
+        // ==========================================
+        async function fetchLivePrice(ticker) {
+            try {
+                // 將 0700.HK 轉為 Yahoo 格式
+                const cleanTicker = ticker.trim();
+                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${cleanTicker}`;
+                // 使用 allorigins 作為免費代理
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
+                
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Proxy 請求失敗');
+                
+                const data = await response.json();
+                const yahooData = JSON.parse(data.contents);
+                
+                if (yahooData.chart && yahooData.chart.result && yahooData.chart.result.length > 0) {
+                    return yahooData.chart.result[0].meta.regularMarketPrice;
+                }
+                return null;
+            } catch (err) {
+                console.error(`無法獲取 ${ticker} 報價:`, err);
+                return null;
+            }
+        }
+
+        // ==========================================
+        // 4. 一鍵掃描與邏輯判斷
+        // ==========================================
+        async function checkPrices() {
+            const btn = document.getElementById('btn-check-prices');
+            btn.innerHTML = `<span>⏳ 掃描中...請稍候</span>`;
+            btn.disabled = true;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            let updatesNeeded = []; // 收集需要更新到 Supabase 的資料
+
+            // 只挑選還在等待中 (PENDING) 的訊號進行查價
+            const pendingSignals = currentSignals.filter(s => s.status === 'PENDING');
+
+            for (const signal of pendingSignals) {
+                const priceCell = document.getElementById(`price-${signal.id}`);
+                priceCell.innerHTML = `<span class="animate-pulse text-gray-500 text-sm">查詢中...</span>`;
+
+                const livePrice = await fetchLivePrice(signal.stock_code);
+                
+                if (livePrice === null) {
+                    priceCell.innerHTML = `<span class="text-xs text-red-500">獲取失敗</span>`;
+                    continue;
+                }
+
+                // 顯示即時股價
+                priceCell.textContent = `$${livePrice.toFixed(2)}`;
+                priceCell.classList.add('text-emerald-300'); // 亮起顏色
+
+                let newStatus = 'PENDING';
+
+                // 邏輯判定 1: 是否已過期
+                if (isExpired(signal.expire_date)) {
+                    newStatus = 'EXPIRED';
+                } 
+                // 邏輯判定 2: 是否跌破止蝕 (保護機制)
+                else if (signal.stop_loss && livePrice <= signal.stop_loss) {
+                    newStatus = 'STOPPED';
+                }
+                // 邏輯判定 3: 是否觸發策略
+                else {
+                    if (signal.trigger_type === 'BREAKOUT') {
+                        // 突破：現價高於觸發價，且低於最高限價
+                        if (livePrice >= signal.min_price && livePrice <= signal.max_price) newStatus = 'TRIGGERED';
+                    } else if (signal.trigger_type === 'RANGE') {
+                        // 回調：現價跌入吸納區間
+                        if (livePrice <= signal.max_price && livePrice >= signal.min_price) newStatus = 'TRIGGERED';
+                    }
+                }
+
+                // 如果狀態有改變，準備更新 UI 與資料庫
+                if (newStatus !== 'PENDING') {
+                    signal.status = newStatus; // 更新本地端
+                    updatesNeeded.push({ id: signal.id, status: newStatus });
+                    
+                    // 更新 UI 徽章
+                    const statusCell = document.getElementById(`status-${signal.id}`);
+                    if (newStatus === 'TRIGGERED') statusCell.innerHTML = `<span class="bg-emerald-500 text-gray-950 px-2 py-1 rounded text-xs font-black shadow-[0_0_8px_rgba(16,185,129,0.5)]">🟢 已到價</span>`;
+                    else if (newStatus === 'EXPIRED') statusCell.innerHTML = `<span class="bg-gray-800 text-gray-500 px-2 py-1 rounded text-xs">⏳ 已過期</span>`;
+                    else if (newStatus === 'STOPPED') statusCell.innerHTML = `<span class="bg-red-950 text-red-500 border border-red-900 px-2 py-1 rounded text-xs font-bold">🔴 已止蝕</span>`;
+                }
+            }
+
+            // 批次更新回 Supabase
+            if (updatesNeeded.length > 0) {
+                for (const update of updatesNeeded) {
+                    await supabase.from('trading_signals').update({ status: update.status }).eq('id', update.id);
+                }
+                console.log(`✅ 成功更新 ${updatesNeeded.length} 筆狀態至資料庫`);
+            }
+
+            // 恢復按鈕狀態並更新統計
+            updateStats();
+            btn.innerHTML = `<span>⚡ 掃描完成 (再次點擊可刷新)</span>`;
+            btn.disabled = false;
+            btn.classList.remove('opacity-70', 'cursor-not-allowed');
+            
+            setTimeout(() => {
+                btn.innerHTML = `<span>⚡ 一鍵掃描即時股價</span>`;
+            }, 3000);
+        }
+
+        // ==========================================
+        // 5. 事件綁定
+        // ==========================================
+        document.getElementById('btn-check-prices').addEventListener('click', checkPrices);
+        document.addEventListener('DOMContentLoaded', loadData);
+
+    </script>
+</body>
+</html>
