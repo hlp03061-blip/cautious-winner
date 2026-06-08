@@ -100,7 +100,7 @@
                             <th class="p-4">市場/代號</th>
                             <th class="p-4">板塊</th>
                             <th class="p-4 text-right">昨日收市價<br><span class="text-[10px] text-gray-500">(Supabase)</span></th>
-                            <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-emerald-500">(模擬 API)</span></th>
+                            <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-emerald-500">(Yahoo API)</span></th>
                             <th class="p-4 text-right">MFI (<45)</th>
                             <th class="p-4 text-center">歷史 3 段資金演進<br><span class="text-[10px] text-gray-500">10D ➔ 5D ➔ 1D</span></th>
                             <th class="p-4 text-center">狀態標籤</th>
@@ -131,6 +131,7 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
+        // 統一將代號格式化為 Yahoo Finance 能識別的格式 (特別是港股要補零 + .HK)
         function formatCopyTicker(ticker, market) {
             let t = String(ticker).trim();
             if (market === 'HK') {
@@ -162,11 +163,71 @@
             executeScreenerLogic();
         };
 
-        async function fetchLiveQuotesMock(stocks) {
+        // ==========================================
+        // ★ 核心修改：對接真實 Yahoo Finance API
+        // ==========================================
+        async function fetchRealLiveQuotes(stocks) {
+            if (!stocks || stocks.length === 0) return [];
+
+            // 1. 準備所有的 Ticker，轉換成 Yahoo Finance 格式
+            const symbols = stocks.map(stock => formatCopyTicker(stock.ticker, stock.market));
+            
+            // 將請求分塊 (Batch)，每次最多查 50 檔股票，避免 URL 過長被拒絕
+            const chunkSize = 50;
+            let resultsMap = {};
+
+            try {
+                for (let i = 0; i < symbols.length; i += chunkSize) {
+                    const chunk = symbols.slice(i, i + chunkSize);
+                    const symbolsStr = chunk.join(',');
+                    
+                    // 組合 Yahoo Finance API URL
+                    const targetUrl = encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbolsStr}`);
+                    
+                    // 使用 AllOrigins 作為 CORS 代理伺服器 (解決前端瀏覽器直接呼叫跨域被阻擋的問題)
+                    const proxyUrl = `https://api.allorigins.win/get?url=${targetUrl}`;
+
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) throw new Error(`API 請求失敗: ${response.status}`);
+                    
+                    const proxyData = await response.json();
+                    
+                    // AllOrigins 會把目標內容放在 'contents' 欄位中，需解析
+                    if (proxyData.contents) {
+                        const data = JSON.parse(proxyData.contents);
+                        if (data && data.quoteResponse && data.quoteResponse.result) {
+                            data.quoteResponse.result.forEach(quote => {
+                                resultsMap[quote.symbol] = {
+                                    price: quote.regularMarketPrice,
+                                    changePct: quote.regularMarketChangePercent
+                                };
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("獲取即時報價失敗，將使用 Supabase 昨日收盤價作為後備：", error);
+            }
+
+            // 2. 將即時價格合併回原始數據陣列，若查無資料則優雅降級 (Fallback)
             return stocks.map(stock => {
-                const changePct = (Math.random() * 4) - 2; 
-                const livePrice = stock.price * (1 + (changePct / 100));
-                return { ...stock, livePrice: livePrice, changePct: changePct };
+                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
+                const liveData = resultsMap[lookupSymbol];
+
+                if (liveData && liveData.price !== undefined) {
+                    return { 
+                        ...stock, 
+                        livePrice: liveData.price, 
+                        changePct: liveData.changePct 
+                    };
+                } else {
+                    // 優雅降級：如果沒抓到資料，維持昨日收盤價，漲跌幅設為 0
+                    return { 
+                        ...stock, 
+                        livePrice: stock.price, 
+                        changePct: 0 
+                    };
+                }
             });
         }
 
@@ -217,7 +278,7 @@
             let processedData = rawFiltered.map(r => {
                 const f5 = Number(r['5D_flow']);
                 const f10 = Number(r['10D_flow']);
-                const f1 = Number(r['1D_flow']) || 0; // 新增 1D 用於畫圖
+                const f1 = Number(r['1D_flow']) || 0; 
                 const mfi = Number(r.MFI);
                 const volSpike = Number(r.Volspike) || 0;
 
@@ -252,7 +313,9 @@
                 return a.mfi - b.mfi; 
             });
 
-            filteredScreenerData = await fetchLiveQuotesMock(processedData);
+            // ★ 將這裡呼叫的 mock 函數替換為真實 API 函數
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-teal-400 animate-pulse">📡 正在從 Yahoo API 獲取即時報價...</td></tr>`;
+            filteredScreenerData = await fetchRealLiveQuotes(processedData);
             renderTable();
         }
 
@@ -276,9 +339,6 @@
                 if (stock.changePct > 0) livePriceColor = 'text-emerald-400';
                 else if (stock.changePct < 0) livePriceColor = 'text-red-400';
 
-                // ==========================================
-                // ★ 完美復原：你專屬的標籤徽章邏輯
-                // ==========================================
                 let badgeHtml = '';
                 if (stock.volSpike >= 1.5) {
                     badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
@@ -289,9 +349,6 @@
                     badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
                 }
 
-                // ==========================================
-                // ★ 新增移植：主頁的 5D Sparkline 資金流動圖
-                // ==========================================
                 const f10_5 = stock.flow_10d - stock.flow_5d;
                 const f5_1 = stock.flow_5d - stock.flow_1d;
                 const f1 = stock.flow_1d;
