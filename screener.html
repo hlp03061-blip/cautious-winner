@@ -115,18 +115,6 @@
         </section>
     </div>
 
-    <div id="quote-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div class="p-4 bg-gray-950 border-b border-gray-800 flex justify-between items-center">
-                <h3 id="modal-title" class="font-bold text-emerald-400 font-mono text-base">📊 AASTOCKS 即時數據擷取</h3>
-                <button onclick="closeQuoteModal()" class="text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded-lg text-sm font-bold transition">✕ 關閉</button>
-            </div>
-            <div class="flex-1 bg-gray-950 relative">
-                <iframe id="modal-iframe" src="" class="w-full h-full border-none"></iframe>
-            </div>
-        </div>
-    </div>
-
     <script>
         const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
@@ -174,29 +162,12 @@
             executeScreenerLogic();
         };
 
-        // 彈出式 AASTOCKS 數據擷取機制
-        window.openAAStocksModal = function(ticker, market, name) {
-            let url = "";
-            if (market === 'HK') {
-                let code = String(ticker).replace(/\.HK$/i, '').trim();
-                if (/^\d+$/.test(code)) code = code.padStart(5, '0');
-                url = `https://www.aastocks.com/tc/stocks/analysis/stock-chart.aspx?symbol=${code}`;
-            } else {
-                url = `https://www.aastocks.com/tc/usstock/quote/charts.aspx?symbol=${ticker.trim()}`;
-            }
-            
-            document.getElementById('modal-title').innerHTML = `📊 即時數據擷取: <span class="text-blue-400 font-mono">${ticker}</span> ${name}`;
-            document.getElementById('modal-iframe').src = url;
-            document.getElementById('quote-modal').classList.remove('hidden');
-        };
-
-        window.closeQuoteModal = function() {
-            document.getElementById('quote-modal').classList.add('hidden');
-            document.getElementById('modal-iframe').src = "";
-        };
-
         async function fetchLiveQuotesMock(stocks) {
-            return stocks;
+            return stocks.map(stock => {
+                const changePct = (Math.random() * 4) - 2; 
+                const livePrice = stock.price * (1 + (changePct / 100));
+                return { ...stock, livePrice: livePrice, changePct: changePct };
+            });
         }
 
         async function fetchLatestDatesAndSetPickers() {
@@ -302,6 +273,8 @@
                 tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
                 
                 let livePriceColor = 'text-gray-300';
+                if (stock.changePct > 0) livePriceColor = 'text-emerald-400';
+                else if (stock.changePct < 0) livePriceColor = 'text-red-400';
 
                 // ==========================================
                 // ★ 完美復原：你專屬的標籤徽章邏輯
@@ -358,9 +331,8 @@
                     <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
                     <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
                     <td class="p-4 text-right font-mono font-bold ${livePriceColor}">
-                        <button onclick="openAAStocksModal('${stock.ticker}', '${stock.market}', '${stock.name.replace(/'/g, "\\'")}')" class="bg-emerald-950/80 hover:bg-emerald-800 text-emerald-400 hover:text-emerald-200 border border-emerald-800/60 text-xs px-2 py-1.5 rounded transition shadow-sm font-sans">
-                            📊 擷取 AASTOCKS
-                        </button>
+                        ${stock.livePrice.toFixed(2)}<br>
+                        <span class="text-[10px] ${stock.changePct > 0 ? 'text-emerald-500/70' : 'text-red-500/70'}">${stock.changePct > 0 ? '+' : ''}${stock.changePct.toFixed(2)}%</span>
                     </td>
                     <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
                     <td class="p-4 text-center">${sparklineSvg}</td>
