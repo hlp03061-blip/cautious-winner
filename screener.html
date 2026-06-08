@@ -164,63 +164,55 @@
         };
 
         // ==========================================
-        // ★ 核心修改：對接真實 Yahoo Finance API (使用 CodeTabs Proxy)
+        // ★ 核心修改：採用成功的 v8/finance/chart + allorigins 方案
         // ==========================================
         async function fetchRealLiveQuotes(stocks) {
             if (!stocks || stocks.length === 0) return [];
 
-            const symbols = stocks.map(stock => formatCopyTicker(stock.ticker, stock.market));
-            const chunkSize = 50;
-            let resultsMap = {};
-
-            try {
-                for (let i = 0; i < symbols.length; i += chunkSize) {
-                    const chunk = symbols.slice(i, i + chunkSize);
-                    const symbolsStr = chunk.join(',');
+            // 使用 Promise.all 平行處理陣列中每一檔股票的查詢
+            const promises = stocks.map(async (stock) => {
+                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
+                
+                try {
+                    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${lookupSymbol}`;
+                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
                     
-                    // 目標 Yahoo API 網址
-                    const targetUrl = encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbolsStr}`);
-                    
-                    // 🌟 改用 CodeTabs 的免費 CORS 代理
-                    const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${targetUrl}`;
-
                     const response = await fetch(proxyUrl);
-                    if (!response.ok) throw new Error(`API 請求失敗: ${response.status}`);
+                    if (!response.ok) throw new Error('Proxy 請求失敗');
                     
-                    // CodeTabs 會直接返回目標網站的真實資料，不需額外解析外層包裹
                     const data = await response.json();
                     
-                    if (data && data.quoteResponse && data.quoteResponse.result) {
-                        data.quoteResponse.result.forEach(quote => {
-                            resultsMap[quote.symbol] = {
-                                price: quote.regularMarketPrice,
-                                changePct: quote.regularMarketChangePercent
+                    if (data.contents) {
+                        const yahooData = JSON.parse(data.contents);
+                        if (yahooData.chart && yahooData.chart.result && yahooData.chart.result.length > 0) {
+                            const meta = yahooData.chart.result[0].meta;
+                            const livePrice = meta.regularMarketPrice;
+                            const prevClose = meta.chartPreviousClose || stock.price; 
+                            
+                            // 計算即時漲跌幅百分比
+                            const changePct = prevClose ? ((livePrice - prevClose) / prevClose) * 100 : 0;
+                            
+                            return { 
+                                ...stock, 
+                                livePrice: livePrice, 
+                                changePct: changePct 
                             };
-                        });
+                        }
                     }
+                } catch (err) {
+                    console.warn(`[API 獲取失敗] 代號: ${lookupSymbol}，將使用歷史報價後備。原因:`, err);
                 }
-            } catch (error) {
-                console.error("獲取即時報價失敗，將使用 Supabase 昨日收盤價作為後備：", error);
-            }
 
-            return stocks.map(stock => {
-                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
-                const liveData = resultsMap[lookupSymbol];
-
-                if (liveData && liveData.price !== undefined) {
-                    return { 
-                        ...stock, 
-                        livePrice: liveData.price, 
-                        changePct: liveData.changePct 
-                    };
-                } else {
-                    return { 
-                        ...stock, 
-                        livePrice: stock.price, 
-                        changePct: 0 
-                    };
-                }
+                // 優雅降級 (Fallback): 如果 API 失敗或無資料，則回傳原本的資料
+                return { 
+                    ...stock, 
+                    livePrice: stock.price, 
+                    changePct: 0 
+                };
             });
+
+            // 等待所有股票的報價都抓取完畢
+            return await Promise.all(promises);
         }
 
         async function fetchLatestDatesAndSetPickers() {
@@ -305,8 +297,8 @@
                 return a.mfi - b.mfi; 
             });
 
-            // 呼叫真實 API 函數
-            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-teal-400 animate-pulse">📡 正在從 Yahoo API 獲取即時報價...</td></tr>`;
+            // ★ 呼叫更新後的 API 獲取函數
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-teal-400 animate-pulse">📡 正在透過 Yahoo API 獲取即時報價 (這可能需要幾秒鐘)...</td></tr>`;
             filteredScreenerData = await fetchRealLiveQuotes(processedData);
             renderTable();
         }
