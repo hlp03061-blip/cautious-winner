@@ -26,12 +26,18 @@
         <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
             <div class="flex flex-wrap gap-3">
                 <a href="index.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">📊 綜合決策儀表板</a>
-                <a href="#" class="px-4 py-2 bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 rounded-lg text-sm font-semibold border border-emerald-800/50 transition-colors shadow-sm">🎣 策略選股清單</a>
+                <a href="#" class="px-4 py-2 bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 rounded-lg text-sm font-semibold border border-emerald-800/50 transition-colors shadow-sm cursor-default">🎣 策略選股清單</a>
                 <a href="volsqueeze.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">擠壓變盤焦</a>
             </div>
-            <div class="relative w-full sm:w-72">
-                <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
-                       class="w-full bg-gray-900 border border-gray-700 rounded-lg text-sm px-4 py-2 text-emerald-100 placeholder-gray-500 outline-none focus:border-emerald-500 focus:ring-1 transition-all">
+            
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <div class="relative w-full sm:w-64">
+                    <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
+                           class="w-full bg-gray-900 border border-gray-700 rounded-lg text-sm px-4 py-2 text-emerald-100 placeholder-gray-500 outline-none focus:border-emerald-500 focus:ring-1 transition-all">
+                </div>
+                <button id="btn-check-prices" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)] flex justify-center items-center gap-2">
+                    <span>⚡ 掃描即時價</span>
+                </button>
             </div>
         </nav>
 
@@ -100,7 +106,7 @@
                             <th class="p-4">市場/代號</th>
                             <th class="p-4">板塊</th>
                             <th class="p-4 text-right">昨日收市價<br><span class="text-[10px] text-gray-500">(Supabase)</span></th>
-                            <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-emerald-500">(Yahoo API)</span></th>
+                            <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-indigo-400">(手動掃描 API)</span></th>
                             <th class="p-4 text-right">MFI (<45)</th>
                             <th class="p-4 text-center">歷史 3 段資金演進<br><span class="text-[10px] text-gray-500">10D ➔ 5D ➔ 1D</span></th>
                             <th class="p-4 text-center">狀態標籤</th>
@@ -131,7 +137,6 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 統一將代號格式化為 Yahoo Finance 能識別的格式
         function formatCopyTicker(ticker, market) {
             let t = String(ticker).trim();
             if (market === 'HK') {
@@ -164,55 +169,82 @@
         };
 
         // ==========================================
-        // ★ 核心修改：採用成功的 v8/finance/chart + allorigins 方案
+        // ★ 核心修改 1：單支股票查詢引擎 (Yahoo v8 + proxy)
         // ==========================================
-        async function fetchRealLiveQuotes(stocks) {
-            if (!stocks || stocks.length === 0) return [];
+        async function fetchLivePrice(ticker) {
+            try {
+                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
+                
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Proxy 請求失敗');
+                
+                const data = await response.json();
+                const yahooData = JSON.parse(data.contents);
+                
+                if (yahooData.chart && yahooData.chart.result && yahooData.chart.result.length > 0) {
+                    const meta = yahooData.chart.result[0].meta;
+                    return {
+                        price: meta.regularMarketPrice,
+                        prevClose: meta.chartPreviousClose
+                    };
+                }
+                return null;
+            } catch (err) {
+                console.error(`無法獲取 ${ticker} 報價:`, err);
+                return null;
+            }
+        }
 
-            // 使用 Promise.all 平行處理陣列中每一檔股票的查詢
-            const promises = stocks.map(async (stock) => {
+        // ==========================================
+        // ★ 核心修改 2：手動觸發逐行掃描引擎
+        // ==========================================
+        async function checkPrices() {
+            const btn = document.getElementById('btn-check-prices');
+            btn.innerHTML = `<span>⏳ 掃描中...請稍候</span>`;
+            btn.disabled = true;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            for (const stock of filteredScreenerData) {
                 const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
                 
-                try {
-                    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${lookupSymbol}`;
-                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
-                    
-                    const response = await fetch(proxyUrl);
-                    if (!response.ok) throw new Error('Proxy 請求失敗');
-                    
-                    const data = await response.json();
-                    
-                    if (data.contents) {
-                        const yahooData = JSON.parse(data.contents);
-                        if (yahooData.chart && yahooData.chart.result && yahooData.chart.result.length > 0) {
-                            const meta = yahooData.chart.result[0].meta;
-                            const livePrice = meta.regularMarketPrice;
-                            const prevClose = meta.chartPreviousClose || stock.price; 
-                            
-                            // 計算即時漲跌幅百分比
-                            const changePct = prevClose ? ((livePrice - prevClose) / prevClose) * 100 : 0;
-                            
-                            return { 
-                                ...stock, 
-                                livePrice: livePrice, 
-                                changePct: changePct 
-                            };
-                        }
-                    }
-                } catch (err) {
-                    console.warn(`[API 獲取失敗] 代號: ${lookupSymbol}，將使用歷史報價後備。原因:`, err);
+                // 使用 data-symbol 找到對應的價格儲存格
+                const priceCell = document.querySelector(`.live-price-cell[data-symbol="${lookupSymbol}"]`);
+                if (!priceCell) continue;
+
+                // 顯示掃描中狀態
+                priceCell.innerHTML = `<span class="animate-pulse text-indigo-400 text-sm font-bold">查詢中...</span>`;
+
+                const liveData = await fetchLivePrice(lookupSymbol);
+                
+                if (liveData === null || liveData.price === undefined) {
+                    priceCell.innerHTML = `<span class="text-xs text-red-500 font-bold bg-red-950/40 px-2 py-1 rounded">獲取失敗</span>`;
+                    continue;
                 }
 
-                // 優雅降級 (Fallback): 如果 API 失敗或無資料，則回傳原本的資料
-                return { 
-                    ...stock, 
-                    livePrice: stock.price, 
-                    changePct: 0 
-                };
-            });
+                // 計算漲跌
+                const livePrice = liveData.price;
+                const prevClose = liveData.prevClose || stock.price; 
+                const changePct = prevClose ? ((livePrice - prevClose) / prevClose) * 100 : 0;
+                
+                let livePriceColor = 'text-gray-300';
+                if (changePct > 0) livePriceColor = 'text-emerald-400';
+                else if (changePct < 0) livePriceColor = 'text-red-400';
 
-            // 等待所有股票的報價都抓取完畢
-            return await Promise.all(promises);
+                // 渲染成功擷取到的價格
+                priceCell.className = `p-4 text-right font-mono font-bold live-price-cell ${livePriceColor}`;
+                priceCell.innerHTML = `
+                    ${livePrice.toFixed(2)}<br>
+                    <span class="text-[10px] ${changePct > 0 ? 'text-emerald-500/70' : 'text-red-500/70'}">${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%</span>
+                `;
+            }
+
+            btn.innerHTML = `<span>⚡ 掃描完成 (可再次刷新)</span>`;
+            btn.disabled = false;
+            btn.classList.remove('opacity-70', 'cursor-not-allowed');
+            setTimeout(() => {
+                btn.innerHTML = `<span>⚡ 掃描即時價</span>`;
+            }, 3000);
         }
 
         async function fetchLatestDatesAndSetPickers() {
@@ -240,7 +272,7 @@
             }
         }
 
-        async function executeScreenerLogic() {
+        function executeScreenerLogic() {
             const searchTerm = searchInput.value.trim().toUpperCase();
 
             let rawFiltered = latestMarketData.filter(r => {
@@ -297,9 +329,8 @@
                 return a.mfi - b.mfi; 
             });
 
-            // ★ 呼叫更新後的 API 獲取函數
-            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-teal-400 animate-pulse">📡 正在透過 Yahoo API 獲取即時報價 (這可能需要幾秒鐘)...</td></tr>`;
-            filteredScreenerData = await fetchRealLiveQuotes(processedData);
+            // 不再自動等待報價，直接將過濾好的歷史資料渲染到畫面上
+            filteredScreenerData = processedData;
             renderTable();
         }
 
@@ -319,10 +350,6 @@
                 const tr = document.createElement('tr');
                 tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
                 
-                let livePriceColor = 'text-gray-300';
-                if (stock.changePct > 0) livePriceColor = 'text-emerald-400';
-                else if (stock.changePct < 0) livePriceColor = 'text-red-400';
-
                 let badgeHtml = '';
                 if (stock.volSpike >= 1.5) {
                     badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
@@ -362,19 +389,23 @@
                     </div>
                 `;
 
+                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
+
                 tr.innerHTML = `
                     <td class="p-4 text-center">
-                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${formatCopyTicker(stock.ticker, stock.market)}">
+                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
                     </td>
                     <td class="p-4 font-mono font-bold text-blue-400">
                         ${stock.ticker}<br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
                     </td>
                     <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
                     <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
-                    <td class="p-4 text-right font-mono font-bold ${livePriceColor}">
-                        ${stock.livePrice.toFixed(2)}<br>
-                        <span class="text-[10px] ${stock.changePct > 0 ? 'text-emerald-500/70' : 'text-red-500/70'}">${stock.changePct > 0 ? '+' : ''}${stock.changePct.toFixed(2)}%</span>
+                    
+                    <td class="p-4 text-right font-mono font-bold text-gray-600 live-price-cell" data-symbol="${lookupSymbol}">
+                        -<br>
+                        <span class="text-[10px] text-gray-700">待掃描</span>
                     </td>
+                    
                     <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
                     <td class="p-4 text-center">${sparklineSvg}</td>
                     <td class="p-4 text-center">${badgeHtml}</td>
@@ -426,6 +457,10 @@
 
         document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
         searchInput.addEventListener('input', executeScreenerLogic);
+        
+        // 綁定手動掃描按鈕事件
+        document.getElementById('btn-check-prices').addEventListener('click', checkPrices);
+
         document.addEventListener('DOMContentLoaded', async () => {
             await fetchLatestDatesAndSetPickers();
             await fetchFlowDataByDate();
