@@ -162,9 +162,21 @@
             executeScreenerLogic();
         };
 
+        // 全域動態加載 Yahoo Widget 的函式
+        window.loadYahooQuoteInline = function(button, yfTicker) {
+            const container = button.parentElement;
+            // 替換為 Yahoo Finance 的迷你財經圖表/報價 Iframe（不離開網頁，直接內嵌擷取數據）
+            container.innerHTML = `
+                <iframe 
+                    src="https://tw.stock.yahoo.com/q/ts?s=${yfTicker}" 
+                    style="width:180px; height:65px; border:1px solid #374151; border-radius:6px; background:#111827;"
+                    scrolling="no">
+                </iframe>
+            `;
+        };
+
         async function fetchLiveQuotesMock(stocks) {
             return stocks.map(stock => {
-                // 將格式化後的 yFinance 代號直接寫入 stock 物件中，方便後續 Button 調用
                 const yfTicker = formatCopyTicker(stock.ticker, stock.market);
                 return { ...stock, yfTicker: yfTicker };
             });
@@ -329,9 +341,11 @@
                     <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
                     <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
                     <td class="p-4 text-right font-mono font-bold ${livePriceColor}">
-                        <button onclick="window.open('https://finance.yahoo.com/quote/${stock.yfTicker}', '_blank')" class="bg-emerald-950/80 hover:bg-emerald-800 text-emerald-400 hover:text-emerald-200 border border-emerald-800/60 text-xs px-2 py-1 rounded transition shadow-sm">
-                            🔍 查閱 Yahoo 報價
-                        </button>
+                        <div class="flex justify-end items-center min-h-[40px]">
+                            <button onclick="loadYahooQuoteInline(this, '${stock.yfTicker}')" class="bg-emerald-950/80 hover:bg-emerald-800 text-emerald-400 hover:text-emerald-200 border border-emerald-800/60 text-xs px-2 py-1 rounded transition shadow-sm">
+                                📈 擷取報價
+                            </button>
+                        </div>
                     </td>
                     <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
                     <td class="p-4 text-center">${sparklineSvg}</td>
