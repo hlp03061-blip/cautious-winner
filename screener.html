@@ -105,7 +105,7 @@
                             <th class="p-4 w-12 text-center">選取</th>
                             <th class="p-4">市場/代號</th>
                             <th class="p-4">板塊</th>
-                            <th class="p-4 text-right">昨日收市價<br><span class="text-[10px] text-gray-500">(Supabase)</span></th>
+                            <th class="p-4 text-right">策略抓取基準價<br><span class="text-[10px] text-gray-500">(Supabase)</span></th>
                             <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-indigo-400">(手動掃描 API)</span></th>
                             <th class="p-4 text-right">MFI (<45)</th>
                             <th class="p-4 text-center">歷史 3 段資金演進<br><span class="text-[10px] text-gray-500">10D ➔ 5D ➔ 1D</span></th>
@@ -168,36 +168,37 @@
             executeScreenerLogic();
         };
 
-        // ==========================================
-        // ★ 核心修改 1：單支股票查詢引擎 (Yahoo v8 + proxy)
-        // ==========================================
+        // 獲取 API (保留重試機制，提高成功率)
         async function fetchLivePrice(ticker) {
-            try {
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
-                
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('Proxy 請求失敗');
-                
-                const data = await response.json();
-                const yahooData = JSON.parse(data.contents);
-                
-                if (yahooData.chart && yahooData.chart.result && yahooData.chart.result.length > 0) {
-                    const meta = yahooData.chart.result[0].meta;
-                    return {
-                        price: meta.regularMarketPrice,
-                        prevClose: meta.chartPreviousClose
-                    };
+            for (let i = 0; i < 2; i++) {
+                try {
+                    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?_t=${Date.now()}`;
+                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
+                    
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) throw new Error('Proxy 請求失敗');
+                    
+                    const data = await response.json();
+                    if (!data.contents) throw new Error('回傳內容為空');
+                    
+                    const yahooData = JSON.parse(data.contents);
+                    
+                    if (yahooData.chart && yahooData.chart.result && yahooData.chart.result.length > 0) {
+                        return yahooData.chart.result[0].meta.regularMarketPrice;
+                    }
+                    return null;
+                } catch (err) {
+                    if (i === 1) {
+                        console.error(`獲取 ${ticker} 報價最終失敗:`, err);
+                        return null;
+                    }
+                    await new Promise(r => setTimeout(r, 500));
                 }
-                return null;
-            } catch (err) {
-                console.error(`無法獲取 ${ticker} 報價:`, err);
-                return null;
             }
         }
 
         // ==========================================
-        // ★ 核心修改 2：手動觸發逐行掃描引擎
+        // ★ 核心修改：強制使用 Supabase 價格作為基準點
         // ==========================================
         async function checkPrices() {
             const btn = document.getElementById('btn-check-prices');
@@ -207,264 +208,18 @@
 
             for (const stock of filteredScreenerData) {
                 const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
-                
-                // 使用 data-symbol 找到對應的價格儲存格
                 const priceCell = document.querySelector(`.live-price-cell[data-symbol="${lookupSymbol}"]`);
                 if (!priceCell) continue;
 
-                // 顯示掃描中狀態
                 priceCell.innerHTML = `<span class="animate-pulse text-indigo-400 text-sm font-bold">查詢中...</span>`;
 
-                const liveData = await fetchLivePrice(lookupSymbol);
+                const livePrice = await fetchLivePrice(lookupSymbol);
                 
-                if (liveData === null || liveData.price === undefined) {
+                if (livePrice === null || livePrice === undefined) {
                     priceCell.innerHTML = `<span class="text-xs text-red-500 font-bold bg-red-950/40 px-2 py-1 rounded">獲取失敗</span>`;
                     continue;
                 }
 
-                // 計算漲跌
-                const livePrice = liveData.price;
-                const prevClose = liveData.prevClose || stock.price; 
-                const changePct = prevClose ? ((livePrice - prevClose) / prevClose) * 100 : 0;
-                
-                let livePriceColor = 'text-gray-300';
-                if (changePct > 0) livePriceColor = 'text-emerald-400';
-                else if (changePct < 0) livePriceColor = 'text-red-400';
-
-                // 渲染成功擷取到的價格
-                priceCell.className = `p-4 text-right font-mono font-bold live-price-cell ${livePriceColor}`;
-                priceCell.innerHTML = `
-                    ${livePrice.toFixed(2)}<br>
-                    <span class="text-[10px] ${changePct > 0 ? 'text-emerald-500/70' : 'text-red-500/70'}">${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%</span>
-                `;
-            }
-
-            btn.innerHTML = `<span>⚡ 掃描完成 (可再次刷新)</span>`;
-            btn.disabled = false;
-            btn.classList.remove('opacity-70', 'cursor-not-allowed');
-            setTimeout(() => {
-                btn.innerHTML = `<span>⚡ 掃描即時價</span>`;
-            }, 3000);
-        }
-
-        async function fetchLatestDatesAndSetPickers() {
-            const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
-                supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
-            ]);
-            if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
-            if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
-        }
-
-        async function fetchFlowDataByDate() {
-            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-emerald-400 animate-pulse">🔄 正在載入雲端數據...</td></tr>`;
-            try {
-                const [hkRes, usRes] = await Promise.all([
-                    supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(2000),
-                    supabaseClient.from(TABLE_FLOW_US).select('*').eq('Record_Date', usDatePicker.value).limit(2000)
-                ]);
-                const hkData = (hkRes.data || []).map(r => ({ ...r, market: 'HK' }));
-                const usData = (usRes.data || []).map(r => ({ ...r, market: 'US' }));
-                latestMarketData = [...hkData, ...usData];
-                executeScreenerLogic();
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        function executeScreenerLogic() {
-            const searchTerm = searchInput.value.trim().toUpperCase();
-
-            let rawFiltered = latestMarketData.filter(r => {
-                if (r.market !== activeMarket) return false;
-                const f5 = Number(r['5D_flow']) || 0;
-                const f10 = Number(r['10D_flow']) || 0;
-                const mfi = r.MFI != null ? Number(r.MFI) : 100;
-                return f5 > 0 && f10 > 0 && mfi < 45;
-            });
-
-            if (rawFiltered.length === 0) {
-                filteredScreenerData = [];
-                renderTable();
-                return;
-            }
-
-            const maxF5 = Math.max(...rawFiltered.map(r => Number(r['5D_flow'])));
-
-            let processedData = rawFiltered.map(r => {
-                const f5 = Number(r['5D_flow']);
-                const f10 = Number(r['10D_flow']);
-                const f1 = Number(r['1D_flow']) || 0; 
-                const mfi = Number(r.MFI);
-                const volSpike = Number(r.Volspike) || 0;
-
-                const clampedMfi = Math.max(mfi, 15);
-                const mfiScore = ((45 - clampedMfi) / 30) * 40; 
-                const flowScore = (f5 / maxF5) * 40;
-                const volScore = Math.min(volSpike / 2.0, 1) * 20;
-
-                return {
-                    ticker: String(r.ticker || r.Ticker || '').trim(),
-                    market: r.market,
-                    name: r.company_name || r.Company_Name || '未知',
-                    sector: r.sector || r.Sector || '未分類',
-                    price: Number(r.price) || 0,
-                    mfi: mfi,
-                    flow_1d: f1,
-                    flow_5d: f5,
-                    flow_10d: f10,
-                    accel: String(r.accel || '').trim().toUpperCase(),
-                    volSpike: volSpike,
-                    bottomScore: mfiScore + flowScore + volScore
-                };
-            });
-
-            if (searchTerm) {
-                processedData = processedData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
-            }
-
-            processedData.sort((a, b) => {
-                if (Math.abs(b.bottomScore - a.bottomScore) > 0.1) return b.bottomScore - a.bottomScore;
-                if (Math.abs(b.flow_5d - a.flow_5d) > 1000) return b.flow_5d - a.flow_5d;
-                return a.mfi - b.mfi; 
-            });
-
-            // 不再自動等待報價，直接將過濾好的歷史資料渲染到畫面上
-            filteredScreenerData = processedData;
-            renderTable();
-        }
-
-        function renderTable() {
-            const tbody = document.getElementById('stock-table-body');
-            document.getElementById('match-count').textContent = `符合條件: ${filteredScreenerData.length} 隻`;
-            document.getElementById('selected-count').textContent = '0';
-            document.getElementById('check-all').checked = false;
-            tbody.innerHTML = '';
-
-            if (filteredScreenerData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-gray-500">今日無符合條件的股票。</td></tr>`;
-                return;
-            }
-
-            filteredScreenerData.forEach((stock) => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
-                
-                let badgeHtml = '';
-                if (stock.volSpike >= 1.5) {
-                    badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
-                }
-                if (stock.accel === 'THIN') {
-                    badgeHtml += `<span class="bg-gray-900 text-gray-400 border border-gray-700 text-[10px] px-2 py-0.5 rounded-md inline-block">靜悄悄 (Thin)</span>`;
-                } else {
-                    badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
-                }
-
-                const f10_5 = stock.flow_10d - stock.flow_5d;
-                const f5_1 = stock.flow_5d - stock.flow_1d;
-                const f1 = stock.flow_1d;
-                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
-                
-                const h1 = (f10_5 / maxAbs) * 12;
-                const h2 = (f5_1 / maxAbs) * 12;
-                const h3 = (f1 / maxAbs) * 12;
-
-                const drawBar = (h, x) => {
-                    let y, barH, color;
-                    if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
-                    else if (h < 0) { y = 15; barH = Math.abs(h); color = '#EF4444'; } 
-                    else { y = 14; barH = 2; color = '#4B5563'; }
-                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
-                };
-
-                const sparklineSvg = `
-                    <div class="flex items-center justify-center gap-2" title="歷史 3 階段資金演進：\n1. 前10至5D: ${formatMoney(f10_5)}\n2. 前5至1D: ${formatMoney(f5_1)}\n3. 今日1D: ${formatMoney(f1)}">
-                        <span class="text-emerald-400 font-mono w-16 text-right">${formatMoney(stock.flow_5d)}</span>
-                        <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
-                            <line x1="0" y1="15" x2="60" y2="15" stroke="#374151" stroke-width="1" stroke-dasharray="2,2" />
-                            ${drawBar(h1, 4)}   
-                            ${drawBar(h2, 24)}  
-                            ${drawBar(h3, 44)}  
-                        </svg>
-                    </div>
-                `;
-
-                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
-
-                tr.innerHTML = `
-                    <td class="p-4 text-center">
-                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
-                    </td>
-                    <td class="p-4 font-mono font-bold text-blue-400">
-                        ${stock.ticker}<br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
-                    </td>
-                    <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
-                    <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
-                    
-                    <td class="p-4 text-right font-mono font-bold text-gray-600 live-price-cell" data-symbol="${lookupSymbol}">
-                        -<br>
-                        <span class="text-[10px] text-gray-700">待掃描</span>
-                    </td>
-                    
-                    <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
-                    <td class="p-4 text-center">${sparklineSvg}</td>
-                    <td class="p-4 text-center">${badgeHtml}</td>
-                    <td class="p-4 text-right font-mono text-emerald-400 font-black text-xl pr-6">${stock.bottomScore.toFixed(1)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            bindCheckboxEvents();
-        }
-
-        function bindCheckboxEvents() {
-            const checkAll = document.getElementById('check-all');
-            const rowChecks = document.querySelectorAll('.row-check');
-            const selectedCountSpan = document.getElementById('selected-count');
-
-            const updateCount = () => {
-                const checkedCount = document.querySelectorAll('.row-check:checked').length;
-                selectedCountSpan.textContent = checkedCount;
-                checkAll.checked = checkedCount === rowChecks.length && rowChecks.length > 0;
-            };
-
-            checkAll.addEventListener('change', (e) => {
-                rowChecks.forEach(chk => chk.checked = e.target.checked);
-                updateCount();
-            });
-
-            rowChecks.forEach(chk => chk.addEventListener('change', updateCount));
-        }
-
-        document.getElementById('btn-copy-selected').addEventListener('click', () => {
-            const checkedBoxes = document.querySelectorAll('.row-check:checked');
-            if (checkedBoxes.length === 0) {
-                alert("請先勾選要複製的股票！");
-                return;
-            }
-            const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
-            navigator.clipboard.writeText(tickers).then(() => {
-                const btn = document.getElementById('btn-copy-selected');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = `✅ 成功複製 ${checkedBoxes.length} 隻`;
-                btn.classList.replace('bg-gray-800', 'bg-emerald-800');
-                setTimeout(() => { 
-                    btn.innerHTML = originalText; 
-                    btn.classList.replace('bg-emerald-800', 'bg-gray-800');
-                }, 2000);
-            });
-        });
-
-        document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
-        searchInput.addEventListener('input', executeScreenerLogic);
-        
-        // 綁定手動掃描按鈕事件
-        document.getElementById('btn-check-prices').addEventListener('click', checkPrices);
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            await fetchLatestDatesAndSetPickers();
-            await fetchFlowDataByDate();
-        });
-    </script>
-</body>
-</html>
+                // 核心邏輯：永遠使用 Supabase (stock.price) 作為 0% 基準
+                const basePrice = stock.price; 
+                const changePct = basePrice ? ((livePrice - basePrice) / basePrice) * 100 :
