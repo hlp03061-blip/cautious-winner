@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>策略選股清單 - 抄底資金流 (Bottom-Fishing Screener)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link class="flex flex-wrap items-center justify-between gap-3 mb-2" rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .stock-checkbox {
@@ -115,6 +115,18 @@
         </section>
     </div>
 
+    <div id="quote-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div class="p-4 bg-gray-950 border-b border-gray-800 flex justify-between items-center">
+                <h3 id="modal-title" class="font-bold text-emerald-400 font-mono text-base">📊 AASTOCKS 即時數據擷取</h3>
+                <button onclick="closeQuoteModal()" class="text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded-lg text-sm font-bold transition">✕ 關閉</button>
+            </div>
+            <div class="flex-1 bg-gray-950 relative">
+                <iframe id="modal-iframe" src="" class="w-full h-full border-none"></iframe>
+            </div>
+        </div>
+    </div>
+
     <script>
         const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
@@ -162,9 +174,8 @@
             executeScreenerLogic();
         };
 
-        // 按鈕觸發函式：改用絕對不會卡死腳本、最輕量的內嵌方式載入
-        window.loadAAStocksQuoteInline = function(button, ticker, market) {
-            const container = button.parentElement;
+        // 彈出式 AASTOCKS 數據擷取機制
+        window.openAAStocksModal = function(ticker, market, name) {
             let url = "";
             if (market === 'HK') {
                 let code = String(ticker).replace(/\.HK$/i, '').trim();
@@ -173,27 +184,28 @@
             } else {
                 url = `https://www.aastocks.com/tc/usstock/quote/charts.aspx?symbol=${ticker.trim()}`;
             }
-            container.innerHTML = `
-                <iframe src="${url}" style="width:100%; min-width:280px; height:120px; border:1px solid #334155; border-radius:6px; background:#030712;" scrolling="no"></iframe>
-            `;
+            
+            document.getElementById('modal-title').innerHTML = `📊 即時數據擷取: <span class="text-blue-400 font-mono">${ticker}</span> ${name}`;
+            document.getElementById('modal-iframe').src = url;
+            document.getElementById('quote-modal').classList.remove('hidden');
+        };
+
+        window.closeQuoteModal = function() {
+            document.getElementById('quote-modal').classList.add('hidden');
+            document.getElementById('modal-iframe').src = "";
         };
 
         async function fetchLiveQuotesMock(stocks) {
-            // 純數據直過，將控制權保留給 Supabase 先進行頁面渲染，確保不報錯
             return stocks;
         }
 
         async function fetchLatestDatesAndSetPickers() {
-            try {
-                const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
-                    supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                    supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
-                ]);
-                if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
-                if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
-            } catch (err) {
-                console.error("日期載入失敗：", err);
-            }
+            const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
+                supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+            ]);
+            if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
+            if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
         }
 
         async function fetchFlowDataByDate() {
@@ -208,8 +220,7 @@
                 latestMarketData = [...hkData, ...usData];
                 executeScreenerLogic();
             } catch (err) {
-                console.error("數據獲取失敗：", err);
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-red-400">❌ 無法從 Supabase 讀取數據，請檢查連線。</td></tr>`;
+                console.error(err);
             }
         }
 
@@ -235,7 +246,7 @@
             let processedData = rawFiltered.map(r => {
                 const f5 = Number(r['5D_flow']);
                 const f10 = Number(r['10D_flow']);
-                const f1 = Number(r['1D_flow']) || 0; 
+                const f1 = Number(r['1D_flow']) || 0; // 新增 1D 用於畫圖
                 const mfi = Number(r.MFI);
                 const volSpike = Number(r.Volspike) || 0;
 
@@ -292,6 +303,9 @@
                 
                 let livePriceColor = 'text-gray-300';
 
+                // ==========================================
+                // ★ 完美復原：你專屬的標籤徽章邏輯
+                // ==========================================
                 let badgeHtml = '';
                 if (stock.volSpike >= 1.5) {
                     badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
@@ -302,6 +316,9 @@
                     badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
                 }
 
+                // ==========================================
+                // ★ 新增移植：主頁的 5D Sparkline 資金流動圖
+                // ==========================================
                 const f10_5 = stock.flow_10d - stock.flow_5d;
                 const f5_1 = stock.flow_5d - stock.flow_1d;
                 const f1 = stock.flow_1d;
@@ -341,11 +358,9 @@
                     <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
                     <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
                     <td class="p-4 text-right font-mono font-bold ${livePriceColor}">
-                        <div class="flex justify-end items-center min-h-[45px]">
-                            <button onclick="loadAAStocksQuoteInline(this, '${stock.ticker}', '${stock.market}')" class="bg-emerald-950/80 hover:bg-emerald-800 text-emerald-400 hover:text-emerald-200 border border-emerald-800/60 text-xs px-2 py-1 rounded transition shadow-sm">
-                                📊 擷取 AASTOCKS
-                            </button>
-                        </div>
+                        <button onclick="openAAStocksModal('${stock.ticker}', '${stock.market}', '${stock.name.replace(/'/g, "\\'")}')" class="bg-emerald-950/80 hover:bg-emerald-800 text-emerald-400 hover:text-emerald-200 border border-emerald-800/60 text-xs px-2 py-1.5 rounded transition shadow-sm font-sans">
+                            📊 擷取 AASTOCKS
+                        </button>
                     </td>
                     <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
                     <td class="p-4 text-center">${sparklineSvg}</td>
