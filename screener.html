@@ -131,7 +131,7 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 統一將代號格式化為 Yahoo Finance 能識別的格式 (特別是港股要補零 + .HK)
+        // 統一將代號格式化為 Yahoo Finance 能識別的格式
         function formatCopyTicker(ticker, market) {
             let t = String(ticker).trim();
             if (market === 'HK') {
@@ -164,15 +164,12 @@
         };
 
         // ==========================================
-        // ★ 核心修改：對接真實 Yahoo Finance API
+        // ★ 核心修改：對接真實 Yahoo Finance API (使用 CodeTabs Proxy)
         // ==========================================
         async function fetchRealLiveQuotes(stocks) {
             if (!stocks || stocks.length === 0) return [];
 
-            // 1. 準備所有的 Ticker，轉換成 Yahoo Finance 格式
             const symbols = stocks.map(stock => formatCopyTicker(stock.ticker, stock.market));
-            
-            // 將請求分塊 (Batch)，每次最多查 50 檔股票，避免 URL 過長被拒絕
             const chunkSize = 50;
             let resultsMap = {};
 
@@ -181,35 +178,31 @@
                     const chunk = symbols.slice(i, i + chunkSize);
                     const symbolsStr = chunk.join(',');
                     
-                    // 組合 Yahoo Finance API URL
+                    // 目標 Yahoo API 網址
                     const targetUrl = encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbolsStr}`);
                     
-                    // 使用 AllOrigins 作為 CORS 代理伺服器 (解決前端瀏覽器直接呼叫跨域被阻擋的問題)
-                    const proxyUrl = `https://https://corsproxy.io/?${targetUrl}`;
+                    // 🌟 改用 CodeTabs 的免費 CORS 代理
+                    const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${targetUrl}`;
 
                     const response = await fetch(proxyUrl);
                     if (!response.ok) throw new Error(`API 請求失敗: ${response.status}`);
                     
-                    const proxyData = await response.json();
+                    // CodeTabs 會直接返回目標網站的真實資料，不需額外解析外層包裹
+                    const data = await response.json();
                     
-                    // AllOrigins 會把目標內容放在 'contents' 欄位中，需解析
-                    if (proxyData.contents) {
-                        const data = JSON.parse(proxyData.contents);
-                        if (data && data.quoteResponse && data.quoteResponse.result) {
-                            data.quoteResponse.result.forEach(quote => {
-                                resultsMap[quote.symbol] = {
-                                    price: quote.regularMarketPrice,
-                                    changePct: quote.regularMarketChangePercent
-                                };
-                            });
-                        }
+                    if (data && data.quoteResponse && data.quoteResponse.result) {
+                        data.quoteResponse.result.forEach(quote => {
+                            resultsMap[quote.symbol] = {
+                                price: quote.regularMarketPrice,
+                                changePct: quote.regularMarketChangePercent
+                            };
+                        });
                     }
                 }
             } catch (error) {
                 console.error("獲取即時報價失敗，將使用 Supabase 昨日收盤價作為後備：", error);
             }
 
-            // 2. 將即時價格合併回原始數據陣列，若查無資料則優雅降級 (Fallback)
             return stocks.map(stock => {
                 const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
                 const liveData = resultsMap[lookupSymbol];
@@ -221,7 +214,6 @@
                         changePct: liveData.changePct 
                     };
                 } else {
-                    // 優雅降級：如果沒抓到資料，維持昨日收盤價，漲跌幅設為 0
                     return { 
                         ...stock, 
                         livePrice: stock.price, 
@@ -313,7 +305,7 @@
                 return a.mfi - b.mfi; 
             });
 
-            // ★ 將這裡呼叫的 mock 函數替換為真實 API 函數
+            // 呼叫真實 API 函數
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-teal-400 animate-pulse">📡 正在從 Yahoo API 獲取即時報價...</td></tr>`;
             filteredScreenerData = await fetchRealLiveQuotes(processedData);
             renderTable();
@@ -324,128 +316,4 @@
             document.getElementById('match-count').textContent = `符合條件: ${filteredScreenerData.length} 隻`;
             document.getElementById('selected-count').textContent = '0';
             document.getElementById('check-all').checked = false;
-            tbody.innerHTML = '';
-
-            if (filteredScreenerData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-gray-500">今日無符合條件的股票。</td></tr>`;
-                return;
-            }
-
-            filteredScreenerData.forEach((stock) => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
-                
-                let livePriceColor = 'text-gray-300';
-                if (stock.changePct > 0) livePriceColor = 'text-emerald-400';
-                else if (stock.changePct < 0) livePriceColor = 'text-red-400';
-
-                let badgeHtml = '';
-                if (stock.volSpike >= 1.5) {
-                    badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
-                }
-                if (stock.accel === 'THIN') {
-                    badgeHtml += `<span class="bg-gray-900 text-gray-400 border border-gray-700 text-[10px] px-2 py-0.5 rounded-md inline-block">靜悄悄 (Thin)</span>`;
-                } else {
-                    badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
-                }
-
-                const f10_5 = stock.flow_10d - stock.flow_5d;
-                const f5_1 = stock.flow_5d - stock.flow_1d;
-                const f1 = stock.flow_1d;
-                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
-                
-                const h1 = (f10_5 / maxAbs) * 12;
-                const h2 = (f5_1 / maxAbs) * 12;
-                const h3 = (f1 / maxAbs) * 12;
-
-                const drawBar = (h, x) => {
-                    let y, barH, color;
-                    if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
-                    else if (h < 0) { y = 15; barH = Math.abs(h); color = '#EF4444'; } 
-                    else { y = 14; barH = 2; color = '#4B5563'; }
-                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
-                };
-
-                const sparklineSvg = `
-                    <div class="flex items-center justify-center gap-2" title="歷史 3 階段資金演進：\n1. 前10至5D: ${formatMoney(f10_5)}\n2. 前5至1D: ${formatMoney(f5_1)}\n3. 今日1D: ${formatMoney(f1)}">
-                        <span class="text-emerald-400 font-mono w-16 text-right">${formatMoney(stock.flow_5d)}</span>
-                        <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
-                            <line x1="0" y1="15" x2="60" y2="15" stroke="#374151" stroke-width="1" stroke-dasharray="2,2" />
-                            ${drawBar(h1, 4)}   
-                            ${drawBar(h2, 24)}  
-                            ${drawBar(h3, 44)}  
-                        </svg>
-                    </div>
-                `;
-
-                tr.innerHTML = `
-                    <td class="p-4 text-center">
-                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${formatCopyTicker(stock.ticker, stock.market)}">
-                    </td>
-                    <td class="p-4 font-mono font-bold text-blue-400">
-                        ${stock.ticker}<br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
-                    </td>
-                    <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
-                    <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
-                    <td class="p-4 text-right font-mono font-bold ${livePriceColor}">
-                        ${stock.livePrice.toFixed(2)}<br>
-                        <span class="text-[10px] ${stock.changePct > 0 ? 'text-emerald-500/70' : 'text-red-500/70'}">${stock.changePct > 0 ? '+' : ''}${stock.changePct.toFixed(2)}%</span>
-                    </td>
-                    <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
-                    <td class="p-4 text-center">${sparklineSvg}</td>
-                    <td class="p-4 text-center">${badgeHtml}</td>
-                    <td class="p-4 text-right font-mono text-emerald-400 font-black text-xl pr-6">${stock.bottomScore.toFixed(1)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            bindCheckboxEvents();
-        }
-
-        function bindCheckboxEvents() {
-            const checkAll = document.getElementById('check-all');
-            const rowChecks = document.querySelectorAll('.row-check');
-            const selectedCountSpan = document.getElementById('selected-count');
-
-            const updateCount = () => {
-                const checkedCount = document.querySelectorAll('.row-check:checked').length;
-                selectedCountSpan.textContent = checkedCount;
-                checkAll.checked = checkedCount === rowChecks.length && rowChecks.length > 0;
-            };
-
-            checkAll.addEventListener('change', (e) => {
-                rowChecks.forEach(chk => chk.checked = e.target.checked);
-                updateCount();
-            });
-
-            rowChecks.forEach(chk => chk.addEventListener('change', updateCount));
-        }
-
-        document.getElementById('btn-copy-selected').addEventListener('click', () => {
-            const checkedBoxes = document.querySelectorAll('.row-check:checked');
-            if (checkedBoxes.length === 0) {
-                alert("請先勾選要複製的股票！");
-                return;
-            }
-            const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
-            navigator.clipboard.writeText(tickers).then(() => {
-                const btn = document.getElementById('btn-copy-selected');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = `✅ 成功複製 ${checkedBoxes.length} 隻`;
-                btn.classList.replace('bg-gray-800', 'bg-emerald-800');
-                setTimeout(() => { 
-                    btn.innerHTML = originalText; 
-                    btn.classList.replace('bg-emerald-800', 'bg-gray-800');
-                }, 2000);
-            });
-        });
-
-        document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
-        searchInput.addEventListener('input', executeScreenerLogic);
-        document.addEventListener('DOMContentLoaded', async () => {
-            await fetchLatestDatesAndSetPickers();
-            await fetchFlowDataByDate();
-        });
-    </script>
-</body>
-</html>
+            tbody
