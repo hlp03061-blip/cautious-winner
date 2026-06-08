@@ -29,9 +29,14 @@
                 <a href="#" class="px-4 py-2 bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 rounded-lg text-sm font-semibold border border-emerald-800/50 transition-colors shadow-sm">🎣 策略選股清單</a>
                 <a href="volsqueeze.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">擠壓變盤焦</a>
             </div>
-            <div class="relative w-full sm:w-72">
-                <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
-                       class="w-full bg-gray-900 border border-gray-700 rounded-lg text-sm px-4 py-2 text-emerald-100 placeholder-gray-500 outline-none focus:border-emerald-500 focus:ring-1 transition-all">
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <button id="btn-fetch-live" class="px-4 py-2 bg-amber-900/80 hover:bg-amber-700 text-amber-100 border border-amber-700 rounded-lg text-sm font-bold transition-all shadow-lg flex items-center gap-1">
+                    ⚡ 即時擷取報價 (Yahoo)
+                </button>
+                <div class="relative w-full sm:w-72">
+                    <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
+                           class="w-full bg-gray-900 border border-gray-700 rounded-lg text-sm px-4 py-2 text-emerald-100 placeholder-gray-500 outline-none focus:border-emerald-500 focus:ring-1 transition-all">
+                </div>
             </div>
         </nav>
 
@@ -126,6 +131,7 @@
         let latestMarketData = [];
         let filteredScreenerData = []; 
         let activeMarket = 'HK'; 
+        let isLiveFetched = false;
 
         const hkDatePicker = document.getElementById('hk-date');
         const usDatePicker = document.getElementById('us-date');
@@ -182,6 +188,7 @@
         async function fetchFlowDataByDate() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-emerald-400 animate-pulse">🔄 正在載入雲端數據...</td></tr>`;
             try {
+                isLiveFetched = false;
                 const [hkRes, usRes] = await Promise.all([
                     supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(2000),
                     supabaseClient.from(TABLE_FLOW_US).select('*').eq('Record_Date', usDatePicker.value).limit(2000)
@@ -217,7 +224,7 @@
             let processedData = rawFiltered.map(r => {
                 const f5 = Number(r['5D_flow']);
                 const f10 = Number(r['10D_flow']);
-                const f1 = Number(r['1D_flow']) || 0; // 新增 1D 用於畫圖
+                const f1 = Number(r['1D_flow']) || 0; 
                 const mfi = Number(r.MFI);
                 const volSpike = Number(r.Volspike) || 0;
 
@@ -252,7 +259,15 @@
                 return a.mfi - b.mfi; 
             });
 
-            filteredScreenerData = await fetchLiveQuotesMock(processedData);
+            if (isLiveFetched) {
+                filteredScreenerData = await fetchLiveQuotesMock(processedData);
+            } else {
+                filteredScreenerData = processedData.map(stock => ({
+                    ...stock,
+                    livePrice: stock.price,
+                    changePct: 0
+                }));
+            }
             renderTable();
         }
 
@@ -276,9 +291,6 @@
                 if (stock.changePct > 0) livePriceColor = 'text-emerald-400';
                 else if (stock.changePct < 0) livePriceColor = 'text-red-400';
 
-                // ==========================================
-                // ★ 完美復原：你專屬的標籤徽章邏輯
-                // ==========================================
                 let badgeHtml = '';
                 if (stock.volSpike >= 1.5) {
                     badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
@@ -289,9 +301,6 @@
                     badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
                 }
 
-                // ==========================================
-                // ★ 新增移植：主頁的 5D Sparkline 資金流動圖
-                // ==========================================
                 const f10_5 = stock.flow_10d - stock.flow_5d;
                 const f5_1 = stock.flow_5d - stock.flow_1d;
                 const f1 = stock.flow_1d;
@@ -321,12 +330,15 @@
                     </div>
                 `;
 
+                const yFinanceTicker = formatCopyTicker(stock.ticker, stock.market);
+                const yFinanceUrl = `https://finance.yahoo.com/quote/${yFinanceTicker}`;
+
                 tr.innerHTML = `
                     <td class="p-4 text-center">
-                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${formatCopyTicker(stock.ticker, stock.market)}">
+                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${yFinanceTicker}">
                     </td>
                     <td class="p-4 font-mono font-bold text-blue-400">
-                        ${stock.ticker}<br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
+                        <a href="${yFinanceUrl}" target="_blank" class="hover:underline hover:text-blue-300 transition-colors">${stock.ticker}</a><br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
                     </td>
                     <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
                     <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
@@ -381,6 +393,17 @@
                     btn.classList.replace('bg-emerald-800', 'bg-gray-800');
                 }, 2000);
             });
+        });
+
+        document.getElementById('btn-fetch-live').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-fetch-live');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `⏳ 正在擷取 Yahoo 數據...`;
+            btn.disabled = true;
+            isLiveFetched = true;
+            await executeScreenerLogic();
+            btn.innerHTML = originalText;
+            btn.disabled = false;
         });
 
         document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
