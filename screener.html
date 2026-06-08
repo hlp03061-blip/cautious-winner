@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>策略選股清單 - 抄底資金流 (Bottom-Fishing Screener)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
+    <link class="flex flex-wrap items-center justify-between gap-3 mb-2" rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .stock-checkbox {
@@ -74,4 +74,334 @@
                     🇭🇰 港股市場 (HKEX)
                 </button>
                 <button id="tab-us" class="market-tab flex-1 py-3 text-sm font-bold transition-colors bg-gray-950 text-gray-500 hover:text-gray-300 border-t-2 border-transparent" onclick="switchTab('US')">
-                    🇺🇸 美股市場 (S
+                    🇺🇸 美股市場 (S&P 500)
+                </button>
+            </div>
+
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="check-all" class="stock-checkbox">
+                        <span class="text-xs text-gray-400 font-bold">全選</span>
+                    </label>
+                    <span id="match-count" class="bg-emerald-950 text-emerald-300 text-xs font-semibold px-2 py-0.5 rounded border border-emerald-800">載入中...</span>
+                </div>
+                
+                <button id="btn-copy-selected" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs font-bold px-4 py-2 rounded transition-colors flex items-center gap-2">
+                    📋 複製已勾選代號 (<span id="selected-count">0</span>)
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
+                            <th class="p-4 w-12 text-center">選取</th>
+                            <th class="p-4">市場/代號</th>
+                            <th class="p-4">板塊</th>
+                            <th class="p-4 text-right">昨日收市價<br><span class="text-[10px] text-gray-500">(Supabase)</span></th>
+                            <th class="p-4 text-right">即時/延遲報價<br><span class="text-[10px] text-emerald-500">(模擬 API)</span></th>
+                            <th class="p-4 text-right">MFI (<45)</th>
+                            <th class="p-4 text-center">歷史 3 段資金演進<br><span class="text-[10px] text-gray-500">10D ➔ 5D ➔ 1D</span></th>
+                            <th class="p-4 text-center">狀態標籤</th>
+                            <th class="p-4 text-right font-bold text-emerald-400 pr-6">抄底值搏分</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-table-body">
+                        <tr><td colspan="9" class="p-8 text-center text-gray-500">正在下載最新雲端數據...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const TABLE_FLOW_HK = 'money_flow_hk';          
+        const TABLE_FLOW_US = 'money_flow_sp500';      
+
+        let latestMarketData = [];
+        let filteredScreenerData = []; 
+        let activeMarket = 'HK'; 
+
+        const hkDatePicker = document.getElementById('hk-date');
+        const usDatePicker = document.getElementById('us-date');
+        const searchInput = document.getElementById('search-ticker'); 
+
+        function formatCopyTicker(ticker, market) {
+            let t = String(ticker).trim();
+            if (market === 'HK') {
+                t = t.replace(/\.HK$/i, ''); 
+                if (/^\d+$/.test(t)) t = t.padStart(4, '0'); 
+                return t + '.HK';
+            }
+            return t; 
+        }
+
+        function formatMoney(value) {
+            if (value == null || value === 0) return '-';
+            const num = Number(value);
+            const absNum = Math.abs(num);
+            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + ' M';
+            if (absNum >= 10000) return (num / 10000).toFixed(1) + ' 萬';
+            return num.toFixed(1);
+        }
+
+        window.switchTab = function(market) {
+            activeMarket = market;
+            document.querySelectorAll('.market-tab').forEach(tab => {
+                tab.classList.remove('bg-gray-900', 'text-emerald-400', 'border-emerald-500');
+                tab.classList.add('bg-gray-950', 'text-gray-500', 'border-transparent');
+            });
+            const activeTab = document.getElementById(`tab-${market.toLowerCase()}`);
+            activeTab.classList.remove('bg-gray-950', 'text-gray-500', 'border-transparent');
+            activeTab.classList.add('bg-gray-900', 'text-emerald-400', 'border-emerald-500');
+            executeScreenerLogic();
+        };
+
+        // 按鈕觸發函式：改用絕對不會卡死腳本、最輕量的內嵌方式載入
+        window.loadAAStocksQuoteInline = function(button, ticker, market) {
+            const container = button.parentElement;
+            let url = "";
+            if (market === 'HK') {
+                let code = String(ticker).replace(/\.HK$/i, '').trim();
+                if (/^\d+$/.test(code)) code = code.padStart(5, '0');
+                url = `https://www.aastocks.com/tc/stocks/analysis/stock-chart.aspx?symbol=${code}`;
+            } else {
+                url = `https://www.aastocks.com/tc/usstock/quote/charts.aspx?symbol=${ticker.trim()}`;
+            }
+            container.innerHTML = `
+                <iframe src="${url}" style="width:100%; min-width:280px; height:120px; border:1px solid #334155; border-radius:6px; background:#030712;" scrolling="no"></iframe>
+            `;
+        };
+
+        async function fetchLiveQuotesMock(stocks) {
+            // 純數據直過，將控制權保留給 Supabase 先進行頁面渲染，確保不報錯
+            return stocks;
+        }
+
+        async function fetchLatestDatesAndSetPickers() {
+            try {
+                const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
+                    supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                    supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+                ]);
+                if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
+                if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
+            } catch (err) {
+                console.error("日期載入失敗：", err);
+            }
+        }
+
+        async function fetchFlowDataByDate() {
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-emerald-400 animate-pulse">🔄 正在載入雲端數據...</td></tr>`;
+            try {
+                const [hkRes, usRes] = await Promise.all([
+                    supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(2000),
+                    supabaseClient.from(TABLE_FLOW_US).select('*').eq('Record_Date', usDatePicker.value).limit(2000)
+                ]);
+                const hkData = (hkRes.data || []).map(r => ({ ...r, market: 'HK' }));
+                const usData = (usRes.data || []).map(r => ({ ...r, market: 'US' }));
+                latestMarketData = [...hkData, ...usData];
+                executeScreenerLogic();
+            } catch (err) {
+                console.error("數據獲取失敗：", err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="9" class="p-8 text-center text-red-400">❌ 無法從 Supabase 讀取數據，請檢查連線。</td></tr>`;
+            }
+        }
+
+        async function executeScreenerLogic() {
+            const searchTerm = searchInput.value.trim().toUpperCase();
+
+            let rawFiltered = latestMarketData.filter(r => {
+                if (r.market !== activeMarket) return false;
+                const f5 = Number(r['5D_flow']) || 0;
+                const f10 = Number(r['10D_flow']) || 0;
+                const mfi = r.MFI != null ? Number(r.MFI) : 100;
+                return f5 > 0 && f10 > 0 && mfi < 45;
+            });
+
+            if (rawFiltered.length === 0) {
+                filteredScreenerData = [];
+                renderTable();
+                return;
+            }
+
+            const maxF5 = Math.max(...rawFiltered.map(r => Number(r['5D_flow'])));
+
+            let processedData = rawFiltered.map(r => {
+                const f5 = Number(r['5D_flow']);
+                const f10 = Number(r['10D_flow']);
+                const f1 = Number(r['1D_flow']) || 0; 
+                const mfi = Number(r.MFI);
+                const volSpike = Number(r.Volspike) || 0;
+
+                const clampedMfi = Math.max(mfi, 15);
+                const mfiScore = ((45 - clampedMfi) / 30) * 40; 
+                const flowScore = (f5 / maxF5) * 40;
+                const volScore = Math.min(volSpike / 2.0, 1) * 20;
+
+                return {
+                    ticker: String(r.ticker || r.Ticker || '').trim(),
+                    market: r.market,
+                    name: r.company_name || r.Company_Name || '未知',
+                    sector: r.sector || r.Sector || '未分類',
+                    price: Number(r.price) || 0,
+                    mfi: mfi,
+                    flow_1d: f1,
+                    flow_5d: f5,
+                    flow_10d: f10,
+                    accel: String(r.accel || '').trim().toUpperCase(),
+                    volSpike: volSpike,
+                    bottomScore: mfiScore + flowScore + volScore
+                };
+            });
+
+            if (searchTerm) {
+                processedData = processedData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
+            }
+
+            processedData.sort((a, b) => {
+                if (Math.abs(b.bottomScore - a.bottomScore) > 0.1) return b.bottomScore - a.bottomScore;
+                if (Math.abs(b.flow_5d - a.flow_5d) > 1000) return b.flow_5d - a.flow_5d;
+                return a.mfi - b.mfi; 
+            });
+
+            filteredScreenerData = await fetchLiveQuotesMock(processedData);
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('stock-table-body');
+            document.getElementById('match-count').textContent = `符合條件: ${filteredScreenerData.length} 隻`;
+            document.getElementById('selected-count').textContent = '0';
+            document.getElementById('check-all').checked = false;
+            tbody.innerHTML = '';
+
+            if (filteredScreenerData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-gray-500">今日無符合條件的股票。</td></tr>`;
+                return;
+            }
+
+            filteredScreenerData.forEach((stock) => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
+                
+                let livePriceColor = 'text-gray-300';
+
+                let badgeHtml = '';
+                if (stock.volSpike >= 1.5) {
+                    badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
+                }
+                if (stock.accel === 'THIN') {
+                    badgeHtml += `<span class="bg-gray-900 text-gray-400 border border-gray-700 text-[10px] px-2 py-0.5 rounded-md inline-block">靜悄悄 (Thin)</span>`;
+                } else {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
+                }
+
+                const f10_5 = stock.flow_10d - stock.flow_5d;
+                const f5_1 = stock.flow_5d - stock.flow_1d;
+                const f1 = stock.flow_1d;
+                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
+                
+                const h1 = (f10_5 / maxAbs) * 12;
+                const h2 = (f5_1 / maxAbs) * 12;
+                const h3 = (f1 / maxAbs) * 12;
+
+                const drawBar = (h, x) => {
+                    let y, barH, color;
+                    if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
+                    else if (h < 0) { y = 15; barH = Math.abs(h); color = '#EF4444'; } 
+                    else { y = 14; barH = 2; color = '#4B5563'; }
+                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
+                };
+
+                const sparklineSvg = `
+                    <div class="flex items-center justify-center gap-2" title="歷史 3 階段資金演進：\n1. 前10至5D: ${formatMoney(f10_5)}\n2. 前5至1D: ${formatMoney(f5_1)}\n3. 今日1D: ${formatMoney(f1)}">
+                        <span class="text-emerald-400 font-mono w-16 text-right">${formatMoney(stock.flow_5d)}</span>
+                        <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
+                            <line x1="0" y1="15" x2="60" y2="15" stroke="#374151" stroke-width="1" stroke-dasharray="2,2" />
+                            ${drawBar(h1, 4)}   
+                            ${drawBar(h2, 24)}  
+                            ${drawBar(h3, 44)}  
+                        </svg>
+                    </div>
+                `;
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center">
+                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${formatCopyTicker(stock.ticker, stock.market)}">
+                    </td>
+                    <td class="p-4 font-mono font-bold text-blue-400">
+                        ${stock.ticker}<br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
+                    </td>
+                    <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
+                    <td class="p-4 text-right font-mono text-gray-500">${stock.price.toFixed(2)}</td>
+                    <td class="p-4 text-right font-mono font-bold ${livePriceColor}">
+                        <div class="flex justify-end items-center min-h-[45px]">
+                            <button onclick="loadAAStocksQuoteInline(this, '${stock.ticker}', '${stock.market}')" class="bg-emerald-950/80 hover:bg-emerald-800 text-emerald-400 hover:text-emerald-200 border border-emerald-800/60 text-xs px-2 py-1 rounded transition shadow-sm">
+                                📊 擷取 AASTOCKS
+                            </button>
+                        </div>
+                    </td>
+                    <td class="p-4 text-right font-mono text-teal-200 text-lg">${stock.mfi.toFixed(1)}</td>
+                    <td class="p-4 text-center">${sparklineSvg}</td>
+                    <td class="p-4 text-center">${badgeHtml}</td>
+                    <td class="p-4 text-right font-mono text-emerald-400 font-black text-xl pr-6">${stock.bottomScore.toFixed(1)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            bindCheckboxEvents();
+        }
+
+        function bindCheckboxEvents() {
+            const checkAll = document.getElementById('check-all');
+            const rowChecks = document.querySelectorAll('.row-check');
+            const selectedCountSpan = document.getElementById('selected-count');
+
+            const updateCount = () => {
+                const checkedCount = document.querySelectorAll('.row-check:checked').length;
+                selectedCountSpan.textContent = checkedCount;
+                checkAll.checked = checkedCount === rowChecks.length && rowChecks.length > 0;
+            };
+
+            checkAll.addEventListener('change', (e) => {
+                rowChecks.forEach(chk => chk.checked = e.target.checked);
+                updateCount();
+            });
+
+            rowChecks.forEach(chk => chk.addEventListener('change', updateCount));
+        }
+
+        document.getElementById('btn-copy-selected').addEventListener('click', () => {
+            const checkedBoxes = document.querySelectorAll('.row-check:checked');
+            if (checkedBoxes.length === 0) {
+                alert("請先勾選要複製的股票！");
+                return;
+            }
+            const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
+            navigator.clipboard.writeText(tickers).then(() => {
+                const btn = document.getElementById('btn-copy-selected');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = `✅ 成功複製 ${checkedBoxes.length} 隻`;
+                btn.classList.replace('bg-gray-800', 'bg-emerald-800');
+                setTimeout(() => { 
+                    btn.innerHTML = originalText; 
+                    btn.classList.replace('bg-emerald-800', 'bg-gray-800');
+                }, 2000);
+            });
+        });
+
+        document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
+        searchInput.addEventListener('input', executeScreenerLogic);
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchLatestDatesAndSetPickers();
+            await fetchFlowDataByDate();
+        });
+    </script>
+</body>
+</html>
