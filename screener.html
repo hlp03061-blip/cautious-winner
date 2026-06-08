@@ -185,7 +185,7 @@
                     const targetUrl = encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbolsStr}`);
                     
                     // 使用 AllOrigins 作為 CORS 代理伺服器 (解決前端瀏覽器直接呼叫跨域被阻擋的問題)
-                    const proxyUrl = `https://api.allorigins.win/get?url=${targetUrl}`;
+                    const proxyUrl = `https://https://corsproxy.io/?${targetUrl}`;
 
                     const response = await fetch(proxyUrl);
                     if (!response.ok) throw new Error(`API 請求失敗: ${response.status}`);
