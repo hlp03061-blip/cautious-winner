@@ -134,19 +134,17 @@
         });
 
         // ==========================================
-        // 4. 畫面渲染 (手風琴卡片)
+        // 4. 畫面渲染 (手風琴卡片 - 完整數據版)
         // ==========================================
         function renderCards(groupedData) {
             const container = document.getElementById('resultsContainer');
             
             for (const [ticker, records] of Object.entries(groupedData)) {
-                // 最新一天的紀錄 (Index 0) 作為基本面與 Summary
                 const latest = records[0]; 
                 
                 const card = document.createElement('div');
-                card.className = "bg-white border rounded-lg shadow-sm overflow-hidden";
+                card.className = "bg-white border rounded-lg shadow-sm overflow-hidden mb-4";
 
-                // 卡片標頭 (Summary)
                 const headerHtml = `
                     <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
                         <div class="flex items-center gap-6">
@@ -165,29 +163,35 @@
                     </div>
                 `;
 
-                // 歷史數據表 (Section 3) 產生器
                 let historyRows = "";
                 records.forEach(row => {
-                    const px = row.close_price || row.current_price; // 確保有價格可比對
+                    const px = row.close_price || row.current_price;
                     historyRows += `
                         <tr class="hover:bg-blue-50 text-sm">
                             <td class="text-center">${row.trading_date}</td>
                             <td>${formatNum(px, 3)}</td>
+                            <td>${formatNum(row.open_price, 3)}</td>
+                            <td>${formatNum(row.high_price, 3)}</td>
+                            <td>${formatNum(row.low_price, 3)}</td>
                             <td>${formatNum(row.change_pct, 2)}%</td>
                             <td>${formatNum(row.vol_million, 3)}</td>
-                            <!-- Highlight 邏輯套用於此 -->
                             <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 3)}</td>
                             <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 3)}</td>
                             <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 3)}</td>
                             <td class="${checkHighlight(px, row.sma50)}">${formatNum(row.sma50, 3)}</td>
                             <td class="${checkHighlight(px, row.sma200)}">${formatNum(row.sma200, 3)}</td>
-                            <td>${formatNum(row.rsi, 2)}</td>
                             <td>${formatNum(row.macd, 3)}</td>
+                            <td>${formatNum(row.rsi, 2)}</td>
+                            <td>${formatNum(row.adx, 2)}</td>
+                            <td>${formatNum(row.kdj_k, 2)}</td>
+                            <td>${formatNum(row.kdj_d, 2)}</td>
+                            <td>${formatNum(row.kdj_j, 2)}</td>
+                            <td>${formatNum(row.obv_millions, 3)}</td>
+                            <td>${formatNum(row.sharpe_ratio_20d, 3)}</td>
                         </tr>
                     `;
                 });
 
-                // 卡片展開內容 (Sections 1 to 4)
                 const bodyHtml = `
                     <div id="content-${ticker}" class="accordion-content p-6 border-t">
                         
@@ -199,8 +203,16 @@
                                     <span class="text-gray-600">Sector</span><span class="text-right font-medium">${latest.sector}</span>
                                     <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
                                     <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
+                                    <span class="text-gray-600">P/B Ratio</span><span class="text-right font-medium">${formatNum(latest.pb_ratio, 2)}</span>
+                                    <span class="text-gray-600">PEG Ratio</span><span class="text-right font-medium">${formatNum(latest.peg_ratio, 2)}</span>
+                                    <span class="text-gray-600">Dividend Yield</span><span class="text-right font-medium">${formatNum(latest.dividend_yield, 2)}</span>
                                     <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
-                                    <span class="text-gray-600">52 Week High/Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
+                                    <span class="text-gray-600">Beta</span><span class="text-right font-medium">${formatNum(latest.beta, 3)}</span>
+                                    <span class="text-gray-600">Debt/Equity</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 3)}</span>
+                                    <span class="text-gray-600">52 Week High / Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
+                                    <span class="text-gray-600">Avg Vol 10D / 3M (M)</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
+                                    <span class="text-gray-600">Target Mean Price</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
+                                    <span class="text-gray-600">Free Cash Flow (M)</span><span class="text-right font-medium">${formatNum(latest.free_cash_flow_million, 2)}</span>
                                     <span class="text-gray-600">Value Rating (0-5)</span><span class="text-right font-medium">${latest.value_rating}</span>
                                 </div>
                             </div>
@@ -212,7 +224,10 @@
                                     <span class="text-gray-600">Pre-Uptrend Signal</span><span class="text-right font-bold text-red-600">${latest.pre_uptrend_signal || 'N/A'}</span>
                                     <span class="text-gray-600">BB Width Rank</span><span class="text-right font-medium">${formatNum(latest.bb_width_rank, 2)}</span>
                                     <span class="text-gray-600">RS vs Market</span><span class="text-right font-medium">${formatNum(latest.rs_vs_market, 2)}</span>
+                                    <span class="text-gray-600">Global Sector Trend %</span><span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
+                                    <span class="text-gray-600">ATR</span><span class="text-right font-medium">${formatNum(latest.atr, 3)}</span>
                                     <span class="text-gray-600">OBV Divergence</span><span class="text-right font-medium">${latest.obv_divergence || 'N/A'}</span>
+                                    <span class="text-gray-600">Vol Spark</span><span class="text-right font-medium">${latest.vol_spark || 'N/A'}</span>
                                     <span class="text-gray-600">RVOL</span><span class="text-right font-medium">${formatNum(latest.rvol, 2)}</span>
                                     <span class="text-gray-600">Tech Rating (0-5)</span><span class="text-right font-medium">${latest.technical_rating}</span>
                                 </div>
@@ -227,12 +242,13 @@
                             </button>
                         </div>
                         <div class="overflow-x-auto mb-6">
-                            <table id="table-${ticker}" class="w-full">
+                            <table id="table-${ticker}" class="w-full text-xs">
                                 <thead>
                                     <tr>
-                                        <th>Date</th><th>Close</th><th>Chg(%)</th><th>Vol(M)</th>
+                                        <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th>
                                         <th>SMA5</th><th>SMA10</th><th>SMA20</th><th>SMA50</th><th>SMA200</th>
-                                        <th>RSI</th><th>MACD</th>
+                                        <th>MACD</th><th>RSI</th><th>ADX</th><th>KDJ_K</th><th>KDJ_D</th><th>KDJ_J</th>
+                                        <th>OBV(M)</th><th>Sharpe(20d)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -248,12 +264,3 @@
                 container.appendChild(card);
             }
         }
-
-        // 手風琴開關邏輯
-        function toggleAccordion(ticker) {
-            const content = document.getElementById(`content-${ticker}`);
-            content.classList.toggle('open');
-        }
-    </script>
-</body>
-</html>
