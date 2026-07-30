@@ -1,3 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Stock Analysis Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .accordion-content { display: none; }
+        .accordion-content.open { display: block; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: right; white-space: nowrap; }
+        th { background-color: #f3f4f6; font-size: 0.875rem; font-weight: 600; text-align: center;}
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
+
+    <script>
+        // ==========================================
+        // 1. SUPABASE 設定
+        // ==========================================
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </script>
+
+    <div class="max-w-7xl mx-auto py-8 px-4">
+        <h1 class="text-3xl font-bold mb-6 text-blue-900">📈 智能選股與資金流分析儀表板</h1>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <div class="grid grid-cols-2 gap-6 mb-4">
+                <div>
+                    <label class="block font-semibold mb-2">選擇市場資料庫:</label>
+                    <div class="flex gap-4">
+                        <label><input type="radio" name="market" value="multi_stock_analysis_hk" checked> 香港股市 (HK)</label>
+                        <label><input type="radio" name="market" value="multi_stock_analysis_sp500"> 美股 (S&P 500)</label>
+                    </div>
+                </div>
+                <!-- 新增：日期篩選器 -->
+                <div>
+                    <label class="block font-semibold mb-2">歷史數據顯示天數:</label>
+                    <div class="flex gap-2 items-center">
+                        <select id="dateRange" class="p-2 border rounded-md" onchange="toggleCustomDate()">
+                            <option value="10">10 Days</option>
+                            <option value="20">20 Days</option>
+                            <option value="30">30 Days</option>
+                            <option value="custom">自訂 (Custom)</option>
+                            <option value="1000">全部顯示</option>
+                        </select>
+                        <input type="number" id="customDays" placeholder="輸入天數" class="hidden p-2 border rounded-md w-24">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block font-semibold mb-2">輸入股票代號 (以分號 ; 分隔):</label>
+                <textarea id="tickerInput" rows="3" class="w-full p-2 border rounded-md" placeholder="e.g., AAPL; TSLA 或 0700.HK; 1833.HK"></textarea>
+            </div>
+
+            <button id="fetchBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                開始分析
+            </button>
+            <span id="statusMsg" class="ml-4 text-sm text-gray-500"></span>
+        </div>
+
+        <div id="resultsContainer" class="space-y-4"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 2. 輔助函數
+        // ==========================================
+        const formatNum = (num, decimals = 2) => num !== null && num !== undefined ? Number(num).toFixed(decimals) : 'N/A';
+        const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
+
+        function toggleCustomDate() {
+            const select = document.getElementById('dateRange');
+            const customInput = document.getElementById('customDays');
+            customInput.style.display = select.value === 'custom' ? 'block' : 'none';
+        }
+
 // ==========================================
         // 輔助函數：複製為 TSV 格式 (修復隱藏欄位遺失問題)
         // ==========================================
@@ -178,3 +261,216 @@
                 container.appendChild(card);
             }
         }
+
+        // ==========================================
+        // 3. 主程式邏輯
+        // ==========================================
+        document.getElementById('fetchBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('fetchBtn');
+            const status = document.getElementById('statusMsg');
+            const container = document.getElementById('resultsContainer');
+            
+            const rawInput = document.getElementById('tickerInput').value;
+            const marketTable = document.querySelector('input[name="market"]:checked').value;
+            
+            // 取得天數設定
+            const rangeSelect = document.getElementById('dateRange').value;
+            const limitDays = rangeSelect === 'custom' ? parseInt(document.getElementById('customDays').value) : parseInt(rangeSelect);
+            
+            if (!rawInput.trim()) { alert("請輸入股票代號！"); return; }
+            if (isNaN(limitDays) || limitDays <= 0) { alert("請輸入有效的顯示天數！"); return; }
+            
+            const tickers = rawInput.split(';').map(t => t.trim().toUpperCase()).filter(t => t);
+            
+            btn.disabled = true;
+            status.innerText = "⏳ 正在從 Supabase 讀取數據...";
+            container.innerHTML = "";
+
+            try {
+                // 從資料庫撈取歷史資料 (排序由新到舊)
+                const { data, error } = await supabaseClient
+                    .from(marketTable)
+                    .select('*')
+                    .in('ticker', tickers)
+                    .order('trading_date', { ascending: false });
+
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    status.innerText = "⚠️ 找不到符合的數據。";
+                    btn.disabled = false;
+                    return;
+                }
+
+                const groupedData = {};
+                data.forEach(row => {
+                    if (!groupedData[row.ticker]) groupedData[row.ticker] = [];
+                    groupedData[row.ticker].push(row);
+                });
+
+                // 根據使用者設定的天數裁切資料
+                for (let ticker in groupedData) {
+                    groupedData[ticker] = groupedData[ticker].slice(0, limitDays);
+                }
+
+                renderCards(groupedData);
+                status.innerText = `✅ 成功載入 ${Object.keys(groupedData).length} 檔股票資料。 (顯示最近 ${limitDays} 個交易日)`;
+
+            } catch (err) {
+                console.error(err);
+                status.innerText = "❌ 發生錯誤，請檢查 Console。";
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        // ==========================================
+        // 4. 畫面渲染
+        // ==========================================
+        function renderCards(groupedData) {
+            const container = document.getElementById('resultsContainer');
+            
+            for (const [ticker, records] of Object.entries(groupedData)) {
+                const latest = records[0]; 
+                
+                const card = document.createElement('div');
+                card.className = "bg-white border rounded-lg shadow-sm overflow-hidden mb-4";
+
+                const headerHtml = `
+                    <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
+                        <div class="flex items-center gap-6">
+                            <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
+                            <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
+                            <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
+                            <span class="${latest.change_pct >= 0 ? 'text-red-500' : 'text-green-500'} font-bold">
+                                ${latest.change_pct >= 0 ? '+' : ''}${formatNum(latest.change_pct, 2)}%
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span class="px-2 py-1 rounded ${latest.squeeze_alert === 'Yes' ? 'bg-yellow-200 text-yellow-800 font-bold' : 'bg-gray-200'}">Squeeze: ${latest.squeeze_alert}</span>
+                            <span class="text-gray-500">最後更新: ${latest.trading_date} (${latest.market_status})</span>
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                `;
+
+                let historyRows = "";
+                records.forEach(row => {
+                    const px = row.close_price || row.current_price;
+                    historyRows += `
+                        <tr class="hover:bg-blue-50 text-sm">
+                            <td class="text-center">${row.trading_date}</td>
+                            <td>${formatNum(px, 3)}</td>
+                            <td>${formatNum(row.open_price, 3)}</td>
+                            <td>${formatNum(row.high_price, 3)}</td>
+                            <td>${formatNum(row.low_price, 3)}</td>
+                            <td>${formatNum(row.change_pct, 2)}%</td>
+                            <td>${formatNum(row.vol_million, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma50)}">${formatNum(row.sma50, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma200)}">${formatNum(row.sma200, 3)}</td>
+                            <td>${formatNum(row.macd, 3)}</td>
+                            <td>${formatNum(row.rsi, 2)}</td>
+                            <td>${formatNum(row.adx, 2)}</td>
+                            <td>${formatNum(row.kdj_k, 2)}</td>
+                            <td>${formatNum(row.kdj_d, 2)}</td>
+                            <td>${formatNum(row.kdj_j, 2)}</td>
+                            <td>${formatNum(row.obv_millions, 3)}</td>
+                            <td>${formatNum(row.sharpe_ratio_20d, 3)}</td>
+                            <!-- 歷史資金流 -->
+                            <td>${formatNum(row.money_flow_million, 2)}</td>
+                        </tr>
+                    `;
+                });
+
+                const bodyHtml = `
+                    <div id="content-${ticker}" class="accordion-content p-6 border-t">
+                        <div class="grid grid-cols-3 gap-8 mb-6">
+                            
+                            <!-- Section 1: Basic Fundamentals -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1">
+                                    <span class="text-gray-600">Sector</span><span class="text-right font-medium">${latest.sector}</span>
+                                    <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
+                                    <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
+                                    <span class="text-gray-600">P/B Ratio</span><span class="text-right font-medium">${formatNum(latest.pb_ratio, 2)}</span>
+                                    <span class="text-gray-600">PEG Ratio</span><span class="text-right font-medium">${formatNum(latest.peg_ratio, 2)}</span>
+                                    <span class="text-gray-600">Dividend Yield</span><span class="text-right font-medium">${formatNum(latest.dividend_yield, 2)}</span>
+                                    <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
+                                    <span class="text-gray-600">Beta</span><span class="text-right font-medium">${formatNum(latest.beta, 3)}</span>
+                                    <span class="text-gray-600">Debt/Equity</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 3)}</span>
+                                    <span class="text-gray-600">52 Week High / Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
+                                    <span class="text-gray-600">Avg Vol 10D / 3M</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
+                                    <span class="text-gray-600">Target Mean Price</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
+                                    <span class="text-gray-600">Free Cash Flow (M)</span><span class="text-right font-medium">${formatNum(latest.free_cash_flow_million, 2)}</span>
+                                    <span class="text-gray-600">Value Rating (0-5)</span><span class="text-right font-medium">${latest.value_rating}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Section 2: Smart Money -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 2: SMART MONEY ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1">
+                                    <span class="text-gray-600">Pre-Uptrend Signal</span><span class="text-right font-bold text-red-600">${latest.pre_uptrend_signal || 'N/A'}</span>
+                                    <span class="text-gray-600">BB Width Rank</span><span class="text-right font-medium">${formatNum(latest.bb_width_rank, 2)}</span>
+                                    <span class="text-gray-600">RS vs Market</span><span class="text-right font-medium">${formatNum(latest.rs_vs_market, 2)}</span>
+                                    <span class="text-gray-600">Global Sector Trend %</span><span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
+                                    <span class="text-gray-600">ATR</span><span class="text-right font-medium">${formatNum(latest.atr, 3)}</span>
+                                    <span class="text-gray-600">OBV Divergence</span><span class="text-right font-medium">${latest.obv_divergence || 'N/A'}</span>
+                                    <span class="text-gray-600">Vol Spark</span><span class="text-right font-medium">${latest.vol_spark || 'N/A'}</span>
+                                    <span class="text-gray-600">RVOL</span><span class="text-right font-medium">${formatNum(latest.rvol, 2)}</span>
+                                    <span class="text-gray-600">Tech Rating (0-5)</span><span class="text-right font-medium">${latest.technical_rating}</span>
+                                </div>
+                            </div>
+
+                            <!-- Section 4: Money Flow Analysis -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 4: MONEY FLOW ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1">
+                                    <span class="text-gray-600">Today Flow (M)</span><span class="text-right font-medium">${formatNum(latest.money_flow_million, 2)}</span>
+                                    <span class="text-gray-600">5-Day Flow (M)</span><span class="text-right font-medium">${formatNum(latest.money_flow_5d_million, 2)}</span>
+                                    <span class="text-gray-600">10-Day Flow (M)</span><span class="text-right font-medium">${formatNum(latest.money_flow_10d_million, 2)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section 3: Historical Technicals -->
+                        <div class="mb-2 flex justify-between items-end">
+                            <h3 class="font-bold text-blue-900">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
+                            <button onclick="copyToClipboard('${ticker}')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold py-1 px-3 rounded shadow">
+                                📋 複製歷史表格 (TSV)
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto mb-6">
+                            <table id="table-${ticker}" class="w-full text-xs">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th>
+                                        <th>SMA5</th><th>SMA10</th><th>SMA20</th><th>SMA50</th><th>SMA200</th>
+                                        <th>MACD</th><th>RSI</th><th>ADX</th><th>KDJ_K</th><th>KDJ_D</th><th>KDJ_J</th>
+                                        <th>OBV(M)</th><th>Sharpe</th><th>1D Flow(M)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${historyRows}
+                                </tbody>
+                            </table>
+                            <p class="text-xs text-gray-500 mt-1">* 提示: 綠色粗體代表當日收盤價突破該移動平均線</p>
+                        </div>
+                    </div>
+                `;
+
+                card.innerHTML = headerHtml + bodyHtml;
+                container.appendChild(card);
+            }
+        }
+
+        function toggleAccordion(ticker) {
+            const content = document.getElementById(`content-${ticker}`);
+            content.classList.toggle('open');
+        }
+    </script>
+</body>
+</html>
