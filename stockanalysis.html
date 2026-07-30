@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Stock Analysis Dashboard</title>
+    <!-- 載入 Tailwind CSS (排版) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* 隱藏/展開的過渡效果 */
+        .accordion-content { display: none; }
+        .accordion-content.open { display: block; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: right; white-space: nowrap; }
+        th { background-color: #f3f4f6; font-size: 0.875rem; font-weight: 600; text-align: center;}
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
+
+    <script>
+        // ==========================================
+        // 1. SUPABASE 設定 (請填寫您的資料)
+        // ==========================================
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbG...請填入您的 anon public key...'; 
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </script>
+
+    <div class="max-w-7xl mx-auto py-8 px-4">
+        <h1 class="text-3xl font-bold mb-6 text-blue-900">📈 智能選股與資金流分析儀表板</h1>
+
+        <!-- 設定區塊 -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <div class="mb-4">
+                <label class="block font-semibold mb-2">選擇市場資料庫:</label>
+                <div class="flex gap-4">
+                    <label><input type="radio" name="market" value="multi_stock_analysis_hk" checked> 香港股市 (HK)</label>
+                    <label><input type="radio" name="market" value="multi_stock_analysis_sp500"> 美股 (S&P 500)</label>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block font-semibold mb-2">輸入股票代號 (以分號 ; 分隔):</label>
+                <textarea id="tickerInput" rows="3" class="w-full p-2 border rounded-md" placeholder="e.g., AAPL; TSLA; MSFT 或 0700.HK; 1833.HK"></textarea>
+            </div>
+
+            <button id="fetchBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                開始分析
+            </button>
+            <span id="statusMsg" class="ml-4 text-sm text-gray-500"></span>
+        </div>
+
+        <!-- 結果呈現區塊 -->
+        <div id="resultsContainer" class="space-y-4"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 2. 輔助函數 (格式化與運算)
+        // ==========================================
+        const formatNum = (num, decimals = 2) => num !== null && num !== undefined ? Number(num).toFixed(decimals) : 'N/A';
+        const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
+
+        // 複製為 TSV 格式 (供 Excel 貼上)
+        function copyToClipboard(ticker) {
+            const table = document.getElementById(`table-${ticker}`);
+            let tsv = "";
+            for (let i = 0; i < table.rows.length; i++) {
+                let rowData = [];
+                for (let j = 0; j < table.rows[i].cells.length; j++) {
+                    rowData.push(table.rows[i].cells[j].innerText);
+                }
+                tsv += rowData.join("\t") + "\n";
+            }
+            navigator.clipboard.writeText(tsv).then(() => {
+                alert(`${ticker} 的歷史數據已複製！請直接貼上至 Excel。`);
+            });
+        }
+
+        // ==========================================
+        // 3. 主程式邏輯
+        // ==========================================
+        document.getElementById('fetchBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('fetchBtn');
+            const status = document.getElementById('statusMsg');
+            const container = document.getElementById('resultsContainer');
+            
+            const rawInput = document.getElementById('tickerInput').value;
+            const marketTable = document.querySelector('input[name="market"]:checked').value;
+            
+            if (!rawInput.trim()) { alert("請輸入股票代號！"); return; }
+            
+            const tickers = rawInput.split(';').map(t => t.trim().toUpperCase()).filter(t => t);
+            
+            btn.disabled = true;
+            status.innerText = "⏳ 正在從 Supabase 讀取數據...";
+            container.innerHTML = "";
+
+            try {
+                // 向 Supabase 請求這些股票的「所有歷史紀錄」，並依日期降冪排序
+                const { data, error } = await supabase
+                    .from(marketTable)
+                    .select('*')
+                    .in('ticker', tickers)
+                    .order('trading_date', { ascending: false });
+
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    status.innerText = "⚠️ 找不到符合的數據。";
+                    btn.disabled = false;
+                    return;
+                }
+
+                // 將數據依照 Ticker 分組
+                const groupedData = {};
+                data.forEach(row => {
+                    if (!groupedData[row.ticker]) groupedData[row.ticker] = [];
+                    groupedData[row.ticker].push(row);
+                });
+
+                // 渲染畫面
+                renderCards(groupedData);
+                status.innerText = `✅ 成功載入 ${Object.keys(groupedData).length} 檔股票資料。`;
+
+            } catch (err) {
+                console.error(err);
+                status.innerText = "❌ 發生錯誤，請檢查 Console。";
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        // ==========================================
+        // 4. 畫面渲染 (手風琴卡片)
+        // ==========================================
+        function renderCards(groupedData) {
+            const container = document.getElementById('resultsContainer');
+            
+            for (const [ticker, records] of Object.entries(groupedData)) {
+                // 最新一天的紀錄 (Index 0) 作為基本面與 Summary
+                const latest = records[0]; 
+                
+                const card = document.createElement('div');
+                card.className = "bg-white border rounded-lg shadow-sm overflow-hidden";
+
+                // 卡片標頭 (Summary)
+                const headerHtml = `
+                    <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
+                        <div class="flex items-center gap-6">
+                            <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
+                            <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
+                            <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
+                            <span class="${latest.change_pct >= 0 ? 'text-red-500' : 'text-green-500'} font-bold">
+                                ${latest.change_pct >= 0 ? '+' : ''}${formatNum(latest.change_pct, 2)}%
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span class="px-2 py-1 rounded ${latest.squeeze_alert === 'Yes' ? 'bg-yellow-200 text-yellow-800 font-bold' : 'bg-gray-200'}">Squeeze: ${latest.squeeze_alert}</span>
+                            <span class="text-gray-500">最後更新: ${latest.trading_date} (${latest.market_status})</span>
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                `;
+
+                // 歷史數據表 (Section 3) 產生器
+                let historyRows = "";
+                records.forEach(row => {
+                    const px = row.close_price || row.current_price; // 確保有價格可比對
+                    historyRows += `
+                        <tr class="hover:bg-blue-50 text-sm">
+                            <td class="text-center">${row.trading_date}</td>
+                            <td>${formatNum(px, 3)}</td>
+                            <td>${formatNum(row.change_pct, 2)}%</td>
+                            <td>${formatNum(row.vol_million, 3)}</td>
+                            <!-- Highlight 邏輯套用於此 -->
+                            <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma50)}">${formatNum(row.sma50, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma200)}">${formatNum(row.sma200, 3)}</td>
+                            <td>${formatNum(row.rsi, 2)}</td>
+                            <td>${formatNum(row.macd, 3)}</td>
+                        </tr>
+                    `;
+                });
+
+                // 卡片展開內容 (Sections 1 to 4)
+                const bodyHtml = `
+                    <div id="content-${ticker}" class="accordion-content p-6 border-t">
+                        
+                        <div class="grid grid-cols-2 gap-8 mb-6">
+                            <!-- Section 1: Basic Fundamentals -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1">
+                                    <span class="text-gray-600">Sector</span><span class="text-right font-medium">${latest.sector}</span>
+                                    <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
+                                    <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
+                                    <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
+                                    <span class="text-gray-600">52 Week High/Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
+                                    <span class="text-gray-600">Value Rating (0-5)</span><span class="text-right font-medium">${latest.value_rating}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Section 2: Smart Money -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 2: SMART MONEY INDICATORS ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1">
+                                    <span class="text-gray-600">Pre-Uptrend Signal</span><span class="text-right font-bold text-red-600">${latest.pre_uptrend_signal || 'N/A'}</span>
+                                    <span class="text-gray-600">BB Width Rank</span><span class="text-right font-medium">${formatNum(latest.bb_width_rank, 2)}</span>
+                                    <span class="text-gray-600">RS vs Market</span><span class="text-right font-medium">${formatNum(latest.rs_vs_market, 2)}</span>
+                                    <span class="text-gray-600">OBV Divergence</span><span class="text-right font-medium">${latest.obv_divergence || 'N/A'}</span>
+                                    <span class="text-gray-600">RVOL</span><span class="text-right font-medium">${formatNum(latest.rvol, 2)}</span>
+                                    <span class="text-gray-600">Tech Rating (0-5)</span><span class="text-right font-medium">${latest.technical_rating}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section 3: Historical Technicals -->
+                        <div class="mb-2 flex justify-between items-end">
+                            <h3 class="font-bold text-blue-900">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
+                            <button onclick="copyToClipboard('${ticker}')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold py-1 px-3 rounded shadow">
+                                📋 複製為 Excel 格式 (TSV)
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto mb-6">
+                            <table id="table-${ticker}" class="w-full">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th><th>Close</th><th>Chg(%)</th><th>Vol(M)</th>
+                                        <th>SMA5</th><th>SMA10</th><th>SMA20</th><th>SMA50</th><th>SMA200</th>
+                                        <th>RSI</th><th>MACD</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${historyRows}
+                                </tbody>
+                            </table>
+                            <p class="text-xs text-gray-500 mt-1">* 提示: 綠色粗體代表當日收盤價突破該移動平均線 (Price > SMA)</p>
+                        </div>
+                    </div>
+                `;
+
+                card.innerHTML = headerHtml + bodyHtml;
+                container.appendChild(card);
+            }
+        }
+
+        // 手風琴開關邏輯
+        function toggleAccordion(ticker) {
+            const content = document.getElementById(`content-${ticker}`);
+            content.classList.toggle('open');
+        }
+    </script>
+</body>
+</html>
