@@ -26,7 +26,7 @@
         const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     </script>
 
     <div class="max-w-7xl mx-auto py-8 px-4">
@@ -101,7 +101,7 @@
 
             try {
                 // 向 Supabase 請求這些股票的「所有歷史紀錄」，並依日期降冪排序
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from(marketTable)
                     .select('*')
                     .in('ticker', tickers)
