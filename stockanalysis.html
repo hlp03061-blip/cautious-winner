@@ -269,7 +269,7 @@
                 const headerHtml = `
                     <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
                         <div class="flex-1">
-                            <div class="flex items-center gap-6 mb-2">
+                            <div class="flex items-center gap-6 mb-3">
                                 <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
                                 <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
                                 <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
@@ -277,12 +277,13 @@
                                     ${changeSign}${formatNum(changePct, 2)}%
                                 </span>
                             </div>
-                            <div class="flex items-center gap-3 text-xs">
-                                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${sector}</span>
-                                <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Value: ${valRating}</span>
-                                <span class="px-2 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">Tech: ${techRating}</span>
-                                <span class="px-2 py-1 bg-teal-100 text-teal-800 rounded shadow-sm">MFI: ${mfiVal}</span>
-                                <span class="px-2 py-1 rounded ${signalStyle} shadow-sm">Signal: ${signalText}</span>
+                            <!-- 修改: 將 text-xs 改為 text-sm，並增加字體粗細與內距 -->
+                            <div class="flex items-center gap-3 text-sm font-medium">
+                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${sector}</span>
+                                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Value: ${valRating}</span>
+                                <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">Tech: ${techRating}</span>
+                                <span class="px-3 py-1 bg-teal-100 text-teal-800 rounded shadow-sm">MFI: ${mfiVal}</span>
+                                <span class="px-3 py-1 rounded ${signalStyle} shadow-sm">Signal: ${signalText}</span>
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-2 text-sm text-right">
