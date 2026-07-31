@@ -259,9 +259,9 @@
                 });
                 tsv += `\n`;
 
-                // Section 3: 移除 1D Flow 欄位
+                // Section 3: 補上 RVOL 欄位
                 tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
-                tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
+                tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
 
                 // ==========================================================
                 // HTML 畫面：標題與卡片邏輯
@@ -277,7 +277,6 @@
                                     ${changeSign}${formatNum(changePct, 2)}%
                                 </span>
                             </div>
-                            <!-- 修改: 將 text-xs 改為 text-sm，並增加字體粗細與內距 -->
                             <div class="flex items-center gap-3 text-sm font-medium">
                                 <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${sector}</span>
                                 <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Value: ${valRating}</span>
@@ -299,7 +298,7 @@
                 records.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
                     
-                    // HTML 歷史表格渲染 (移除 1D Flow 欄位)
+                    // HTML 歷史表格渲染 (補上 RVOL)
                     historyRows += `
                         <tr class="hover:bg-blue-50 text-sm">
                             <td class="text-center">${row.trading_date}</td>
@@ -309,6 +308,7 @@
                             <td>${formatNum(row.low_price, 3)}</td>
                             <td>${formatNum(row.change_pct, 2)}%</td>
                             <td>${formatNum(row.vol_million, 3)}</td>
+                            <td>${formatNum(row.rvol, 2)}</td>
                             <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 3)}</td>
                             <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 3)}</td>
                             <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 3)}</td>
@@ -325,10 +325,10 @@
                         </tr>
                     `;
                     
-                    // TSV 複製字串拼接 (移除 1D Flow 欄位)
-                    tsv += `${row.trading_date}\t${formatNum(px, 3)}\t${formatNum(row.open_price, 3)}\t${formatNum(row.high_price, 3)}\t${formatNum(row.low_price, 3)}\t${formatNum(row.change_pct, 2)}%\t${formatNum(row.vol_million, 3)}\t${formatNum(row.sma5, 3)}\t${formatNum(row.sma10, 3)}\t${formatNum(row.sma20, 3)}\t${formatNum(row.sma50, 3)}\t${formatNum(row.sma200, 3)}\t${formatNum(row.macd, 3)}\t${formatNum(row.rsi, 2)}\t${formatNum(row.adx, 2)}\t${formatNum(row.kdj_k, 2)}\t${formatNum(row.kdj_d, 2)}\t${formatNum(row.kdj_j, 2)}\t${formatNum(row.obv_millions, 3)}\t${formatNum(row.sharpe_ratio_20d, 3)}\n`;
+                    // TSV 複製字串拼接 (補上 RVOL)
+                    tsv += `${row.trading_date}\t${formatNum(px, 3)}\t${formatNum(row.open_price, 3)}\t${formatNum(row.high_price, 3)}\t${formatNum(row.low_price, 3)}\t${formatNum(row.change_pct, 2)}%\t${formatNum(row.vol_million, 3)}\t${formatNum(row.rvol, 2)}\t${formatNum(row.sma5, 3)}\t${formatNum(row.sma10, 3)}\t${formatNum(row.sma20, 3)}\t${formatNum(row.sma50, 3)}\t${formatNum(row.sma200, 3)}\t${formatNum(row.macd, 3)}\t${formatNum(row.rsi, 2)}\t${formatNum(row.adx, 2)}\t${formatNum(row.kdj_k, 2)}\t${formatNum(row.kdj_d, 2)}\t${formatNum(row.kdj_j, 2)}\t${formatNum(row.obv_millions, 3)}\t${formatNum(row.sharpe_ratio_20d, 3)}\n`;
 
-                    // HTML Section 4 逐日資金流渲染，依照 records 長度(即 limitDays) 顯示
+                    // HTML Section 4 逐日資金流渲染
                     const flowColor = getFlowColor(row.money_flow_million);
                     moneyFlowDailyRows += `
                         <div class="grid grid-cols-2 text-sm gap-y-1">
@@ -403,7 +403,6 @@
                         <!-- Section 3: Historical Technicals Table -->
                         <div class="mb-2 flex justify-between items-end">
                             <h3 class="font-bold text-blue-900">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
-                            <!-- 修改: 更改按鈕文字提示這會複製整張卡片 -->
                             <button onclick="copyToClipboard('${ticker}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-2 px-4 rounded shadow border border-blue-300">
                                 📋 複製整張卡片資料 (TSV)
                             </button>
@@ -412,7 +411,7 @@
                             <table id="table-${ticker}" class="w-full text-xs">
                                 <thead>
                                     <tr>
-                                        <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th>
+                                        <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th><th>RVOL</th>
                                         <th>SMA5</th><th>SMA10</th><th>SMA20</th><th>SMA50</th><th>SMA200</th>
                                         <th>MACD</th><th>RSI</th><th>ADX</th><th>KDJ_K</th><th>KDJ_D</th><th>KDJ_J</th>
                                         <th>OBV(M)</th><th>Sharpe</th>
