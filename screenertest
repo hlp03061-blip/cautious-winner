@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略選股清單 - 雙引擎資金流 (Screener)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .stock-checkbox {
+            appearance: none; background-color: #1f2937; margin: 0; font: inherit; color: currentColor;
+            width: 1.15em; height: 1.15em; border: 1px solid #4b5563; border-radius: 0.25em; display: grid; place-content: center; cursor: pointer; transition: all 0.2s;
+        }
+        .stock-checkbox::before {
+            content: ""; width: 0.65em; height: 0.65em; transform: scale(0); transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em #34d399; transform-origin: center; clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+        .stock-checkbox:checked { border-color: #34d399; }
+        .stock-checkbox:checked::before { transform: scale(1); }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- 頂部導覽列 -->
+        <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div class="flex flex-wrap gap-3">
+                <a href="index.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">📊 綜合決策儀表板</a>
+                <a href="#" class="px-4 py-2 bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 rounded-lg text-sm font-semibold border border-emerald-800/50 transition-colors shadow-sm cursor-default">🎣 策略選股清單</a>
+                <a href="stockanalysis.html" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-sm font-medium border border-gray-800 transition-colors">數據分析</a>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <div class="relative w-full sm:w-64">
+                    <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
+                           class="w-full bg-gray-900 border border-gray-700 rounded-lg text-sm px-4 py-2 text-emerald-100 placeholder-gray-500 outline-none focus:border-emerald-500 focus:ring-1 transition-all">
+                </div>
+                <button id="btn-check-prices" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(79,70,229,0.4)] flex justify-center items-center gap-2">
+                    <span>⚡ 掃描即時價</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- 儀表板控制區 -->
+        <header class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800 pb-4">
+                <div class="space-y-3">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
+                        🎣 雙引擎資金流選股策略 (Screener)
+                    </h1>
+                    <!-- 策略切換按鈕 -->
+                    <div class="flex gap-4 bg-gray-950 p-1.5 rounded-lg border border-gray-800 inline-flex">
+                        <label class="cursor-pointer relative">
+                            <input type="radio" name="strategy" value="short_term" checked onchange="switchStrategy('short_term')" class="peer sr-only">
+                            <div class="px-4 py-1.5 rounded-md text-sm font-bold text-gray-500 peer-checked:bg-orange-900/40 peer-checked:text-orange-400 peer-checked:shadow-sm transition-all">
+                                🔥 短線動能抄底
+                            </div>
+                        </label>
+                        <label class="cursor-pointer relative">
+                            <input type="radio" name="strategy" value="long_term" onchange="switchStrategy('long_term')" class="peer sr-only">
+                            <div class="px-4 py-1.5 rounded-md text-sm font-bold text-gray-500 peer-checked:bg-blue-900/40 peer-checked:text-blue-400 peer-checked:shadow-sm transition-all">
+                                🛡️ 長線價值建倉
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 flex flex-wrap items-end gap-3 shadow-inner">
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold block mb-1">🇭🇰 港股數據日</label>
+                        <input type="date" id="hk-date" class="bg-gray-900 border border-gray-700 rounded text-sm px-2 py-1.5 text-emerald-400 font-mono outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 font-bold block mb-1">🇺🇸 美股數據日</label>
+                        <input type="date" id="us-date" class="bg-gray-900 border border-gray-700 rounded text-sm px-2 py-1.5 text-blue-400 font-mono outline-none">
+                    </div>
+                    <button id="btn-load-date" class="bg-emerald-900/80 hover:bg-emerald-700 text-emerald-100 border border-emerald-700 text-xs font-bold px-4 py-2 rounded-lg transition shadow-lg">
+                        🔄 載入數據
+                    </button>
+                </div>
+            </div>
+
+            <!-- 動態策略說明區 -->
+            <div class="bg-gray-950/50 p-4 rounded-lg border border-gray-800 text-sm text-gray-300">
+                <p class="font-bold text-emerald-400 mb-2">📌 當前篩選邏輯與參數：</p>
+                <ul id="strategy-desc" class="list-disc list-inside space-y-1 text-xs text-gray-400">
+                    <!-- Javascript 動態注入 -->
+                </ul>
+            </div>
+        </header>
+
+        <!-- 數據表格區 -->
+        <section class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="flex border-b border-gray-800 bg-gray-950">
+                <button id="tab-hk" class="market-tab flex-1 py-3 text-sm font-bold transition-colors bg-gray-900 text-emerald-400 border-t-2 border-emerald-500" onclick="switchTab('HK')">
+                    🇭🇰 港股市場 (HKEX)
+                </button>
+                <button id="tab-us" class="market-tab flex-1 py-3 text-sm font-bold transition-colors bg-gray-950 text-gray-500 hover:text-gray-300 border-t-2 border-transparent" onclick="switchTab('US')">
+                    🇺🇸 美股市場 (S&P 500)
+                </button>
+            </div>
+
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="check-all" class="stock-checkbox">
+                        <span class="text-xs text-gray-400 font-bold">全選</span>
+                    </label>
+                    <span id="match-count" class="bg-emerald-950 text-emerald-300 text-xs font-semibold px-2 py-0.5 rounded border border-emerald-800">載入中...</span>
+                </div>
+                
+                <button id="btn-copy-selected" class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs font-bold px-4 py-2 rounded transition-colors flex items-center gap-2">
+                    📋 複製已勾選代號 (<span id="selected-count">0</span>)
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm text-gray-300">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400 font-medium bg-gray-900/40">
+                            <th class="p-4 w-12 text-center">選取</th>
+                            <th class="p-4">市場/代號</th>
+                            <th class="p-4">板塊</th>
+                            <th class="p-4 text-center">基本面<br><span class="text-[10px] text-gray-500">P/E & 息率</span></th>
+                            <th class="p-4 text-center">護城河<br><span class="text-[10px] text-gray-500">Value & ROE</span></th>
+                            <th class="p-4 text-right">基準價<br><span class="text-[10px] text-gray-500">(Supabase)</span></th>
+                            <th class="p-4 text-right">即時價<br><span class="text-[10px] text-indigo-400">(手動掃描 API)</span></th>
+                            <th class="p-4 text-right">MFI</th>
+                            <th class="p-4 text-center">歷史 3 段資金演進<br><span class="text-[10px] text-gray-500">10D ➔ 5D ➔ 1D</span></th>
+                            <th class="p-4 text-center">狀態標籤</th>
+                            <th class="p-4 text-right font-bold text-emerald-400 pr-6" id="score-header">綜合分數</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stock-table-body">
+                        <tr><td colspan="11" class="p-8 text-center text-gray-500">正在下載最新雲端數據...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // ==========================================
+        // 初始化設置
+        // ==========================================
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const TABLE_FLOW_HK = 'money_flow_hk';          
+        const TABLE_FLOW_US = 'money_flow_sp500';       
+        const TABLE_MULTI_HK = 'multi_stock_analysis_hk';
+        const TABLE_MULTI_US = 'multi_stock_analysis_sp500';
+
+        let latestMarketData = [];
+        let filteredScreenerData = []; 
+        let activeMarket = 'HK'; 
+        let activeStrategy = 'short_term'; // 預設短線模式
+
+        const hkDatePicker = document.getElementById('hk-date');
+        const usDatePicker = document.getElementById('us-date');
+        const searchInput = document.getElementById('search-ticker'); 
+
+        // 策略說明文字庫
+        const strategyTexts = {
+            'short_term': `
+                <li><strong class="text-orange-300">防禦與資金：</strong>過去 5 日與 10 日資金皆為正流入 (5D/10D Flow > 0)。</li>
+                <li><strong class="text-orange-300">跌深反彈條件：</strong>資金流量指標 (MFI) 必須小於 45。</li>
+                <li><strong class="text-orange-300">排序權重 (短線動能分)：</strong>極度冷門 (MFI越低佔 40%) + 吸籌力道 (5D資金流越大佔 40%) + 點火跡象 (成交量爆增佔 20%)。</li>
+            `,
+            'long_term': `
+                <li><strong class="text-blue-300">防禦與資金：</strong>過去 5 日與 10 日資金皆為正流入 (5D/10D Flow > 0)。</li>
+                <li><strong class="text-blue-300">護城河硬條件：</strong>價值評分 Value Rating >= 3 <span class="text-gray-500">(0-5分)</span>，且 賺錢效率 ROE > 8%。</li>
+                <li><strong class="text-blue-300">排序權重 (長線價值分)：</strong>價值與收息 (評分越高、股息越高佔 40%) + 吸籌力道 (5D資金流佔 30%) + 超賣程度 (MFI越低佔 30%)。</li>
+            `
+        };
+
+        // ==========================================
+        // 工具函數
+        // ==========================================
+        function formatCopyTicker(ticker, market) {
+            let t = String(ticker).trim();
+            if (market === 'HK') {
+                t = t.replace(/\.HK$/i, ''); 
+                if (/^\d+$/.test(t)) t = t.padStart(4, '0'); 
+                return t + '.HK';
+            }
+            return t; 
+        }
+
+        function formatMoney(value) {
+            if (value == null || value === 0) return '-';
+            const num = Number(value);
+            const absNum = Math.abs(num);
+            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + ' M';
+            if (absNum >= 10000) return (num / 10000).toFixed(1) + ' 萬';
+            return num.toFixed(1);
+        }
+
+        function formatPct(value) {
+            if (value == null || isNaN(value)) return '-';
+            return (Number(value) * 100).toFixed(1) + '%';
+        }
+
+        // ==========================================
+        // UI 互動事件
+        // ==========================================
+        window.switchTab = function(market) {
+            activeMarket = market;
+            document.querySelectorAll('.market-tab').forEach(tab => {
+                tab.classList.remove('bg-gray-900', 'text-emerald-400', 'border-emerald-500');
+                tab.classList.add('bg-gray-950', 'text-gray-500', 'border-transparent');
+            });
+            const activeTab = document.getElementById(`tab-${market.toLowerCase()}`);
+            activeTab.classList.remove('bg-gray-950', 'text-gray-500', 'border-transparent');
+            activeTab.classList.add('bg-gray-900', 'text-emerald-400', 'border-emerald-500');
+            executeScreenerLogic();
+        };
+
+        window.switchStrategy = function(strategy) {
+            activeStrategy = strategy;
+            document.getElementById('strategy-desc').innerHTML = strategyTexts[strategy];
+            
+            const scoreHeader = document.getElementById('score-header');
+            if (strategy === 'short_term') {
+                scoreHeader.textContent = '短線動能分';
+                scoreHeader.className = 'p-4 text-right font-bold text-orange-400 pr-6';
+            } else {
+                scoreHeader.textContent = '長線價值分';
+                scoreHeader.className = 'p-4 text-right font-bold text-blue-400 pr-6';
+            }
+            executeScreenerLogic();
+        };
+
+        // 初始化策略說明文字
+        document.getElementById('strategy-desc').innerHTML = strategyTexts[activeStrategy];
+
+        // ==========================================
+        // 即時價格 API
+        // ==========================================
+        async function fetchLivePrice(ticker) {
+            for (let i = 0; i < 2; i++) {
+                try {
+                    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?_t=${Date.now()}`;
+                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
+                    
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) throw new Error('Proxy 請求失敗');
+                    
+                    const data = await response.json();
+                    if (!data.contents) throw new Error('回傳內容為空');
+                    
+                    const yahooData = JSON.parse(data.contents);
+                    if (yahooData.chart && yahooData.chart.result && yahooData.chart.result.length > 0) {
+                        return yahooData.chart.result[0].meta.regularMarketPrice;
+                    }
+                    return null;
+                } catch (err) {
+                    if (i === 1) return null;
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+        }
+
+        async function checkPrices() {
+            const btn = document.getElementById('btn-check-prices');
+            btn.innerHTML = `<span>⏳ 掃描中...請稍候</span>`;
+            btn.disabled = true;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            for (const stock of filteredScreenerData) {
+                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
+                const priceCell = document.querySelector(`.live-price-cell[data-symbol="${lookupSymbol}"]`);
+                if (!priceCell) continue;
+
+                priceCell.innerHTML = `<span class="animate-pulse text-indigo-400 text-sm font-bold">查詢中...</span>`;
+                const livePrice = await fetchLivePrice(lookupSymbol);
+                
+                if (livePrice === null || livePrice === undefined) {
+                    priceCell.innerHTML = `<span class="text-xs text-red-500 font-bold bg-red-950/40 px-2 py-1 rounded">獲取失敗</span>`;
+                    continue;
+                }
+
+                const basePrice = stock.price; 
+                const changePct = basePrice ? ((livePrice - basePrice) / basePrice) * 100 : 0;
+                
+                let livePriceColor = 'text-gray-300';
+                let changeTextClass = 'text-gray-500/70';
+                
+                if (changePct > 0.01) {
+                    livePriceColor = 'text-emerald-400';
+                    changeTextClass = 'text-emerald-500/70';
+                } else if (changePct < -0.01) {
+                    livePriceColor = 'text-red-400';
+                    changeTextClass = 'text-red-500/70';
+                }
+
+                const sign = changePct > 0.01 ? '+' : '';
+
+                priceCell.className = `p-4 text-right font-mono font-bold live-price-cell ${livePriceColor}`;
+                priceCell.innerHTML = `
+                    ${livePrice.toFixed(2)}<br>
+                    <span class="text-[10px] ${changeTextClass}">${sign}${changePct.toFixed(2)}%</span>
+                `;
+            }
+
+            btn.innerHTML = `<span>⚡ 掃描完成 (可再次刷新)</span>`;
+            btn.disabled = false;
+            btn.classList.remove('opacity-70', 'cursor-not-allowed');
+            setTimeout(() => { btn.innerHTML = `<span>⚡ 掃描即時價</span>`; }, 3000);
+        }
+
+        // ==========================================
+        // 資料庫抓取與核心邏輯
+        // ==========================================
+        async function fetchLatestDatesAndSetPickers() {
+            const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
+                supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
+            ]);
+            if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
+            if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
+        }
+
+        async function fetchFlowDataByDate() {
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="11" class="p-8 text-center text-emerald-400 animate-pulse">🔄 正在同時抓取資金流與基本面數據...</td></tr>`;
+            try {
+                // 同時請求資金流與基本面大寬表
+                const [flowHkRes, flowUsRes, multiHkRes, multiUsRes] = await Promise.all([
+                    supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(3000),
+                    supabaseClient.from(TABLE_FLOW_US).select('*').eq('Record_Date', usDatePicker.value).limit(3000),
+                    supabaseClient.from(TABLE_MULTI_HK).select('ticker, pe_ratio, dividend_yield, value_rating, roe').eq('trading_date', hkDatePicker.value).limit(3000),
+                    supabaseClient.from(TABLE_MULTI_US).select('ticker, pe_ratio, dividend_yield, value_rating, roe').eq('trading_date', usDatePicker.value).limit(3000)
+                ]);
+
+                // 建立基本面字典，方便 O(1) 查詢配對
+                const multiHkMap = {};
+                (multiHkRes.data || []).forEach(r => multiHkMap[r.ticker] = r);
+                const multiUsMap = {};
+                (multiUsRes.data || []).forEach(r => multiUsMap[r.ticker] = r);
+
+                // 將資金流資料與基本面資料融合 (Merge)
+                const hkData = (flowHkRes.data || []).map(r => ({ ...r, market: 'HK', multi: multiHkMap[r.ticker] || {} }));
+                const usData = (flowUsRes.data || []).map(r => ({ ...r, market: 'US', multi: multiUsMap[r.ticker] || {} }));
+                
+                latestMarketData = [...hkData, ...usData];
+                executeScreenerLogic();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="11" class="p-8 text-center text-red-500">❌ 獲取數據失敗，請檢查網路或金鑰設定。</td></tr>`;
+            }
+        }
+
+        function executeScreenerLogic() {
+            const searchTerm = searchInput.value.trim().toUpperCase();
+
+            // 1. 初步過濾 (雙引擎過濾邏輯)
+            let rawFiltered = latestMarketData.filter(r => {
+                if (r.market !== activeMarket) return false;
+                
+                const f5 = Number(r['5D_flow']) || 0;
+                const f10 = Number(r['10D_flow']) || 0;
+                const mfi = r.MFI != null ? Number(r.MFI) : 100;
+                
+                // 基本面防護網數據
+                const valRating = Number(r.multi.value_rating) || 0;
+                const roe = Number(r.multi.roe) || 0;
+
+                // 共通條件：5D與10D必須正流入
+                if (f5 <= 0 || f10 <= 0) return false;
+
+                if (activeStrategy === 'short_term') {
+                    // 短線模式：只要跌夠深 (MFI < 45)
+                    return mfi < 45;
+                } else {
+                    // 長線模式：硬性護城河要求 (價值分>=3, 賺錢效率ROE>8%)
+                    return valRating >= 3 && roe > 0.08;
+                }
+            });
+
+            if (rawFiltered.length === 0) {
+                filteredScreenerData = [];
+                renderTable();
+                return;
+            }
+
+            const maxF5 = Math.max(...rawFiltered.map(r => Number(r['5D_flow'])), 1); // 避免除以0
+
+            // 2. 計分與組合資料 (Scoring & Mapping)
+            let processedData = rawFiltered.map(r => {
+                const f5 = Number(r['5D_flow']) || 0;
+                const f10 = Number(r['10D_flow']) || 0;
+                const f1 = Number(r['1D_flow']) || 0; 
+                const mfi = Number(r.MFI) || 100;
+                const volSpike = Number(r.Volspike) || 0;
+                
+                const valRating = Number(r.multi.value_rating) || 0;
+                const divYield = Number(r.multi.dividend_yield) || 0;
+                const pe = Number(r.multi.pe_ratio) || 0;
+                const roe = Number(r.multi.roe) || 0;
+
+                let finalScore = 0;
+                
+                if (activeStrategy === 'short_term') {
+                    // 短線計分: 40%超賣 + 40%資金 + 20%爆量
+                    const mfiScore = ((45 - Math.max(mfi, 15)) / 30) * 40; 
+                    const flowScore = (f5 / maxF5) * 40;
+                    const volScore = Math.min(volSpike / 2.0, 1) * 20;
+                    finalScore = mfiScore + flowScore + volScore;
+                } else {
+                    // 長線計分: 40%價值收息 + 30%資金 + 30%超賣
+                    // 價值分滿分30分(Rating滿分為5) + 息率滿分10分(息率超過5%即拿滿10分)
+                    const valScore = (valRating / 5) * 30 + Math.min(divYield / 0.05, 1) * 10;
+                    const flowScore = (f5 / maxF5) * 30;
+                    const mfiScore = Math.max(0, ((80 - Math.max(mfi, 20)) / 60) * 30); // 越低越好，80分界線
+                    finalScore = valScore + flowScore + mfiScore;
+                }
+
+                return {
+                    ticker: String(r.ticker || r.Ticker || '').trim(),
+                    market: r.market,
+                    name: r.company_name || r.Company_Name || '未知',
+                    sector: r.sector || r.Sector || '未分類',
+                    price: Number(r.price) || 0,
+                    mfi: mfi,
+                    flow_1d: f1,
+                    flow_5d: f5,
+                    flow_10d: f10,
+                    accel: String(r.accel || '').trim().toUpperCase(),
+                    volSpike: volSpike,
+                    pe: pe,
+                    divYield: divYield,
+                    valRating: valRating,
+                    roe: roe,
+                    score: finalScore
+                };
+            });
+
+            if (searchTerm) {
+                processedData = processedData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
+            }
+
+            // 3. 排序 (以最終分數遞減)
+            processedData.sort((a, b) => {
+                if (Math.abs(b.score - a.score) > 0.1) return b.score - a.score;
+                return b.flow_5d - a.flow_5d; 
+            });
+
+            filteredScreenerData = processedData;
+            renderTable();
+        }
+
+        // ==========================================
+        // 渲染表格
+        // ==========================================
+        function renderTable() {
+            const tbody = document.getElementById('stock-table-body');
+            document.getElementById('match-count').textContent = `符合條件: ${filteredScreenerData.length} 隻`;
+            document.getElementById('selected-count').textContent = '0';
+            document.getElementById('check-all').checked = false;
+            tbody.innerHTML = '';
+
+            if (filteredScreenerData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="p-8 text-center text-gray-500">今日無符合條件的股票。</td></tr>`;
+                return;
+            }
+
+            const scoreColorClass = activeStrategy === 'short_term' ? 'text-orange-400' : 'text-blue-400';
+
+            filteredScreenerData.forEach((stock) => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800/60 hover:bg-gray-800/40 transition-colors';
+                
+                // 狀態標籤生成
+                let badgeHtml = '';
+                if (stock.volSpike >= 1.5) {
+                    badgeHtml += `<span class="bg-amber-950 text-amber-400 border border-amber-900 text-[10px] px-2 py-0.5 rounded-md font-bold mb-1 inline-block mr-1">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
+                }
+                if (stock.accel === 'THIN') {
+                    badgeHtml += `<span class="bg-gray-900 text-gray-400 border border-gray-700 text-[10px] px-2 py-0.5 rounded-md inline-block">靜悄悄 (Thin)</span>`;
+                } else {
+                    badgeHtml += `<span class="bg-indigo-950 text-indigo-300 border border-indigo-900 text-[10px] px-2 py-0.5 rounded-md inline-block">建倉中 (${stock.accel})</span>`;
+                }
+
+                // 資金流 Bar Chart
+                const f10_5 = stock.flow_10d - stock.flow_5d;
+                const f5_1 = stock.flow_5d - stock.flow_1d;
+                const f1 = stock.flow_1d;
+                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
+                
+                const h1 = (f10_5 / maxAbs) * 12;
+                const h2 = (f5_1 / maxAbs) * 12;
+                const h3 = (f1 / maxAbs) * 12;
+
+                const drawBar = (h, x) => {
+                    let y, barH, color;
+                    if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
+                    else if (h < 0) { y = 15; barH = Math.abs(h); color = '#EF4444'; } 
+                    else { y = 14; barH = 2; color = '#4B5563'; }
+                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
+                };
+
+                const sparklineSvg = `
+                    <div class="flex items-center justify-center gap-2" title="歷史 3 階段資金演進：\n1. 前10至5D: ${formatMoney(f10_5)}\n2. 前5至1D: ${formatMoney(f5_1)}\n3. 今日1D: ${formatMoney(f1)}">
+                        <span class="text-emerald-400 font-mono w-16 text-right">${formatMoney(stock.flow_5d)}</span>
+                        <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
+                            <line x1="0" y1="15" x2="60" y2="15" stroke="#374151" stroke-width="1" stroke-dasharray="2,2" />
+                            ${drawBar(h1, 4)}   
+                            ${drawBar(h2, 24)}  
+                            ${drawBar(h3, 44)}  
+                        </svg>
+                    </div>
+                `;
+
+                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
+
+                // 基本面視覺化處理
+                const peText = stock.pe > 0 ? stock.pe.toFixed(1) : '<span class="text-gray-600">N/A</span>';
+                const yieldText = stock.divYield > 0 ? formatPct(stock.divYield) : '<span class="text-gray-600">0.0%</span>';
+                const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-600">-</span>';
+                const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-600">N/A</span>';
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center">
+                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
+                    </td>
+                    <td class="p-4 font-mono font-bold text-blue-400 whitespace-nowrap">
+                        ${stock.ticker}<br><span class="text-xs text-gray-500 font-sans font-normal">${stock.name}</span>
+                    </td>
+                    <td class="p-4 text-gray-400 text-xs">${stock.sector}</td>
+                    
+                    <td class="p-4 text-center font-mono text-gray-300 text-xs whitespace-nowrap">
+                        <span class="text-gray-500">P/E:</span> ${peText}<br>
+                        <span class="text-gray-500">Div:</span> <span class="text-purple-300">${yieldText}</span>
+                    </td>
+                    <td class="p-4 text-center font-mono text-gray-300 text-xs whitespace-nowrap">
+                        <span class="text-gray-500">Val:</span> <span class="text-yellow-400 font-bold">${valRatingText}</span><br>
+                        <span class="text-gray-500">ROE:</span> ${roeText}
+                    </td>
+
+                    <td class="p-4 text-right font-mono text-gray-500">
+                        ${stock.price.toFixed(2)}
+                    </td>
+                    
+                    <td class="p-4 text-right font-mono font-bold text-gray-600 live-price-cell" data-symbol="${lookupSymbol}">
+                        -<br><span class="text-[10px] text-gray-700">待掃描</span>
+                    </td>
+                    
+                    <td class="p-4 text-right font-mono text-teal-200 text-lg ${stock.mfi < 30 ? 'font-black text-teal-400' : ''}">${stock.mfi.toFixed(1)}</td>
+                    <td class="p-4 text-center">${sparklineSvg}</td>
+                    <td class="p-4 text-center">${badgeHtml}</td>
+                    <td class="p-4 text-right font-mono ${scoreColorClass} font-black text-xl pr-6">${stock.score.toFixed(1)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            bindCheckboxEvents();
+        }
+
+        function bindCheckboxEvents() {
+            const checkAll = document.getElementById('check-all');
+            const rowChecks = document.querySelectorAll('.row-check');
+            const selectedCountSpan = document.getElementById('selected-count');
+
+            const updateCount = () => {
+                const checkedCount = document.querySelectorAll('.row-check:checked').length;
+                selectedCountSpan.textContent = checkedCount;
+                checkAll.checked = checkedCount === rowChecks.length && rowChecks.length > 0;
+            };
+
+            checkAll.addEventListener('change', (e) => {
+                rowChecks.forEach(chk => chk.checked = e.target.checked);
+                updateCount();
+            });
+
+            rowChecks.forEach(chk => chk.addEventListener('change', updateCount));
+        }
+
+        document.getElementById('btn-copy-selected').addEventListener('click', () => {
+            const checkedBoxes = document.querySelectorAll('.row-check:checked');
+            if (checkedBoxes.length === 0) {
+                alert("請先勾選要複製的股票！");
+                return;
+            }
+            const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
+            navigator.clipboard.writeText(tickers).then(() => {
+                const btn = document.getElementById('btn-copy-selected');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = `✅ 成功複製 ${checkedBoxes.length} 隻`;
+                btn.classList.replace('bg-gray-800', 'bg-emerald-800');
+                setTimeout(() => { 
+                    btn.innerHTML = originalText; 
+                    btn.classList.replace('bg-emerald-800', 'bg-gray-800');
+                }, 2000);
+            });
+        });
+
+        // 綁定事件
+        document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
+        searchInput.addEventListener('input', executeScreenerLogic);
+        document.getElementById('btn-check-prices').addEventListener('click', checkPrices);
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await fetchLatestDatesAndSetPickers();
+            await fetchFlowDataByDate();
+        });
+    </script>
+</body>
+</html>
