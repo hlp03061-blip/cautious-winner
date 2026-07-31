@@ -337,7 +337,8 @@
                     finalScore = mfiScore + flowScore + volScore;
                 } else {
                     // 長線計分: 40%價值收息 + 30%資金 + 30%超賣
-                    const valScore = (valRating / 5) * 30 + Math.min(divYield / 0.05, 1) * 10;
+                    // 修正: 依據 Supabase 資料庫中的儲存格式 (如 1.12 代表 1.12%)，所以滿分門檻從 0.05 修正為 5.0
+                    const valScore = (valRating / 5) * 30 + Math.min(divYield / 5.0, 1) * 10;
                     const flowScore = (f5 / maxF5) * 30;
                     const mfiScore = Math.max(0, ((80 - Math.max(mfi, 20)) / 60) * 30); 
                     finalScore = valScore + flowScore + mfiScore;
@@ -383,8 +384,11 @@
         function renderTable() {
             const tbody = document.getElementById('stock-table-body');
             document.getElementById('match-count').textContent = `符合條件: ${filteredScreenerData.length} 隻`;
+            
+            // 重置全選與數量
             document.getElementById('selected-count').textContent = '0';
             document.getElementById('check-all').checked = false;
+            
             tbody.innerHTML = '';
 
             if (filteredScreenerData.length === 0) {
@@ -441,9 +445,10 @@
 
                 const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
 
-                // 基本面視覺化處理
+                // 修正：依據 Supabase 資料庫中的實際儲存格式直接顯示 %，不乘以 100
                 const peText = stock.pe > 0 ? stock.pe.toFixed(1) : '<span class="text-gray-400">N/A</span>';
-                const yieldText = stock.divYield > 0 ? formatPct(stock.divYield) : '<span class="text-gray-400">0.0%</span>';
+                const yieldText = stock.divYield > 0 ? stock.divYield.toFixed(2) + '%' : '<span class="text-gray-400">0.0%</span>';
+                
                 const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
                 const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
 
@@ -477,28 +482,28 @@
                 `;
                 tbody.appendChild(tr);
             });
-
-            bindCheckboxEvents();
         }
 
-        function bindCheckboxEvents() {
-            const checkAll = document.getElementById('check-all');
-            const rowChecks = document.querySelectorAll('.row-check');
-            const selectedCountSpan = document.getElementById('selected-count');
+        // ==========================================
+        // 事件監聽委派 (修正切換頁籤時 Checkbox 失效問題)
+        // ==========================================
+        const checkAllBtn = document.getElementById('check-all');
+        const selectedCountSpan = document.getElementById('selected-count');
 
-            const updateCount = () => {
+        checkAllBtn.addEventListener('change', (e) => {
+            const rowChecks = document.querySelectorAll('.row-check');
+            rowChecks.forEach(chk => chk.checked = e.target.checked);
+            selectedCountSpan.textContent = document.querySelectorAll('.row-check:checked').length;
+        });
+
+        document.getElementById('stock-table-body').addEventListener('change', (e) => {
+            if (e.target.classList.contains('row-check')) {
+                const rowChecks = document.querySelectorAll('.row-check');
                 const checkedCount = document.querySelectorAll('.row-check:checked').length;
                 selectedCountSpan.textContent = checkedCount;
-                checkAll.checked = checkedCount === rowChecks.length && rowChecks.length > 0;
-            };
-
-            checkAll.addEventListener('change', (e) => {
-                rowChecks.forEach(chk => chk.checked = e.target.checked);
-                updateCount();
-            });
-
-            rowChecks.forEach(chk => chk.addEventListener('change', updateCount));
-        }
+                checkAllBtn.checked = (checkedCount === rowChecks.length && rowChecks.length > 0);
+            }
+        });
 
         document.getElementById('btn-copy-selected').addEventListener('click', () => {
             const checkedBoxes = document.querySelectorAll('.row-check:checked');
@@ -521,7 +526,7 @@
             });
         });
 
-        // 綁定事件
+        // 綁定其他事件
         document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
         searchInput.addEventListener('input', executeScreenerLogic);
 
