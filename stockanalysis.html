@@ -70,10 +70,13 @@
 
     <script>
         // ==========================================
-        // 2. 輔助函數
+        // 2. 輔助函數與全域變數
         // ==========================================
         const formatNum = (num, decimals = 2) => num !== null && num !== undefined ? Number(num).toFixed(decimals) : 'N/A';
         const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
+
+        // 用來存放每檔股票「一鍵複製」的完整純文字(TSV)報告
+        window.clipboardDataMap = {};
 
         function toggleCustomDate() {
             const select = document.getElementById('dateRange');
@@ -81,20 +84,16 @@
             customInput.style.display = select.value === 'custom' ? 'block' : 'none';
         }
 
-        // 複製為 TSV 格式 (使用 textContent 確保抓取完整 21 個欄位)
+        // 複製為 TSV 格式 (直接從背後讀取預先組裝好的報告)
         function copyToClipboard(ticker) {
-            const table = document.getElementById(`table-${ticker}`);
-            let tsv = "";
-            for (let i = 0; i < table.rows.length; i++) {
-                let rowData = [];
-                for (let j = 0; j < table.rows[i].cells.length; j++) {
-                    rowData.push(table.rows[i].cells[j].textContent.trim());
-                }
-                tsv += rowData.join("\t") + "\n";
+            const tsvText = window.clipboardDataMap[ticker];
+            if (tsvText) {
+                navigator.clipboard.writeText(tsvText).then(() => {
+                    alert(`${ticker} 的【完整卡片數據】已複製！請直接貼上至 Excel。`);
+                }).catch(err => {
+                    alert('複製失敗，請檢查瀏覽器權限。');
+                });
             }
-            navigator.clipboard.writeText(tsv).then(() => {
-                alert(`${ticker} 的歷史數據已複製！請直接貼上至 Excel。`);
-            });
         }
 
         // ==========================================
@@ -119,6 +118,7 @@
             btn.disabled = true;
             status.innerText = "⏳ 正在從 Supabase 讀取數據...";
             container.innerHTML = "";
+            window.clipboardDataMap = {}; // 清空複製緩存
 
             try {
                 const { data, error } = await supabaseClient
@@ -144,7 +144,8 @@
                     groupedData[ticker] = groupedData[ticker].slice(0, limitDays);
                 }
 
-                renderCards(groupedData);
+                // 將排序數組(tickers)傳入渲染函數以保證順序
+                renderCards(groupedData, tickers);
                 status.innerText = `✅ 成功載入 ${Object.keys(groupedData).length} 檔股票資料。 (顯示最近 ${limitDays} 個交易日)`;
 
             } catch (err) {
@@ -156,31 +157,83 @@
         });
 
         // ==========================================
-        // 4. 畫面渲染
+        // 4. 畫面渲染 & TSV 報告組裝
         // ==========================================
-        function renderCards(groupedData) {
+        function renderCards(groupedData, tickers) {
             const container = document.getElementById('resultsContainer');
             
-            for (const [ticker, records] of Object.entries(groupedData)) {
+            for (const ticker of tickers) {
+                if (!groupedData[ticker]) continue; // 若資料庫沒有這檔股票則跳過
+                
+                const records = groupedData[ticker];
                 const latest = records[0]; 
                 
                 const card = document.createElement('div');
                 card.className = "bg-white border rounded-lg shadow-sm overflow-hidden mb-4";
 
-                // 標題改顯示 Pre-Uptrend Signal (有訊號時自動亮黃底紅字)
                 const signalText = latest.pre_uptrend_signal || 'No';
                 const signalStyle = (signalText !== 'No' && signalText !== 'N/A') 
                     ? 'bg-yellow-200 text-red-600 font-bold' 
                     : 'bg-gray-200 text-gray-700';
 
+                const changePct = latest.change_pct;
+                const changeColor = changePct > 0 ? 'text-green-600' : (changePct < 0 ? 'text-red-600' : 'text-gray-500');
+                const changeSign = changePct > 0 ? '+' : '';
+
+                // ==========================================================
+                // ★ 建立一鍵複製的 TSV (Tab Separated Values) 字串，專為 Excel 設計
+                // ==========================================================
+                let tsv = `=== TICKER: ${ticker} | ${latest.company_name || 'N/A'} ===\n`;
+                tsv += `Price:\t${formatNum(latest.current_price, 3)}\n`;
+                tsv += `Change:\t${changeSign}${formatNum(changePct, 2)}%\n`;
+                tsv += `Signal:\t${signalText}\n`;
+                tsv += `Date:\t${latest.trading_date} (${latest.market_status})\n\n`;
+
+                tsv += `--- SECTION 1: BASIC FUNDAMENTALS ---\n`;
+                tsv += `Sector\t${latest.sector}\n`;
+                tsv += `Market Cap (M)\t${formatNum(latest.market_cap_million, 2)}\n`;
+                tsv += `P/E Ratio\t${formatNum(latest.pe_ratio, 2)}\n`;
+                tsv += `P/B Ratio\t${formatNum(latest.pb_ratio, 2)}\n`;
+                tsv += `PEG Ratio\t${formatNum(latest.peg_ratio, 2)}\n`;
+                tsv += `Dividend Yield\t${formatNum(latest.dividend_yield, 2)}\n`;
+                tsv += `ROE\t${formatNum(latest.roe, 3)}\n`;
+                tsv += `Beta\t${formatNum(latest.beta, 3)}\n`;
+                tsv += `Debt/Equity\t${formatNum(latest.debt_to_equity, 3)}\n`;
+                tsv += `52 Week High / Low\t${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}\n`;
+                tsv += `Avg Vol 10D / 3M\t${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}\n`;
+                tsv += `Target Mean Price\t${formatNum(latest.target_mean_price, 2)}\n`;
+                tsv += `Free Cash Flow (M)\t${formatNum(latest.free_cash_flow_million, 2)}\n`;
+                tsv += `Value Rating (0-5)\t${latest.value_rating}\n\n`;
+
+                tsv += `--- SECTION 2: SMART MONEY ---\n`;
+                tsv += `Pre-Uptrend Signal\t${latest.pre_uptrend_signal || 'N/A'}\n`;
+                tsv += `BB Width Rank\t${formatNum(latest.bb_width_rank, 2)}\n`;
+                tsv += `RS vs Market\t${formatNum(latest.rs_vs_market, 2)}\n`;
+                tsv += `Global Sector Trend %\t${formatNum(latest.global_sector_trend_pct, 2)}\n`;
+                tsv += `ATR\t${formatNum(latest.atr, 3)}\n`;
+                tsv += `OBV Divergence\t${latest.obv_divergence || 'N/A'}\n`;
+                tsv += `Vol Spark\t${latest.vol_spark || 'N/A'}\n`;
+                tsv += `RVOL\t${formatNum(latest.rvol, 2)}\n`;
+                tsv += `Tech Rating (0-5)\t${latest.technical_rating}\n\n`;
+
+                tsv += `--- SECTION 4: MONEY FLOW ---\n`;
+                tsv += `Last 5 Days (Accum)\t${formatNum(latest.money_flow_5d_million, 2)}\n`;
+                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n\n`;
+
+                tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
+                tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\t1D Flow(M)\n`;
+
+                // ==========================================================
+                // HTML 畫面：標題與卡片邏輯
+                // ==========================================================
                 const headerHtml = `
                     <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
                         <div class="flex items-center gap-6">
                             <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
                             <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
                             <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
-                            <span class="${latest.change_pct >= 0 ? 'text-red-500' : 'text-green-500'} font-bold">
-                                ${latest.change_pct >= 0 ? '+' : ''}${formatNum(latest.change_pct, 2)}%
+                            <span class="${changeColor} font-bold">
+                                ${changeSign}${formatNum(changePct, 2)}%
                             </span>
                         </div>
                         <div class="flex items-center gap-4 text-sm">
@@ -194,6 +247,8 @@
                 let historyRows = "";
                 records.forEach(row => {
                     const px = row.close_price || row.current_price;
+                    
+                    // HTML 歷史表格渲染
                     historyRows += `
                         <tr class="hover:bg-blue-50 text-sm">
                             <td class="text-center">${row.trading_date}</td>
@@ -219,19 +274,18 @@
                             <td>${formatNum(row.money_flow_million, 2)}</td>
                         </tr>
                     `;
+                    
+                    // TSV 複製字串拼接 (使用 \t 分隔)
+                    tsv += `${row.trading_date}\t${formatNum(px, 3)}\t${formatNum(row.open_price, 3)}\t${formatNum(row.high_price, 3)}\t${formatNum(row.low_price, 3)}\t${formatNum(row.change_pct, 2)}%\t${formatNum(row.vol_million, 3)}\t${formatNum(row.sma5, 3)}\t${formatNum(row.sma10, 3)}\t${formatNum(row.sma20, 3)}\t${formatNum(row.sma50, 3)}\t${formatNum(row.sma200, 3)}\t${formatNum(row.macd, 3)}\t${formatNum(row.rsi, 2)}\t${formatNum(row.adx, 2)}\t${formatNum(row.kdj_k, 2)}\t${formatNum(row.kdj_d, 2)}\t${formatNum(row.kdj_j, 2)}\t${formatNum(row.obv_millions, 3)}\t${formatNum(row.sharpe_ratio_20d, 3)}\t${formatNum(row.money_flow_million, 2)}\n`;
                 });
 
-                // 動態產生 Section 4 的資金流逐日明細 (Day -0 到 Day -9)
-                let moneyFlowDailyRows = "";
-                const loopLimit = Math.min(10, records.length);
-                for (let i = 0; i < loopLimit; i++) {
-                    moneyFlowDailyRows += `
-                        <div class="grid grid-cols-2 text-sm gap-y-1">
-                            <span class="text-gray-600">Day -${i} (${records[i].trading_date})</span>
-                            <span class="text-right font-medium">${formatNum(records[i].money_flow_million, 2)}</span>
-                        </div>
-                    `;
-                }
+                // 將這檔股票組裝完畢的 TSV 存入全域變數中
+                window.clipboardDataMap[ticker] = tsv;
+
+                const mf5 = latest.money_flow_5d_million;
+                const mf10 = latest.money_flow_10d_million;
+                const mf5Color = mf5 > 0 ? 'text-green-600' : (mf5 < 0 ? 'text-red-600' : 'text-gray-800');
+                const mf10Color = mf10 > 0 ? 'text-green-600' : (mf10 < 0 ? 'text-red-600' : 'text-gray-800');
 
                 const bodyHtml = `
                     <div id="content-${ticker}" class="accordion-content p-6 border-t">
@@ -274,22 +328,25 @@
                                 </div>
                             </div>
 
-                            <!-- Section 4: Money Flow Analysis (完整歷史明細) -->
+                            <!-- Section 4: Money Flow Analysis -->
                             <div class="bg-gray-50 p-3 rounded border">
                                 <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 4: MONEY FLOW ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-1 mb-2">
-                                    <span class="text-gray-800 font-bold">Last 5 Days (Accum)</span><span class="text-right font-bold text-blue-700">${formatNum(latest.money_flow_5d_million, 2)}</span>
-                                    <span class="text-gray-800 font-bold border-b pb-1">Last 10 Days (Accum)</span><span class="text-right font-bold text-blue-700 border-b pb-1">${formatNum(latest.money_flow_10d_million, 2)}</span>
+                                    <span class="text-gray-800 font-bold">Last 5 Days (Accum)</span>
+                                    <span class="text-right font-bold ${mf5Color}">${formatNum(mf5, 2)}</span>
+                                    
+                                    <span class="text-gray-800 font-bold">Last 10 Days (Accum)</span>
+                                    <span class="text-right font-bold ${mf10Color}">${formatNum(mf10, 2)}</span>
                                 </div>
-                                ${moneyFlowDailyRows}
                             </div>
                         </div>
 
                         <!-- Section 3: Historical Technicals Table -->
                         <div class="mb-2 flex justify-between items-end">
                             <h3 class="font-bold text-blue-900">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
-                            <button onclick="copyToClipboard('${ticker}')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold py-1 px-3 rounded shadow">
-                                📋 複製歷史表格 (TSV)
+                            <!-- 修改: 更改按鈕文字提示這會複製整張卡片 -->
+                            <button onclick="copyToClipboard('${ticker}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-2 px-4 rounded shadow border border-blue-300">
+                                📋 複製整張卡片資料 (TSV)
                             </button>
                         </div>
                         <div class="overflow-x-auto mb-6">
