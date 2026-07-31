@@ -75,6 +75,12 @@
         const formatNum = (num, decimals = 2) => num !== null && num !== undefined ? Number(num).toFixed(decimals) : 'N/A';
         const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
 
+        // 資金流顏色判斷函數 (大於0顯示綠色，小於0顯示紅色)
+        const getFlowColor = (flow) => {
+            if (flow === null || flow === undefined) return 'text-gray-800';
+            return flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800');
+        };
+
         // 用來存放每檔股票「一鍵複製」的完整純文字(TSV)報告
         window.clipboardDataMap = {};
 
@@ -84,7 +90,7 @@
             customInput.style.display = select.value === 'custom' ? 'block' : 'none';
         }
 
-        // 複製為 TSV 格式 (直接從背後讀取預先組裝好的報告)
+        // 一鍵複製完整 TSV 報告
         function copyToClipboard(ticker) {
             const tsvText = window.clipboardDataMap[ticker];
             if (tsvText) {
@@ -118,9 +124,10 @@
             btn.disabled = true;
             status.innerText = "⏳ 正在從 Supabase 讀取數據...";
             container.innerHTML = "";
-            window.clipboardDataMap = {}; // 清空複製緩存
+            window.clipboardDataMap = {}; 
 
             try {
+                // 1. 抓取 multi_stock_analysis (主要大寬表)
                 const { data, error } = await supabaseClient
                     .from(marketTable)
                     .select('*')
@@ -134,18 +141,38 @@
                     return;
                 }
 
+                // 2. 抓取 money_flow 表以獲取最新的 MFI 數據
+                const mfTable = marketTable === 'multi_stock_analysis_hk' ? 'money_flow_hk' : 'money_flow_sp500';
+                const { data: mfData, error: mfError } = await supabaseClient
+                    .from(mfTable)
+                    .select('ticker, MFI, Record_Date')
+                    .in('ticker', tickers)
+                    .order('Record_Date', { ascending: false });
+                
+                // 將最新的 MFI 存入字典對應
+                const mfiMap = {};
+                if (mfData) {
+                    mfData.forEach(row => {
+                        // 因為已按照日期遞減排序，所以第一筆就是最新的
+                        if (mfiMap[row.ticker] === undefined) {
+                            mfiMap[row.ticker] = row.MFI;
+                        }
+                    });
+                }
+
                 const groupedData = {};
                 data.forEach(row => {
                     if (!groupedData[row.ticker]) groupedData[row.ticker] = [];
                     groupedData[row.ticker].push(row);
                 });
 
+                // 根據使用者設定的天數裁切資料 (控制表格與 Section 4 迴圈的天數)
                 for (let ticker in groupedData) {
                     groupedData[ticker] = groupedData[ticker].slice(0, limitDays);
                 }
 
-                // 將排序數組(tickers)傳入渲染函數以保證順序
-                renderCards(groupedData, tickers);
+                // 將排序數組(tickers)及 MFI 字典傳入渲染函數
+                renderCards(groupedData, tickers, mfiMap);
                 status.innerText = `✅ 成功載入 ${Object.keys(groupedData).length} 檔股票資料。 (顯示最近 ${limitDays} 個交易日)`;
 
             } catch (err) {
@@ -159,11 +186,11 @@
         // ==========================================
         // 4. 畫面渲染 & TSV 報告組裝
         // ==========================================
-        function renderCards(groupedData, tickers) {
+        function renderCards(groupedData, tickers, mfiMap) {
             const container = document.getElementById('resultsContainer');
             
             for (const ticker of tickers) {
-                if (!groupedData[ticker]) continue; // 若資料庫沒有這檔股票則跳過
+                if (!groupedData[ticker]) continue; 
                 
                 const records = groupedData[ticker];
                 const latest = records[0]; 
@@ -180,17 +207,26 @@
                 const changeColor = changePct > 0 ? 'text-green-600' : (changePct < 0 ? 'text-red-600' : 'text-gray-500');
                 const changeSign = changePct > 0 ? '+' : '';
 
+                // 準備表頭需要顯示的資料
+                const sector = latest.sector || 'N/A';
+                const valRating = latest.value_rating !== null ? latest.value_rating : 'N/A';
+                const techRating = latest.technical_rating !== null ? latest.technical_rating : 'N/A';
+                const mfiVal = mfiMap[ticker] !== undefined && mfiMap[ticker] !== null ? formatNum(mfiMap[ticker], 2) : 'N/A';
+
                 // ==========================================================
-                // ★ 建立一鍵複製的 TSV (Tab Separated Values) 字串，專為 Excel 設計
+                // ★ 建立一鍵複製的 TSV (Tab Separated Values) 字串
                 // ==========================================================
                 let tsv = `=== TICKER: ${ticker} | ${latest.company_name || 'N/A'} ===\n`;
                 tsv += `Price:\t${formatNum(latest.current_price, 3)}\n`;
                 tsv += `Change:\t${changeSign}${formatNum(changePct, 2)}%\n`;
+                tsv += `Sector:\t${sector}\n`;
+                tsv += `Value Rating:\t${valRating}\n`;
+                tsv += `Tech Rating:\t${techRating}\n`;
+                tsv += `MFI:\t${mfiVal}\n`;
                 tsv += `Signal:\t${signalText}\n`;
                 tsv += `Date:\t${latest.trading_date} (${latest.market_status})\n\n`;
 
                 tsv += `--- SECTION 1: BASIC FUNDAMENTALS ---\n`;
-                tsv += `Sector\t${latest.sector}\n`;
                 tsv += `Market Cap (M)\t${formatNum(latest.market_cap_million, 2)}\n`;
                 tsv += `P/E Ratio\t${formatNum(latest.pe_ratio, 2)}\n`;
                 tsv += `P/B Ratio\t${formatNum(latest.pb_ratio, 2)}\n`;
@@ -202,8 +238,7 @@
                 tsv += `52 Week High / Low\t${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}\n`;
                 tsv += `Avg Vol 10D / 3M\t${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}\n`;
                 tsv += `Target Mean Price\t${formatNum(latest.target_mean_price, 2)}\n`;
-                tsv += `Free Cash Flow (M)\t${formatNum(latest.free_cash_flow_million, 2)}\n`;
-                tsv += `Value Rating (0-5)\t${latest.value_rating}\n\n`;
+                tsv += `Free Cash Flow (M)\t${formatNum(latest.free_cash_flow_million, 2)}\n\n`;
 
                 tsv += `--- SECTION 2: SMART MONEY ---\n`;
                 tsv += `Pre-Uptrend Signal\t${latest.pre_uptrend_signal || 'N/A'}\n`;
@@ -213,42 +248,57 @@
                 tsv += `ATR\t${formatNum(latest.atr, 3)}\n`;
                 tsv += `OBV Divergence\t${latest.obv_divergence || 'N/A'}\n`;
                 tsv += `Vol Spark\t${latest.vol_spark || 'N/A'}\n`;
-                tsv += `RVOL\t${formatNum(latest.rvol, 2)}\n`;
-                tsv += `Tech Rating (0-5)\t${latest.technical_rating}\n\n`;
+                tsv += `RVOL\t${formatNum(latest.rvol, 2)}\n\n`;
 
                 tsv += `--- SECTION 4: MONEY FLOW ---\n`;
                 tsv += `Last 5 Days (Accum)\t${formatNum(latest.money_flow_5d_million, 2)}\n`;
-                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n\n`;
+                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n`;
+                tsv += `Daily 1D Flow:\n`;
+                records.forEach((row, i) => {
+                    tsv += `Day -${i} (${row.trading_date})\t${formatNum(row.money_flow_million, 2)}\n`;
+                });
+                tsv += `\n`;
 
+                // Section 3: 移除 1D Flow 欄位
                 tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
-                tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\t1D Flow(M)\n`;
+                tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
 
                 // ==========================================================
                 // HTML 畫面：標題與卡片邏輯
                 // ==========================================================
                 const headerHtml = `
                     <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
-                        <div class="flex items-center gap-6">
-                            <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
-                            <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
-                            <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
-                            <span class="${changeColor} font-bold">
-                                ${changeSign}${formatNum(changePct, 2)}%
-                            </span>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-6 mb-2">
+                                <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
+                                <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
+                                <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
+                                <span class="${changeColor} font-bold">
+                                    ${changeSign}${formatNum(changePct, 2)}%
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs">
+                                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${sector}</span>
+                                <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Value: ${valRating}</span>
+                                <span class="px-2 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">Tech: ${techRating}</span>
+                                <span class="px-2 py-1 bg-teal-100 text-teal-800 rounded shadow-sm">MFI: ${mfiVal}</span>
+                                <span class="px-2 py-1 rounded ${signalStyle} shadow-sm">Signal: ${signalText}</span>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-4 text-sm">
-                            <span class="px-2 py-1 rounded ${signalStyle}">Signal: ${signalText}</span>
-                            <span class="text-gray-500">最後更新: ${latest.trading_date} (${latest.market_status})</span>
+                        <div class="flex flex-col items-end gap-2 text-sm text-right">
+                            <span class="text-gray-500 text-xs">最後更新: ${latest.trading_date} <br> (${latest.market_status})</span>
                             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </div>
                     </div>
                 `;
 
                 let historyRows = "";
-                records.forEach(row => {
+                let moneyFlowDailyRows = "";
+
+                records.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
                     
-                    // HTML 歷史表格渲染
+                    // HTML 歷史表格渲染 (移除 1D Flow 欄位)
                     historyRows += `
                         <tr class="hover:bg-blue-50 text-sm">
                             <td class="text-center">${row.trading_date}</td>
@@ -271,21 +321,30 @@
                             <td>${formatNum(row.kdj_j, 2)}</td>
                             <td>${formatNum(row.obv_millions, 3)}</td>
                             <td>${formatNum(row.sharpe_ratio_20d, 3)}</td>
-                            <td>${formatNum(row.money_flow_million, 2)}</td>
                         </tr>
                     `;
                     
-                    // TSV 複製字串拼接 (使用 \t 分隔)
-                    tsv += `${row.trading_date}\t${formatNum(px, 3)}\t${formatNum(row.open_price, 3)}\t${formatNum(row.high_price, 3)}\t${formatNum(row.low_price, 3)}\t${formatNum(row.change_pct, 2)}%\t${formatNum(row.vol_million, 3)}\t${formatNum(row.sma5, 3)}\t${formatNum(row.sma10, 3)}\t${formatNum(row.sma20, 3)}\t${formatNum(row.sma50, 3)}\t${formatNum(row.sma200, 3)}\t${formatNum(row.macd, 3)}\t${formatNum(row.rsi, 2)}\t${formatNum(row.adx, 2)}\t${formatNum(row.kdj_k, 2)}\t${formatNum(row.kdj_d, 2)}\t${formatNum(row.kdj_j, 2)}\t${formatNum(row.obv_millions, 3)}\t${formatNum(row.sharpe_ratio_20d, 3)}\t${formatNum(row.money_flow_million, 2)}\n`;
+                    // TSV 複製字串拼接 (移除 1D Flow 欄位)
+                    tsv += `${row.trading_date}\t${formatNum(px, 3)}\t${formatNum(row.open_price, 3)}\t${formatNum(row.high_price, 3)}\t${formatNum(row.low_price, 3)}\t${formatNum(row.change_pct, 2)}%\t${formatNum(row.vol_million, 3)}\t${formatNum(row.sma5, 3)}\t${formatNum(row.sma10, 3)}\t${formatNum(row.sma20, 3)}\t${formatNum(row.sma50, 3)}\t${formatNum(row.sma200, 3)}\t${formatNum(row.macd, 3)}\t${formatNum(row.rsi, 2)}\t${formatNum(row.adx, 2)}\t${formatNum(row.kdj_k, 2)}\t${formatNum(row.kdj_d, 2)}\t${formatNum(row.kdj_j, 2)}\t${formatNum(row.obv_millions, 3)}\t${formatNum(row.sharpe_ratio_20d, 3)}\n`;
+
+                    // HTML Section 4 逐日資金流渲染，依照 records 長度(即 limitDays) 顯示
+                    const flowColor = getFlowColor(row.money_flow_million);
+                    moneyFlowDailyRows += `
+                        <div class="grid grid-cols-2 text-sm gap-y-1">
+                            <span class="text-gray-600">Day -${i} (${row.trading_date})</span>
+                            <span class="text-right font-medium ${flowColor}">${formatNum(row.money_flow_million, 2)}</span>
+                        </div>
+                    `;
                 });
 
                 // 將這檔股票組裝完畢的 TSV 存入全域變數中
                 window.clipboardDataMap[ticker] = tsv;
 
+                // Section 4 的 5D / 10D 累積流判斷顏色
                 const mf5 = latest.money_flow_5d_million;
                 const mf10 = latest.money_flow_10d_million;
-                const mf5Color = mf5 > 0 ? 'text-green-600' : (mf5 < 0 ? 'text-red-600' : 'text-gray-800');
-                const mf10Color = mf10 > 0 ? 'text-green-600' : (mf10 < 0 ? 'text-red-600' : 'text-gray-800');
+                const mf5Color = getFlowColor(mf5);
+                const mf10Color = getFlowColor(mf10);
 
                 const bodyHtml = `
                     <div id="content-${ticker}" class="accordion-content p-6 border-t">
@@ -295,7 +354,6 @@
                             <div>
                                 <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-1">
-                                    <span class="text-gray-600">Sector</span><span class="text-right font-medium">${latest.sector}</span>
                                     <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
                                     <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
                                     <span class="text-gray-600">P/B Ratio</span><span class="text-right font-medium">${formatNum(latest.pb_ratio, 2)}</span>
@@ -308,7 +366,6 @@
                                     <span class="text-gray-600">Avg Vol 10D / 3M</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
                                     <span class="text-gray-600">Target Mean Price</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
                                     <span class="text-gray-600">Free Cash Flow (M)</span><span class="text-right font-medium">${formatNum(latest.free_cash_flow_million, 2)}</span>
-                                    <span class="text-gray-600">Value Rating (0-5)</span><span class="text-right font-medium">${latest.value_rating}</span>
                                 </div>
                             </div>
                             
@@ -324,7 +381,6 @@
                                     <span class="text-gray-600">OBV Divergence</span><span class="text-right font-medium">${latest.obv_divergence || 'N/A'}</span>
                                     <span class="text-gray-600">Vol Spark</span><span class="text-right font-medium">${latest.vol_spark || 'N/A'}</span>
                                     <span class="text-gray-600">RVOL</span><span class="text-right font-medium">${formatNum(latest.rvol, 2)}</span>
-                                    <span class="text-gray-600">Tech Rating (0-5)</span><span class="text-right font-medium">${latest.technical_rating}</span>
                                 </div>
                             </div>
 
@@ -335,9 +391,11 @@
                                     <span class="text-gray-800 font-bold">Last 5 Days (Accum)</span>
                                     <span class="text-right font-bold ${mf5Color}">${formatNum(mf5, 2)}</span>
                                     
-                                    <span class="text-gray-800 font-bold">Last 10 Days (Accum)</span>
-                                    <span class="text-right font-bold ${mf10Color}">${formatNum(mf10, 2)}</span>
+                                    <span class="text-gray-800 font-bold border-b pb-1">Last 10 Days (Accum)</span>
+                                    <span class="text-right font-bold border-b pb-1 ${mf10Color}">${formatNum(mf10, 2)}</span>
                                 </div>
+                                <div class="mt-2 font-bold text-gray-700 mb-1 text-xs">Daily 1D Flow:</div>
+                                ${moneyFlowDailyRows}
                             </div>
                         </div>
 
@@ -356,7 +414,7 @@
                                         <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th>
                                         <th>SMA5</th><th>SMA10</th><th>SMA20</th><th>SMA50</th><th>SMA200</th>
                                         <th>MACD</th><th>RSI</th><th>ADX</th><th>KDJ_K</th><th>KDJ_D</th><th>KDJ_J</th>
-                                        <th>OBV(M)</th><th>Sharpe</th><th>1D Flow(M)</th>
+                                        <th>OBV(M)</th><th>Sharpe</th>
                                     </tr>
                                 </thead>
                                 <tbody>
