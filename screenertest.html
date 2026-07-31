@@ -161,13 +161,13 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 策略說明文字庫 (精準還原要求)
+        // 策略說明文字庫
         const strategyTexts = {
             'short_term': `
-                <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
-                <li><strong class="text-orange-600">跌深反彈：</strong>資金流量指標 (MFI) 必須小於 <span class="font-bold text-red-600">45</span>。</li>
+                <li><strong class="text-orange-600">防禦與資金：</strong>過去 5 日與 10 日資金皆為正流入 (5D/10D Flow > 0)。</li>
+                <li><strong class="text-orange-600">跌深反彈條件：</strong>資金流量指標 (MFI) 必須小於 <span class="font-bold text-red-600">45</span>。</li>
                 <li><strong class="text-orange-600">安全防護：</strong>價值評分 Value Rating <span class="font-bold text-orange-600">>= 3</span> <span class="text-gray-500">(確保公司有底子)</span>。</li>
-                <li><strong class="text-gray-500">排序權重：</strong>極度冷門 (MFI越低 40%) + 吸籌力道 (5D資金 40%) + 點火跡象 (爆量 20%)。</li>
+                <li><strong class="text-gray-500">排序權重 (短線動能分)：</strong>極度冷門 (MFI越低佔 40%) + 吸籌力道 (5D資金流越大佔 40%) + 點火跡象 (成交量爆增佔 20%)。</li>
             `,
             'long_term': `
                 <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
@@ -276,11 +276,11 @@
         function executeScreenerLogic() {
             const searchTerm = searchInput.value.trim().toUpperCase();
 
-            // 1. 初步過濾 (雙引擎過濾邏輯，資金流唯一資料源：multi)
+            // 1. 初步過濾
             let rawFiltered = latestMarketData.filter(r => {
                 if (r.market !== activeMarket) return false;
                 
-                // 資金流強制採用 multi 大寬表的數據
+                // 強制採用 multi 大寬表的資金流
                 const f5 = Number(r.multi.money_flow_5d_million) || 0;
                 const f10 = Number(r.multi.money_flow_10d_million) || 0;
                 
@@ -293,10 +293,10 @@
                 const price = Number(r.multi.current_price) || Number(r.price) || 0;
 
                 if (activeStrategy === 'short_term') {
-                    // 短線模式：5D 與 10D 皆正流入 + MFI < 45 + Value >= 3
+                    // 短線模式：5D/10D正流入 + MFI<45 + Value>=3
                     return f5 > 0 && f10 > 0 && mfi < 45 && valRating >= 3;
                 } else {
-                    // 長線模式：Value>=3, ROE>8%, RSI<40, KDJ_J<20, Price<SMA200, 10D>0 (移除了 MFI 與 5D 限制)
+                    // 長線模式：Value>=3, ROE>8%, RSI<40, KDJ_J<20, Price<SMA200, 10D>0
                     return valRating >= 3 &&
                            roe > 0.08 &&
                            rsi < 40 &&
@@ -335,15 +335,13 @@
 
                 let finalScore = 0;
                 if (activeStrategy === 'short_term') {
-                    // 短線計分: 40%超賣 + 40%資金 + 20%爆量
                     const mfiScore = ((45 - Math.max(mfi, 15)) / 30) * 40; 
                     const flowScore = (f5 / maxF5) * 40;
                     const volScore = Math.min(volSpike / 2.0, 1) * 20;
                     finalScore = mfiScore + flowScore + volScore;
                 } else {
-                    // 長線計分: 30%價值收息 + 30%長期資金 + 30%超賣 (RSI)
                     const valScore = (valRating / 5) * 30 + Math.min(divYield / 5.0, 1) * 10;
-                    const flowScore = (Math.max(f10, 0) / maxF10) * 30; // 長線改看 10D 資金動能
+                    const flowScore = (Math.max(f10, 0) / maxF10) * 30; 
                     const oversoldScore = Math.max(0, ((100 - rsi) / 100) * 30); 
                     finalScore = valScore + flowScore + oversoldScore;
                 }
@@ -375,7 +373,6 @@
                 processedData = processedData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
             }
 
-            // 3. 排序 (以綜合分數遞減，同分看核心資金流)
             processedData.sort((a, b) => {
                 if (Math.abs(b.score - a.score) > 0.1) return b.score - a.score;
                 return activeStrategy === 'short_term' ? b.flow_5d - a.flow_5d : b.flow_10d - a.flow_10d; 
@@ -391,12 +388,16 @@
         function renderTable() {
             const tbody = document.getElementById('stock-table-body');
             document.getElementById('match-count').textContent = `符合條件: ${filteredScreenerData.length} 隻`;
+            
+            // 安全重置 Checkbox
             document.getElementById('selected-count').textContent = '0';
-            document.getElementById('check-all').checked = false;
+            const checkAllEl = document.getElementById('check-all');
+            if(checkAllEl) checkAllEl.checked = false;
+            
             tbody.innerHTML = '';
 
             if (filteredScreenerData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-gray-500 text-base">今日無符合條件的股票。</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-gray-500 text-base">這條件太狠了！今日無符合條件的股票。</td></tr>`;
                 return;
             }
 
@@ -488,10 +489,11 @@
                 `;
                 tbody.appendChild(tr);
             });
-
-            bindCheckboxEvents();
         }
 
+        // ==========================================
+        // 事件監聽委派
+        // ==========================================
         const checkAllBtn = document.getElementById('check-all');
         const selectedCountSpan = document.getElementById('selected-count');
 
