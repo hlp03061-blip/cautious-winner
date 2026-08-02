@@ -127,10 +127,10 @@
                         <tr class="border-b border-gray-200 text-gray-600 font-semibold bg-gray-50">
                             <th class="py-4 px-5 w-12 text-center">選取</th>
                             <th class="py-4 px-5">市場/代號</th>
-                            <th class="py-4 px-5">板塊</th>
+                            <th class="py-4 px-5 leading-tight">板塊<br><span class="text-xs text-gray-500 font-normal">距 52W 低</span></th>
                             <th class="py-4 px-5 text-center leading-tight">基本面<br><span class="text-xs text-gray-500 font-normal">P/E & 息率</span></th>
                             <th class="py-4 px-5 text-center leading-tight">護城河<br><span class="text-xs text-gray-500 font-normal">Value & ROE</span></th>
-                            <th class="py-4 px-5 text-right">現價<br><span class="text-xs text-gray-500 font-normal">vs 年線</span></th>
+                            <th class="py-4 px-5 text-right leading-tight">現價<br><span class="text-xs text-gray-500 font-normal">SMA200</span></th>
                             <th class="py-4 px-5 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-500 font-normal">MFI / RSI / KDJ</span></th>
                             <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金演進<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
                             <th class="py-4 px-5 text-center">狀態標籤</th>
@@ -486,17 +486,17 @@
                 const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
                 const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
 
-                // 計算並把距52W低位放到板塊 (Sector) 下方
+                // 計算並把距52W低位直接顯示乾淨數字 (移除標籤)
                 let distText = '';
                 if (stock.week52Low > 0) {
                     const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
                     const sign = stock.dist52WLow > 0 ? '+' : '';
-                    distText = `<br><span class="text-xs ${distColor} mt-1 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">距52W低: ${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
+                    distText = `<br><span class="text-xs ${distColor} mt-1 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
                 } else {
-                    distText = `<br><span class="text-xs text-gray-400 mt-1 inline-block">距52W低: N/A</span>`;
+                    distText = `<br><span class="text-xs text-gray-400 mt-1 inline-block">N/A</span>`;
                 }
 
-                // 移除 truncate 並加入 whitespace-normal break-words 以顯示全名
+                // 板塊字體縮小為 text-xs，移除現價下方的 SMA200 標籤字眼
                 tr.innerHTML = `
                     <td class="py-4 px-5 text-center">
                         <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
@@ -506,7 +506,7 @@
                         <div class="text-xs text-gray-500 font-sans mt-1 whitespace-normal break-words w-40 sm:w-48 leading-tight">${stock.name}</div>
                     </td>
                     <td class="py-4 px-5 align-top">
-                        <span class="text-gray-600 text-sm font-medium block">${stock.sector}</span>
+                        <span class="text-gray-600 text-xs font-medium block">${stock.sector}</span>
                         ${distText}
                     </td>
                     
@@ -521,7 +521,7 @@
 
                     <td class="py-4 px-5 text-right font-mono font-bold text-gray-800 text-base align-top">
                         ${stock.price.toFixed(2)}<br>
-                        <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">SMA200: ${stock.sma200.toFixed(2)}</span>
+                        <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">${stock.sma200.toFixed(2)}</span>
                     </td>
                     
                     <td class="py-4 px-5 text-center font-mono text-gray-700 text-xs whitespace-nowrap leading-relaxed border-x border-gray-100 bg-gray-50/50">
