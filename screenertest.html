@@ -124,7 +124,7 @@
                             <th class="py-4 px-5">板塊</th>
                             <th class="py-4 px-5 text-center leading-tight">基本面<br><span class="text-xs text-gray-500 font-normal">P/E & 息率</span></th>
                             <th class="py-4 px-5 text-center leading-tight">護城河<br><span class="text-xs text-gray-500 font-normal">Value & ROE</span></th>
-                            <th class="py-4 px-5 text-right">現價<br><span class="text-xs text-gray-500 font-normal">vs 年線</span></th>
+                            <th class="py-4 px-5 text-right">現價<br><span class="text-xs text-gray-500 font-normal">vs 年線與谷底</span></th>
                             <th class="py-4 px-5 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-500 font-normal">MFI / RSI / KDJ</span></th>
                             <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金演進<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
                             <th class="py-4 px-5 text-center">狀態標籤</th>
@@ -161,7 +161,7 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 策略說明文字庫 (新增 52周低位 限制說明)
+        // 策略說明文字庫 (更新長線為 A/B 雙軌邏輯)
         const strategyTexts = {
             'short_term': `
                 <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
@@ -171,8 +171,11 @@
             `,
             'long_term': `
                 <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
-                <li><strong class="text-blue-700">技術面極限接刀：</strong>RSI <span class="font-bold text-red-600">< 40</span> 且 KDJ_J <span class="font-bold text-red-600">< 20</span>。</li>
-                <li><strong class="text-blue-700">跌破年線與歷史低點：</strong>現價 <span class="font-bold text-red-600">低於</span> 200日均線 (SMA200)，且距離 52 周低位 <span class="font-bold text-red-600">不超過 15%</span>。</li>
+                <li><strong class="text-blue-700">跌破年線打折區：</strong>現價 <span class="font-bold text-red-600">低於</span> 200日均線 (SMA200)。</li>
+                <li><strong class="text-blue-700">進場時機 (滿足其一即可入選)：</strong><br>
+                    &nbsp;&nbsp;A. 極端超賣接刀: RSI <span class="font-bold text-red-600">< 40</span> 且 KDJ_J <span class="font-bold text-red-600">< 20</span>。<br>
+                    &nbsp;&nbsp;B. 右側底部起漲: 距離 52 周低位介於 <span class="font-bold text-blue-700">10% ~ 30%</span> 之間。
+                </li>
                 <li><strong class="text-gray-500">排序權重：</strong>資金不限正流入，靠綜合分數找出<span class="font-bold text-blue-700">資金流出縮減</span>的最深恐慌底點。</li>
             `
         };
@@ -248,7 +251,7 @@
         async function fetchFlowDataByDate() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold text-base animate-pulse">🔄 正在同時抓取資金流與基本面數據...</td></tr>`;
             try {
-                // 新增 week_52_low 欄位
+                // 確保 multiColumns 包含 week_52_low
                 const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma200, rsi, kdj_j, money_flow_million, money_flow_5d_million, money_flow_10d_million, week_52_low';
                 
                 const [flowHkRes, flowUsRes, multiHkRes, multiUsRes] = await Promise.all([
@@ -291,19 +294,21 @@
                 const kdj_j = Number(r.multi.kdj_j) || 100;
                 const sma200 = Number(r.multi.sma200) || 0;
                 const price = Number(r.multi.current_price) || Number(r.price) || 0;
+                
+                // 距 52周低位 的百分比
                 const week52Low = Number(r.multi.week_52_low) || 0;
+                const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : -1;
 
                 if (activeStrategy === 'short_term') {
                     // 短線模式：5D 與 10D 皆正流入 + MFI < 45 + Value >= 3
                     return f5 > 0 && f10 > 0 && mfi < 45 && valRating >= 3;
                 } else {
-                    // 長線模式：加入 week_52_low 限制 (15% 以內)
-                    return valRating >= 3 &&
-                           roe > 0.08 &&
-                           rsi < 40 &&
-                           kdj_j < 20 &&
-                           sma200 > 0 && price < sma200 &&
-                           week52Low > 0 && price <= week52Low * 1.15;
+                    // 長線模式：基礎護城河 + (極端超賣 OR 底部起漲 10%~30%)
+                    const isFundamentalOk = (valRating >= 3 && roe > 0.08 && sma200 > 0 && price < sma200);
+                    const isExtremeOversold = (rsi < 40 && kdj_j < 20);
+                    const isBottomBounce = (dist52WLow >= 10 && dist52WLow <= 30);
+                    
+                    return isFundamentalOk && (isExtremeOversold || isBottomBounce);
                 }
             });
 
@@ -336,6 +341,9 @@
                 const pe = Number(r.multi.pe_ratio) || 0;
                 const roe = Number(r.multi.roe) || 0;
                 const price = Number(r.multi.current_price) || Number(r.price) || 0;
+                
+                const week52Low = Number(r.multi.week_52_low) || 0;
+                const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : 0;
 
                 let finalScore = 0;
                 if (activeStrategy === 'short_term') {
@@ -345,7 +353,6 @@
                     finalScore = mfiScore + flowScore + volScore;
                 } else {
                     const valScore = (valRating / 5) * 30 + Math.min(divYield / 5.0, 1) * 10;
-                    // 相對資金流動能 (流出越少或流入越多，分數越高)
                     const flowScore = ((f10 - minF10) / rangeF10) * 30; 
                     const oversoldScore = Math.max(0, ((100 - rsi) / 100) * 30); 
                     finalScore = valScore + flowScore + oversoldScore;
@@ -358,6 +365,8 @@
                     sector: r.sector || r.Sector || '未分類',
                     price: price,
                     sma200: sma200,
+                    week52Low: week52Low,
+                    dist52WLow: dist52WLow,
                     mfi: mfi,
                     rsi: rsi,
                     kdj_j: kdj_j,
@@ -458,6 +467,16 @@
                 const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
                 const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
 
+                // 計算顯示 52W 低位的差距文字與顏色
+                let distText = '';
+                if (stock.week52Low > 0) {
+                    const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
+                    const sign = stock.dist52WLow > 0 ? '+' : '';
+                    distText = `<br><span class="text-sm ${distColor} font-normal">距52W低: ${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
+                } else {
+                    distText = `<br><span class="text-sm text-gray-400 font-normal">距52W低: N/A</span>`;
+                }
+
                 tr.innerHTML = `
                     <td class="py-4 px-5 text-center">
                         <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
@@ -480,6 +499,7 @@
                     <td class="py-4 px-5 text-right font-mono font-bold text-gray-800 text-base">
                         ${stock.price.toFixed(2)}<br>
                         <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">SMA200: ${stock.sma200.toFixed(2)}</span>
+                        ${distText}
                     </td>
                     
                     <td class="py-4 px-5 text-center font-mono text-gray-700 text-xs whitespace-nowrap leading-relaxed border-x border-gray-100 bg-gray-50/50">
