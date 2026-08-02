@@ -81,23 +81,20 @@
             return flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800');
         };
 
-        // --- 新增：用於 Section 1 & 2 的雙行比較 HTML (避開紅綠，使用藍/橘) ---
+        // --- 用於 Section 2 的雙行比較 HTML (避開紅綠，使用藍/橘) ---
         function getCompareHtml(curr, prev, decimals = 2, mode = 'pct') {
             const valStr = formatNum(curr, decimals);
-            // 如果沒有昨日資料或數值不存在，單純回傳數值
             if (curr === null || prev === null || prev === undefined || curr === undefined) {
                 return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] text-transparent select-none">(-)</span></div>`;
             }
             
             const diff = Number(curr) - Number(prev);
-            // 若變動極小，視為無變動
             if (Math.abs(diff) < 0.0001) {
                 return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] text-gray-400">(-)</span></div>`;
             }
 
             const isUp = diff > 0;
             const sign = isUp ? '▲' : '▼';
-            // 避開紅綠：上升用深藍色，下降用橙色
             const colorCls = isUp ? 'text-blue-600' : 'text-orange-500';
 
             let diffStr = '';
@@ -105,14 +102,27 @@
                 const pct = prev !== 0 ? (Math.abs(diff) / Math.abs(prev)) * 100 : 0;
                 diffStr = `${sign} ${pct.toFixed(1)}%`;
             } else {
-                // 針對本身就是百分比或評分的欄位，直接顯示數值差異
                 diffStr = `${sign} ${Math.abs(diff).toFixed(decimals)}`;
             }
 
             return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] ${colorCls} font-bold leading-none">(${diffStr})</span></div>`;
         }
 
-        // --- 新增：用於 Section 3 表格格子的文字顏色 (避開紅綠) ---
+        // --- 新增：用於狀態標籤 (文字) 由有變無的比較 ---
+        function getTextCompareHtml(curr, prev, defaultVal = 'N/A', mainClasses = 'font-medium', containerClasses = '') {
+            const c = curr || defaultVal;
+            const p = prev || defaultVal;
+            
+            // 如果沒有昨日資料，或是狀態沒有改變，就只顯示乾淨的一行
+            if (prev === undefined || c === p) {
+                return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span></div>`;
+            }
+            
+            // 狀態發生改變時，提示昨日的狀態
+            return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span><span class="text-[10px] text-blue-600 font-bold leading-none mt-1">(昨日: ${p})</span></div>`;
+        }
+
+        // --- 用於 Section 3 表格格子的文字顏色 (避開紅綠) ---
         function getCompareColorClass(curr, prev) {
             if (curr === null || prev === null || prev === undefined || curr === undefined) return '';
             const diff = Number(curr) - Number(prev);
@@ -405,17 +415,10 @@
                             <div>
                                 <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
-                                    <span class="text-gray-600">Market Cap (M)</span>
-                                    ${getCompareHtml(latest.market_cap_million, prevData.market_cap_million, 2, 'pct')}
-                                    
-                                    <span class="text-gray-600">P/E Ratio</span>
-                                    ${getCompareHtml(latest.pe_ratio, prevData.pe_ratio, 2, 'pct')}
-                                    
-                                    <span class="text-gray-600">P/B Ratio</span>
-                                    ${getCompareHtml(latest.pb_ratio, prevData.pb_ratio, 2, 'pct')}
-                                    
-                                    <span class="text-gray-600">Free Cash Flow (M)</span>
-                                    ${getCompareHtml(latest.free_cash_flow_million, prevData.free_cash_flow_million, 2, 'pct')}
+                                    <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
+                                    <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
+                                    <span class="text-gray-600">P/B Ratio</span><span class="text-right font-medium">${formatNum(latest.pb_ratio, 2)}</span>
+                                    <span class="text-gray-600">Free Cash Flow (M)</span><span class="text-right font-medium">${formatNum(latest.free_cash_flow_million, 2)}</span>
 
                                     <span class="text-gray-600 pt-2 border-t mt-1">PEG Ratio</span><span class="text-right font-medium pt-2 border-t mt-1">${formatNum(latest.peg_ratio, 2)}</span>
                                     <span class="text-gray-600">Dividend Yield</span><span class="text-right font-medium">${formatNum(latest.dividend_yield, 2)}</span>
@@ -444,10 +447,17 @@
                                     <span class="text-gray-600">BB Width Rank</span>
                                     ${getCompareHtml(latest.bb_width_rank, prevData.bb_width_rank, 2, 'abs')}
 
-                                    <span class="text-gray-600 pt-2 border-t mt-1">Pre-Uptrend</span><span class="text-right font-bold text-red-600 pt-2 border-t mt-1">${latest.pre_uptrend_signal || 'N/A'}</span>
-                                    <span class="text-gray-600">Global Sector %</span><span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
-                                    <span class="text-gray-600">OBV Divergence</span><span class="text-right font-medium">${latest.obv_divergence || 'N/A'}</span>
-                                    <span class="text-gray-600">Vol Spark</span><span class="text-right font-medium">${latest.vol_spark || 'N/A'}</span>
+                                    <span class="text-gray-600 pt-2 border-t mt-1">Pre-Uptrend</span>
+                                    ${getTextCompareHtml(latest.pre_uptrend_signal, prevData.pre_uptrend_signal, 'N/A', 'font-bold text-red-600', 'pt-2 border-t mt-1')}
+                                    
+                                    <span class="text-gray-600">Global Sector %</span>
+                                    <span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
+                                    
+                                    <span class="text-gray-600">OBV Divergence</span>
+                                    ${getTextCompareHtml(latest.obv_divergence, prevData.obv_divergence, 'N/A')}
+                                    
+                                    <span class="text-gray-600">Vol Spark</span>
+                                    ${getTextCompareHtml(latest.vol_spark, prevData.vol_spark, 'N/A')}
                                 </div>
                             </div>
 
