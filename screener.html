@@ -46,18 +46,24 @@
                     <h1 class="text-3xl font-bold text-blue-900">
                         🎣 雙引擎資金流選股策略 (Screener)
                     </h1>
-                    <!-- 策略切換按鈕 -->
-                    <div class="flex gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 inline-flex shadow-inner">
+                    <!-- 三大策略切換按鈕 -->
+                    <div class="flex flex-wrap gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 inline-flex shadow-inner">
                         <label class="cursor-pointer relative">
                             <input type="radio" name="strategy" value="short_term" checked onchange="switchStrategy('short_term')" class="peer sr-only">
-                            <div class="px-5 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-orange-600 peer-checked:shadow transition-all">
+                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-orange-600 peer-checked:shadow transition-all">
                                 🔥 短線動能抄底
                             </div>
                         </label>
                         <label class="cursor-pointer relative">
                             <input type="radio" name="strategy" value="long_term" onchange="switchStrategy('long_term')" class="peer sr-only">
-                            <div class="px-5 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow transition-all">
-                                🛡️ 長線價值建倉
+                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-indigo-700 peer-checked:shadow transition-all">
+                                🛡️ 長線極端超賣
+                            </div>
+                        </label>
+                        <label class="cursor-pointer relative">
+                            <input type="radio" name="strategy" value="52w_low" onchange="switchStrategy('52w_low')" class="peer sr-only">
+                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow transition-all">
+                                📈 追擊 52W 低位
                             </div>
                         </label>
                     </div>
@@ -121,10 +127,10 @@
                         <tr class="border-b border-gray-200 text-gray-600 font-semibold bg-gray-50">
                             <th class="py-4 px-5 w-12 text-center">選取</th>
                             <th class="py-4 px-5">市場/代號</th>
-                            <th class="py-4 px-5">板塊</th>
+                            <th class="py-4 px-5 leading-tight">板塊<br><span class="text-xs text-gray-500 font-normal">距 52W 低</span></th>
                             <th class="py-4 px-5 text-center leading-tight">基本面<br><span class="text-xs text-gray-500 font-normal">P/E & 息率</span></th>
                             <th class="py-4 px-5 text-center leading-tight">護城河<br><span class="text-xs text-gray-500 font-normal">Value & ROE</span></th>
-                            <th class="py-4 px-5 text-right">現價<br><span class="text-xs text-gray-500 font-normal">vs 年線</span></th>
+                            <th class="py-4 px-5 text-right leading-tight">現價<br><span class="text-xs text-gray-500 font-normal">SMA200</span></th>
                             <th class="py-4 px-5 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-500 font-normal">MFI / RSI / KDJ</span></th>
                             <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金演進<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
                             <th class="py-4 px-5 text-center">狀態標籤</th>
@@ -161,7 +167,7 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 策略說明文字庫 (已更新長線 B 方案)
+        // 策略說明文字庫
         const strategyTexts = {
             'short_term': `
                 <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
@@ -170,10 +176,15 @@
                 <li><strong class="text-gray-500">排序權重：</strong>極度冷門 (MFI越低 40%) + 吸籌力道 (5D資金 40%) + 點火跡象 (爆量 20%)。</li>
             `,
             'long_term': `
+                <li><strong class="text-indigo-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-indigo-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-indigo-700">> 8%</span>。</li>
+                <li><strong class="text-indigo-700">技術面極限接刀：</strong>RSI <span class="font-bold text-red-600">< 40</span> 且 KDJ_J <span class="font-bold text-red-600">< 20</span>。</li>
+                <li><strong class="text-indigo-700">跌破年線打折區：</strong>現價 <span class="font-bold text-red-600">低於</span> 200日均線 (SMA200)。</li>
+                <li><strong class="text-gray-500">排序權重：</strong>資金不限正流入，靠綜合分數找出<span class="font-bold text-indigo-700">資金流出縮減</span>的最深恐慌底點。</li>
+            `,
+            '52w_low': `
                 <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
-                <li><strong class="text-blue-700">技術面極限接刀：</strong>RSI <span class="font-bold text-red-600">< 40</span> 且 KDJ_J <span class="font-bold text-red-600">< 20</span>。</li>
-                <li><strong class="text-blue-700">跌破年線打折區：</strong>現價 <span class="font-bold text-red-600">低於</span> 200日均線 (SMA200)。</li>
-                <li><strong class="text-gray-500">排序權重：</strong>資金不限正流入，靠綜合分數找出<span class="font-bold text-blue-700">資金流出縮減</span>的最深恐慌底點。</li>
+                <li><strong class="text-blue-700">底部右側起漲：</strong>現價距離 52 周低位介於 <span class="font-bold text-blue-700">10% ~ 30%</span> 之間。</li>
+                <li><strong class="text-gray-500">排序權重：</strong>基本面優勢佔 30% + 資金流向優勢佔 40% + 起漲優勢佔 30% <span class="text-gray-500">(越接近 10% 分數越高，漲多則分數遞減)</span>。</li>
             `
         };
 
@@ -221,11 +232,15 @@
             activeStrategy = strategy;
             document.getElementById('strategy-desc').innerHTML = strategyTexts[strategy];
             const scoreHeader = document.getElementById('score-header');
+            
             if (strategy === 'short_term') {
                 scoreHeader.textContent = '短線動能分';
                 scoreHeader.className = 'py-4 px-6 text-right font-bold text-orange-600 text-base';
-            } else {
+            } else if (strategy === 'long_term') {
                 scoreHeader.textContent = '長線價值分';
+                scoreHeader.className = 'py-4 px-6 text-right font-bold text-indigo-700 text-base';
+            } else if (strategy === '52w_low') {
+                scoreHeader.textContent = '起漲追擊分';
                 scoreHeader.className = 'py-4 px-6 text-right font-bold text-blue-700 text-base';
             }
             executeScreenerLogic();
@@ -248,7 +263,7 @@
         async function fetchFlowDataByDate() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold text-base animate-pulse">🔄 正在同時抓取資金流與基本面數據...</td></tr>`;
             try {
-                const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma200, rsi, kdj_j, money_flow_million, money_flow_5d_million, money_flow_10d_million';
+                const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma200, rsi, kdj_j, money_flow_million, money_flow_5d_million, money_flow_10d_million, week_52_low';
                 
                 const [flowHkRes, flowUsRes, multiHkRes, multiUsRes] = await Promise.all([
                     supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(3000),
@@ -280,7 +295,6 @@
             let rawFiltered = latestMarketData.filter(r => {
                 if (r.market !== activeMarket) return false;
                 
-                // 強制採用 multi 大寬表的資金流
                 const f5 = Number(r.multi.money_flow_5d_million) || 0;
                 const f10 = Number(r.multi.money_flow_10d_million) || 0;
                 
@@ -291,17 +305,19 @@
                 const kdj_j = Number(r.multi.kdj_j) || 100;
                 const sma200 = Number(r.multi.sma200) || 0;
                 const price = Number(r.multi.current_price) || Number(r.price) || 0;
+                
+                const week52Low = Number(r.multi.week_52_low) || 0;
+                const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : -1;
 
                 if (activeStrategy === 'short_term') {
-                    // 短線模式：5D 與 10D 皆正流入 + MFI < 45 + Value >= 3
+                    // 短線：正流入 + MFI超賣 + Value防護
                     return f5 > 0 && f10 > 0 && mfi < 45 && valRating >= 3;
-                } else {
-                    // 長線模式 (Option B)：極端接刀，放棄資金正流入硬規定
-                    return valRating >= 3 &&
-                           roe > 0.08 &&
-                           rsi < 40 &&
-                           kdj_j < 20 &&
-                           sma200 > 0 && price < sma200;
+                } else if (activeStrategy === 'long_term') {
+                    // 長線：回歸純粹的嚴格極限超賣 (RSI<40 AND KDJ<20 AND 跌破年線)
+                    return valRating >= 3 && roe > 0.08 && rsi < 40 && kdj_j < 20 && sma200 > 0 && price < sma200;
+                } else if (activeStrategy === '52w_low') {
+                    // 新增：追擊 52W 低位 (10% ~ 30%)
+                    return valRating >= 3 && roe > 0.08 && dist52WLow >= 10 && dist52WLow <= 30;
                 }
             });
 
@@ -312,7 +328,7 @@
             }
 
             const maxF5 = Math.max(...rawFiltered.map(r => Number(r.multi.money_flow_5d_million) || 0), 1); 
-            // 為長線策略準備的 10D 資金流上下界 (用作相對排名)
+            // 為長線與52W策略準備的 10D 資金流上下界 (用作相對排名)
             const minF10 = Math.min(...rawFiltered.map(r => Number(r.multi.money_flow_10d_million) || 0));
             const maxF10 = Math.max(...rawFiltered.map(r => Number(r.multi.money_flow_10d_million) || 0));
             const rangeF10 = maxF10 - minF10 === 0 ? 1 : maxF10 - minF10;
@@ -334,6 +350,9 @@
                 const pe = Number(r.multi.pe_ratio) || 0;
                 const roe = Number(r.multi.roe) || 0;
                 const price = Number(r.multi.current_price) || Number(r.price) || 0;
+                
+                const week52Low = Number(r.multi.week_52_low) || 0;
+                const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : 0;
 
                 let finalScore = 0;
                 if (activeStrategy === 'short_term') {
@@ -341,12 +360,18 @@
                     const flowScore = (f5 / maxF5) * 40;
                     const volScore = Math.min(volSpike / 2.0, 1) * 20;
                     finalScore = mfiScore + flowScore + volScore;
-                } else {
+                } else if (activeStrategy === 'long_term') {
                     const valScore = (valRating / 5) * 30 + Math.min(divYield / 5.0, 1) * 10;
-                    // 相對資金流動能 (流出越少或流入越多，分數越高)
                     const flowScore = ((f10 - minF10) / rangeF10) * 30; 
                     const oversoldScore = Math.max(0, ((100 - rsi) / 100) * 30); 
                     finalScore = valScore + flowScore + oversoldScore;
+                } else if (activeStrategy === '52w_low') {
+                    // 52W 低位策略計分：基本面 (30%) + 資金 (40%) + 起漲點 (30%)
+                    const valScore = (valRating / 5) * 30; 
+                    const flowScore = ((f10 - minF10) / rangeF10) * 40; 
+                    // 10% 拿滿 30 分，30% 拿 0 分
+                    const distScore = Math.max(0, ((30 - dist52WLow) / 20) * 30);
+                    finalScore = valScore + flowScore + distScore;
                 }
 
                 return {
@@ -356,6 +381,8 @@
                     sector: r.sector || r.Sector || '未分類',
                     price: price,
                     sma200: sma200,
+                    week52Low: week52Low,
+                    dist52WLow: dist52WLow,
                     mfi: mfi,
                     rsi: rsi,
                     kdj_j: kdj_j,
@@ -404,7 +431,10 @@
                 return;
             }
 
-            const scoreColorClass = activeStrategy === 'short_term' ? 'text-orange-600' : 'text-blue-700';
+            let scoreColorClass = 'text-gray-800';
+            if (activeStrategy === 'short_term') scoreColorClass = 'text-orange-600';
+            if (activeStrategy === 'long_term') scoreColorClass = 'text-indigo-700';
+            if (activeStrategy === '52w_low') scoreColorClass = 'text-blue-700';
 
             filteredScreenerData.forEach((stock) => {
                 const tr = document.createElement('tr');
@@ -456,15 +486,28 @@
                 const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
                 const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
 
+                let distText = '';
+                if (stock.week52Low > 0) {
+                    const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
+                    const sign = stock.dist52WLow > 0 ? '+' : '';
+                    distText = `<br><span class="text-xs ${distColor} mt-1 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
+                } else {
+                    distText = `<br><span class="text-xs text-gray-400 mt-1 inline-block">N/A</span>`;
+                }
+
+                // 移除板塊的 font-medium 並改為 text-gray-500，移除現價的 align-top
                 tr.innerHTML = `
                     <td class="py-4 px-5 text-center">
                         <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
                     </td>
-                    <td class="py-4 px-5 whitespace-nowrap">
+                    <td class="py-4 px-5 align-top">
                         <div class="text-lg font-bold text-blue-900 font-mono tracking-tight">${stock.ticker}</div>
-                        <div class="text-sm text-gray-500 font-sans mt-0.5 truncate w-32" title="${stock.name}">${stock.name}</div>
+                        <div class="text-xs text-gray-500 font-sans mt-1 whitespace-normal break-words w-40 sm:w-48 leading-tight">${stock.name}</div>
                     </td>
-                    <td class="py-4 px-5 text-gray-600 text-sm font-medium">${stock.sector}</td>
+                    <td class="py-4 px-5 align-top">
+                        <span class="text-gray-500 text-xs block">${stock.sector}</span>
+                        ${distText}
+                    </td>
                     
                     <td class="py-4 px-5 text-center font-mono text-gray-700 text-sm whitespace-nowrap">
                         <span class="text-gray-500 text-xs mr-1">P/E:</span> <span class="font-semibold">${peText}</span><br>
@@ -477,7 +520,7 @@
 
                     <td class="py-4 px-5 text-right font-mono font-bold text-gray-800 text-base">
                         ${stock.price.toFixed(2)}<br>
-                        <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">SMA200: ${stock.sma200.toFixed(2)}</span>
+                        <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">${stock.sma200.toFixed(2)}</span>
                     </td>
                     
                     <td class="py-4 px-5 text-center font-mono text-gray-700 text-xs whitespace-nowrap leading-relaxed border-x border-gray-100 bg-gray-50/50">
