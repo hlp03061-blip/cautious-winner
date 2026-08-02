@@ -167,7 +167,7 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 策略說明文字庫 (新增第三大策略)
+        // 策略說明文字庫
         const strategyTexts = {
             'short_term': `
                 <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
@@ -486,7 +486,6 @@
                 const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
                 const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
 
-                // 計算並把距52W低位直接顯示乾淨數字 (移除標籤)
                 let distText = '';
                 if (stock.week52Low > 0) {
                     const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
@@ -496,7 +495,7 @@
                     distText = `<br><span class="text-xs text-gray-400 mt-1 inline-block">N/A</span>`;
                 }
 
-                // 板塊字體縮小為 text-xs，移除現價下方的 SMA200 標籤字眼
+                // 移除板塊的 font-medium 並改為 text-gray-500，移除現價的 align-top
                 tr.innerHTML = `
                     <td class="py-4 px-5 text-center">
                         <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
@@ -506,7 +505,7 @@
                         <div class="text-xs text-gray-500 font-sans mt-1 whitespace-normal break-words w-40 sm:w-48 leading-tight">${stock.name}</div>
                     </td>
                     <td class="py-4 px-5 align-top">
-                        <span class="text-gray-600 text-xs font-medium block">${stock.sector}</span>
+                        <span class="text-gray-500 text-xs block">${stock.sector}</span>
                         ${distText}
                     </td>
                     
@@ -519,7 +518,7 @@
                         <span class="text-gray-500 text-xs mr-1">ROE:</span> <span class="font-semibold">${roeText}</span>
                     </td>
 
-                    <td class="py-4 px-5 text-right font-mono font-bold text-gray-800 text-base align-top">
+                    <td class="py-4 px-5 text-right font-mono font-bold text-gray-800 text-base">
                         ${stock.price.toFixed(2)}<br>
                         <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">${stock.sma200.toFixed(2)}</span>
                     </td>
