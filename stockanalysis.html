@@ -108,17 +108,15 @@
             return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] ${colorCls} font-bold leading-none">(${diffStr})</span></div>`;
         }
 
-        // --- 新增：用於狀態標籤 (文字) 由有變無的比較 ---
+        // --- 用於狀態標籤 (文字) 由有變無的比較 ---
         function getTextCompareHtml(curr, prev, defaultVal = 'N/A', mainClasses = 'font-medium', containerClasses = '') {
             const c = curr || defaultVal;
             const p = prev || defaultVal;
             
-            // 如果沒有昨日資料，或是狀態沒有改變，就只顯示乾淨的一行
             if (prev === undefined || c === p) {
                 return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span></div>`;
             }
             
-            // 狀態發生改變時，提示昨日的狀態
             return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span><span class="text-[10px] text-blue-600 font-bold leading-none mt-1">(昨日: ${p})</span></div>`;
         }
 
@@ -285,7 +283,8 @@
                 tsv += `Dividend Yield\t${formatNum(latest.dividend_yield, 2)}\n`;
                 tsv += `ROE\t${formatNum(latest.roe, 3)}\n`;
                 tsv += `Beta\t${formatNum(latest.beta, 3)}\n`;
-                tsv += `Debt/Equity\t${formatNum(latest.debt_to_equity, 3)}\n`;
+                // 加上百分比符號，保留2位小數
+                tsv += `Debt/Equity\t${formatNum(latest.debt_to_equity, 2)}%\n`;
                 tsv += `52 Week High / Low\t${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}\n`;
                 tsv += `Avg Vol 10D / 3M\t${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}\n`;
                 tsv += `Target Mean Price\t${formatNum(latest.target_mean_price, 2)}\n`;
@@ -424,7 +423,7 @@
                                     <span class="text-gray-600">Dividend Yield</span><span class="text-right font-medium">${formatNum(latest.dividend_yield, 2)}</span>
                                     <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
                                     <span class="text-gray-600">Beta</span><span class="text-right font-medium">${formatNum(latest.beta, 3)}</span>
-                                    <span class="text-gray-600">Debt/Equity</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 3)}</span>
+                                    <span class="text-gray-600">Debt/Equity</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 2)}%</span>
                                     <span class="text-gray-600">52 Wk High / Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
                                     <span class="text-gray-600">Avg Vol 10D / 3M</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
                                     <span class="text-gray-600">Target Mean Px</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
