@@ -3,543 +3,507 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>策略選股清單 - 雙引擎資金流 (Screener)</title>
+    <title>Multi-Stock Analysis Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        .stock-checkbox {
-            appearance: none; background-color: #fff; margin: 0; font: inherit; color: currentColor;
-            width: 1.25em; height: 1.25em; border: 1px solid #d1d5db; border-radius: 0.25em; display: grid; place-content: center; cursor: pointer; transition: all 0.2s;
-        }
-        .stock-checkbox::before {
-            content: ""; width: 0.7em; height: 0.7em; transform: scale(0); transition: 120ms transform ease-in-out;
-            box-shadow: inset 1em 1em #fff; transform-origin: center; clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-        }
-        .stock-checkbox:checked { border-color: #2563eb; background-color: #2563eb; }
-        .stock-checkbox:checked::before { transform: scale(1); }
+        .accordion-content { display: none; }
+        .accordion-content.open { display: block; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: right; white-space: nowrap; }
+        th { background-color: #f3f4f6; font-size: 0.875rem; font-weight: 600; text-align: center;}
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-6">
-    <div class="max-w-7xl mx-auto space-y-6">
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
+
+    <script>
+        // ==========================================
+        // 1. SUPABASE 設定
+        // ==========================================
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_XXXXXXXXXXXXXXXXXXXXX'; 
         
-        <!-- 頂部導覽列 -->
-        <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
-            <div class="flex flex-wrap gap-3">
-                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">📊 綜合決策儀表板</a>
-                <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-200 transition-colors shadow-sm cursor-default">🎣 策略選股清單</a>
-                <a href="stockanalysis.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">數據分析</a>
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </script>
+
+    <div class="max-w-7xl mx-auto py-8 px-4">
+        <h1 class="text-3xl font-bold mb-6 text-blue-900">📈 智能選股與資金流分析儀表板</h1>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <div class="grid grid-cols-2 gap-6 mb-4">
+                <div>
+                    <label class="block font-semibold mb-2">選擇市場資料庫:</label>
+                    <div class="flex gap-4">
+                        <label><input type="radio" name="market" value="multi_stock_analysis_hk" checked> 香港股市 (HK)</label>
+                        <label><input type="radio" name="market" value="multi_stock_analysis_sp500"> 美股 (S&P 500)</label>
+                    </div>
+                </div>
+                <!-- 日期篩選器 -->
+                <div>
+                    <label class="block font-semibold mb-2">歷史數據顯示天數:</label>
+                    <div class="flex gap-2 items-center">
+                        <select id="dateRange" class="p-2 border rounded-md" onchange="toggleCustomDate()">
+                            <option value="10">10 Days</option>
+                            <option value="20">20 Days</option>
+                            <option value="30">30 Days</option>
+                            <option value="custom">自訂 (Custom)</option>
+                            <option value="1000">全部顯示</option>
+                        </select>
+                        <input type="number" id="customDays" placeholder="輸入天數" class="hidden p-2 border rounded-md w-24">
+                    </div>
+                </div>
             </div>
             
-            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <div class="relative w-full sm:w-64">
-                    <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
-                           class="w-full bg-white border border-gray-300 rounded-lg text-sm px-4 py-2 text-gray-800 placeholder-gray-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-sm">
-                </div>
-            </div>
-        </nav>
-
-        <!-- 儀表板控制區 -->
-        <header class="bg-white border border-gray-200 p-6 rounded-xl shadow-md space-y-4">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
-                <div class="space-y-3">
-                    <h1 class="text-3xl font-bold text-blue-900">
-                        🎣 雙引擎資金流選股策略 (Screener)
-                    </h1>
-                    <!-- 策略切換按鈕 -->
-                    <div class="flex gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 inline-flex shadow-inner">
-                        <label class="cursor-pointer relative">
-                            <input type="radio" name="strategy" value="short_term" checked onchange="switchStrategy('short_term')" class="peer sr-only">
-                            <div class="px-5 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-orange-600 peer-checked:shadow transition-all">
-                                🔥 短線動能抄底
-                            </div>
-                        </label>
-                        <label class="cursor-pointer relative">
-                            <input type="radio" name="strategy" value="long_term" onchange="switchStrategy('long_term')" class="peer sr-only">
-                            <div class="px-5 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow transition-all">
-                                🛡️ 長線價值建倉
-                            </div>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-wrap items-end gap-4 shadow-sm">
-                    <div>
-                        <label class="text-xs text-gray-600 font-bold block mb-1">🇭🇰 港股數據日</label>
-                        <input type="date" id="hk-date" class="bg-white border border-gray-300 rounded text-sm px-3 py-2 text-gray-700 font-mono outline-none focus:border-blue-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label class="text-xs text-gray-600 font-bold block mb-1">🇺🇸 美股數據日</label>
-                        <input type="date" id="us-date" class="bg-white border border-gray-300 rounded text-sm px-3 py-2 text-gray-700 font-mono outline-none focus:border-blue-500 shadow-sm">
-                    </div>
-                    <button id="btn-load-date" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2.5 rounded-lg transition shadow-md flex items-center gap-2">
-                        🔄 載入數據
-                    </button>
-                </div>
+            <div class="mb-4">
+                <label class="block font-semibold mb-2">輸入股票代號 (以分號 ; 分隔):</label>
+                <textarea id="tickerInput" rows="3" class="w-full p-2 border rounded-md" placeholder="e.g., AAPL; TSLA 或 0700.HK; 1833.HK"></textarea>
             </div>
 
-            <!-- 動態策略說明區 -->
-            <div class="bg-blue-50/50 p-5 rounded-lg border border-blue-100 text-sm text-gray-700">
-                <p class="font-bold text-blue-900 mb-2 text-base">📌 當前篩選邏輯與參數：</p>
-                <ul id="strategy-desc" class="list-disc list-inside space-y-1.5 text-sm text-gray-600">
-                    <!-- Javascript 動態注入 -->
-                </ul>
-            </div>
-        </header>
+            <button id="fetchBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                開始分析
+            </button>
+            <span id="statusMsg" class="ml-4 text-sm text-gray-500"></span>
+        </div>
 
-        <!-- 數據表格區 -->
-        <section class="bg-white border border-gray-200 rounded-xl shadow-md overflow-hidden">
-            <!-- 頁籤區 -->
-            <div class="flex border-b border-gray-200 bg-gray-50 pt-2 px-2 gap-1">
-                <button id="tab-hk" class="market-tab px-6 py-3 text-sm font-bold transition-all bg-white text-blue-700 border-t-2 border-blue-600 border-x border-gray-200 rounded-t-lg z-10 -mb-px" onclick="switchTab('HK')">
-                    🇭🇰 港股市場 (HKEX)
-                </button>
-                <button id="tab-us" class="market-tab px-6 py-3 text-sm font-bold transition-all bg-gray-100 text-gray-500 hover:bg-gray-50 hover:text-gray-700 border-b border-gray-200 rounded-t-lg" onclick="switchTab('US')">
-                    🇺🇸 美股市場 (S&P 500)
-                </button>
-            </div>
-
-            <!-- 工具列 -->
-            <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
-                <div class="flex items-center gap-4">
-                    <label class="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-100 transition">
-                        <input type="checkbox" id="check-all" class="stock-checkbox">
-                        <span class="text-sm text-gray-700 font-bold">全選</span>
-                    </label>
-                    <span id="match-count" class="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-1 rounded-full border border-blue-200">載入中...</span>
-                </div>
-                
-                <button id="btn-copy-selected" class="bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
-                    📋 複製已勾選代號 (<span id="selected-count">0</span>)
-                </button>
-            </div>
-            
-            <!-- 表格本體 -->
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-left text-sm text-gray-700 border-collapse">
-                    <thead>
-                        <tr class="border-b border-gray-200 text-gray-600 font-semibold bg-gray-50">
-                            <th class="py-4 px-5 w-12 text-center">選取</th>
-                            <th class="py-4 px-5">市場/代號</th>
-                            <th class="py-4 px-5">板塊</th>
-                            <th class="py-4 px-5 text-center leading-tight">基本面<br><span class="text-xs text-gray-500 font-normal">P/E & 息率</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">護城河<br><span class="text-xs text-gray-500 font-normal">Value & ROE</span></th>
-                            <th class="py-4 px-5 text-right">現價<br><span class="text-xs text-gray-500 font-normal">vs 年線</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-500 font-normal">MFI / RSI / KDJ</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金演進<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
-                            <th class="py-4 px-5 text-center">狀態標籤</th>
-                            <th class="py-4 px-6 text-right font-bold text-blue-800 text-base" id="score-header">綜合分數</th>
-                        </tr>
-                    </thead>
-                    <tbody id="stock-table-body" class="divide-y divide-gray-100">
-                        <tr><td colspan="10" class="p-8 text-center text-gray-500 text-base">正在下載最新雲端數據...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        <div id="resultsContainer" class="space-y-4"></div>
     </div>
 
     <script>
         // ==========================================
-        // 初始化設置
+        // 2. 輔助函數與全域變數
         // ==========================================
-        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const formatNum = (num, decimals = 2) => num !== null && num !== undefined ? Number(num).toFixed(decimals) : 'N/A';
+        const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
 
-        const TABLE_FLOW_HK = 'money_flow_hk';          
-        const TABLE_FLOW_US = 'money_flow_sp500';       
-        const TABLE_MULTI_HK = 'multi_stock_analysis_hk';
-        const TABLE_MULTI_US = 'multi_stock_analysis_sp500';
-
-        let latestMarketData = [];
-        let filteredScreenerData = []; 
-        let activeMarket = 'HK'; 
-        let activeStrategy = 'short_term'; 
-
-        const hkDatePicker = document.getElementById('hk-date');
-        const usDatePicker = document.getElementById('us-date');
-        const searchInput = document.getElementById('search-ticker'); 
-
-        // 策略說明文字庫 (已更新長線 B 方案)
-        const strategyTexts = {
-            'short_term': `
-                <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
-                <li><strong class="text-orange-600">跌深反彈：</strong>資金流量指標 (MFI) 必須小於 <span class="font-bold text-red-600">45</span>。</li>
-                <li><strong class="text-orange-600">安全防護：</strong>價值評分 Value Rating <span class="font-bold text-orange-600">>= 3</span> <span class="text-gray-500">(確保公司有底子)</span>。</li>
-                <li><strong class="text-gray-500">排序權重：</strong>極度冷門 (MFI越低 40%) + 吸籌力道 (5D資金 40%) + 點火跡象 (爆量 20%)。</li>
-            `,
-            'long_term': `
-                <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
-                <li><strong class="text-blue-700">技術面極限接刀：</strong>RSI <span class="font-bold text-red-600">< 40</span> 且 KDJ_J <span class="font-bold text-red-600">< 20</span>。</li>
-                <li><strong class="text-blue-700">跌破年線打折區：</strong>現價 <span class="font-bold text-red-600">低於</span> 200日均線 (SMA200)。</li>
-                <li><strong class="text-gray-500">排序權重：</strong>資金不限正流入，靠綜合分數找出<span class="font-bold text-blue-700">資金流出縮減</span>的最深恐慌底點。</li>
-            `
+        // 資金流顏色判斷函數
+        const getFlowColor = (flow) => {
+            if (flow === null || flow === undefined) return 'text-gray-800';
+            return flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800');
         };
 
-        // ==========================================
-        // 工具函數
-        // ==========================================
-        function formatCopyTicker(ticker, market) {
-            let t = String(ticker).trim();
-            if (market === 'HK') {
-                t = t.replace(/\.HK$/i, ''); 
-                if (/^\d+$/.test(t)) t = t.padStart(4, '0'); 
-                return t + '.HK';
+        // --- 新增：用於 Section 1 & 2 的雙行比較 HTML (避開紅綠，使用藍/橘) ---
+        function getCompareHtml(curr, prev, decimals = 2, mode = 'pct') {
+            const valStr = formatNum(curr, decimals);
+            // 如果沒有昨日資料或數值不存在，單純回傳數值
+            if (curr === null || prev === null || prev === undefined || curr === undefined) {
+                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] text-transparent select-none">(-)</span></div>`;
             }
-            return t; 
-        }
+            
+            const diff = Number(curr) - Number(prev);
+            // 若變動極小，視為無變動
+            if (Math.abs(diff) < 0.0001) {
+                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] text-gray-400">(-)</span></div>`;
+            }
 
-        function formatMoney(value) {
-            if (value == null || value === 0) return '-';
-            const num = Number(value);
-            const absNum = Math.abs(num);
-            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + ' M';
-            if (absNum >= 10000) return (num / 10000).toFixed(1) + ' 萬';
-            return num.toFixed(1);
-        }
+            const isUp = diff > 0;
+            const sign = isUp ? '▲' : '▼';
+            // 避開紅綠：上升用深藍色，下降用橙色
+            const colorCls = isUp ? 'text-blue-600' : 'text-orange-500';
 
-        function formatPct(value) {
-            if (value == null || isNaN(value)) return '-';
-            return (Number(value) * 100).toFixed(1) + '%';
-        }
-
-        // ==========================================
-        // UI 互動事件
-        // ==========================================
-        window.switchTab = function(market) {
-            activeMarket = market;
-            document.querySelectorAll('.market-tab').forEach(tab => {
-                tab.className = 'market-tab px-6 py-3 text-sm font-bold transition-all bg-gray-100 text-gray-500 hover:bg-gray-50 hover:text-gray-700 border-b border-gray-200 rounded-t-lg';
-            });
-            const activeTab = document.getElementById(`tab-${market.toLowerCase()}`);
-            activeTab.className = 'market-tab px-6 py-3 text-sm font-bold transition-all bg-white text-blue-700 border-t-2 border-blue-600 border-x border-gray-200 rounded-t-lg z-10 -mb-px';
-            executeScreenerLogic();
-        };
-
-        window.switchStrategy = function(strategy) {
-            activeStrategy = strategy;
-            document.getElementById('strategy-desc').innerHTML = strategyTexts[strategy];
-            const scoreHeader = document.getElementById('score-header');
-            if (strategy === 'short_term') {
-                scoreHeader.textContent = '短線動能分';
-                scoreHeader.className = 'py-4 px-6 text-right font-bold text-orange-600 text-base';
+            let diffStr = '';
+            if (mode === 'pct') {
+                const pct = prev !== 0 ? (Math.abs(diff) / Math.abs(prev)) * 100 : 0;
+                diffStr = `${sign} ${pct.toFixed(1)}%`;
             } else {
-                scoreHeader.textContent = '長線價值分';
-                scoreHeader.className = 'py-4 px-6 text-right font-bold text-blue-700 text-base';
+                // 針對本身就是百分比或評分的欄位，直接顯示數值差異
+                diffStr = `${sign} ${Math.abs(diff).toFixed(decimals)}`;
             }
-            executeScreenerLogic();
-        };
 
-        document.getElementById('strategy-desc').innerHTML = strategyTexts[activeStrategy];
-
-        // ==========================================
-        // 資料庫抓取與核心邏輯
-        // ==========================================
-        async function fetchLatestDatesAndSetPickers() {
-            const [{ data: hkDateData }, { data: usDateData }] = await Promise.all([
-                supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1)
-            ]);
-            if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
-            if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
+            return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] ${colorCls} font-bold leading-none">(${diffStr})</span></div>`;
         }
 
-        async function fetchFlowDataByDate() {
-            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold text-base animate-pulse">🔄 正在同時抓取資金流與基本面數據...</td></tr>`;
+        // --- 新增：用於 Section 3 表格格子的文字顏色 (避開紅綠) ---
+        function getCompareColorClass(curr, prev) {
+            if (curr === null || prev === null || prev === undefined || curr === undefined) return '';
+            const diff = Number(curr) - Number(prev);
+            if (diff > 0) return 'text-blue-600 font-bold';
+            if (diff < 0) return 'text-orange-500 font-bold';
+            return '';
+        }
+
+        // 用來存放每檔股票「一鍵複製」的完整純文字(TSV)報告
+        window.clipboardDataMap = {};
+
+        function toggleCustomDate() {
+            const select = document.getElementById('dateRange');
+            const customInput = document.getElementById('customDays');
+            customInput.style.display = select.value === 'custom' ? 'block' : 'none';
+        }
+
+        // 一鍵複製完整 TSV 報告
+        function copyToClipboard(ticker) {
+            const tsvText = window.clipboardDataMap[ticker];
+            if (tsvText) {
+                navigator.clipboard.writeText(tsvText).then(() => {
+                    alert(`${ticker} 的【完整卡片數據】已複製！請直接貼上至 Excel。`);
+                }).catch(err => {
+                    alert('複製失敗，請檢查瀏覽器權限。');
+                });
+            }
+        }
+
+        // ==========================================
+        // 3. 主程式邏輯
+        // ==========================================
+        document.getElementById('fetchBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('fetchBtn');
+            const status = document.getElementById('statusMsg');
+            const container = document.getElementById('resultsContainer');
+            
+            const rawInput = document.getElementById('tickerInput').value;
+            const marketTable = document.querySelector('input[name="market"]:checked').value;
+            
+            const rangeSelect = document.getElementById('dateRange').value;
+            const limitDays = rangeSelect === 'custom' ? parseInt(document.getElementById('customDays').value) : parseInt(rangeSelect);
+            
+            if (!rawInput.trim()) { alert("請輸入股票代號！"); return; }
+            if (isNaN(limitDays) || limitDays <= 0) { alert("請輸入有效的顯示天數！"); return; }
+            
+            const tickers = rawInput.split(';').map(t => t.trim().toUpperCase()).filter(t => t);
+            
+            btn.disabled = true;
+            status.innerText = "⏳ 正在從 Supabase 讀取數據...";
+            container.innerHTML = "";
+            window.clipboardDataMap = {}; 
+
             try {
-                const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma200, rsi, kdj_j, money_flow_million, money_flow_5d_million, money_flow_10d_million';
-                
-                const [flowHkRes, flowUsRes, multiHkRes, multiUsRes] = await Promise.all([
-                    supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(3000),
-                    supabaseClient.from(TABLE_FLOW_US).select('*').eq('Record_Date', usDatePicker.value).limit(3000),
-                    supabaseClient.from(TABLE_MULTI_HK).select(multiColumns).eq('trading_date', hkDatePicker.value).limit(3000),
-                    supabaseClient.from(TABLE_MULTI_US).select(multiColumns).eq('trading_date', usDatePicker.value).limit(3000)
-                ]);
+                // 1. 抓取 multi_stock_analysis (主要大寬表)
+                const { data, error } = await supabaseClient
+                    .from(marketTable)
+                    .select('*')
+                    .in('ticker', tickers)
+                    .order('trading_date', { ascending: false });
 
-                const multiHkMap = {};
-                (multiHkRes.data || []).forEach(r => multiHkMap[r.ticker] = r);
-                const multiUsMap = {};
-                (multiUsRes.data || []).forEach(r => multiUsMap[r.ticker] = r);
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    status.innerText = "⚠️ 找不到符合的數據。";
+                    btn.disabled = false;
+                    return;
+                }
 
-                const hkData = (flowHkRes.data || []).map(r => ({ ...r, market: 'HK', multi: multiHkMap[r.ticker] || {} }));
-                const usData = (flowUsRes.data || []).map(r => ({ ...r, market: 'US', multi: multiUsMap[r.ticker] || {} }));
+                // 2. 抓取 money_flow 表以獲取最新的 MFI 數據
+                const mfTable = marketTable === 'multi_stock_analysis_hk' ? 'money_flow_hk' : 'money_flow_sp500';
+                const { data: mfData, error: mfError } = await supabaseClient
+                    .from(mfTable)
+                    .select('ticker, MFI, Record_Date')
+                    .in('ticker', tickers)
+                    .order('Record_Date', { ascending: false });
                 
-                latestMarketData = [...hkData, ...usData];
-                executeScreenerLogic();
+                // 將最新的 MFI 存入字典對應
+                const mfiMap = {};
+                if (mfData) {
+                    mfData.forEach(row => {
+                        if (mfiMap[row.ticker] === undefined) {
+                            mfiMap[row.ticker] = row.MFI;
+                        }
+                    });
+                }
+
+                const groupedData = {};
+                data.forEach(row => {
+                    if (!groupedData[row.ticker]) groupedData[row.ticker] = [];
+                    groupedData[row.ticker].push(row);
+                });
+
+                // 根據使用者設定的天數裁切資料 (多切一天，保留用來跟最末天比較的基準)
+                for (let ticker in groupedData) {
+                    groupedData[ticker] = groupedData[ticker].slice(0, limitDays + 1); 
+                }
+
+                // 將排序數組(tickers)及 MFI 字典傳入渲染函數
+                renderCards(groupedData, tickers, mfiMap, limitDays);
+                status.innerText = `✅ 成功載入 ${Object.keys(groupedData).length} 檔股票資料。 (顯示最近 ${limitDays} 個交易日)`;
+
             } catch (err) {
                 console.error(err);
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-bold">❌ 獲取數據失敗，請檢查網路或金鑰設定。</td></tr>`;
+                status.innerText = "❌ 發生錯誤請檢查 Console。";
+            } finally {
+                btn.disabled = false;
             }
-        }
-
-        function executeScreenerLogic() {
-            const searchTerm = searchInput.value.trim().toUpperCase();
-
-            // 1. 初步過濾
-            let rawFiltered = latestMarketData.filter(r => {
-                if (r.market !== activeMarket) return false;
-                
-                // 強制採用 multi 大寬表的資金流
-                const f5 = Number(r.multi.money_flow_5d_million) || 0;
-                const f10 = Number(r.multi.money_flow_10d_million) || 0;
-                
-                const mfi = r.MFI != null ? Number(r.MFI) : 100;
-                const valRating = Number(r.multi.value_rating) || 0;
-                const roe = Number(r.multi.roe) || 0;
-                const rsi = Number(r.multi.rsi) || 100;
-                const kdj_j = Number(r.multi.kdj_j) || 100;
-                const sma200 = Number(r.multi.sma200) || 0;
-                const price = Number(r.multi.current_price) || Number(r.price) || 0;
-
-                if (activeStrategy === 'short_term') {
-                    // 短線模式：5D 與 10D 皆正流入 + MFI < 45 + Value >= 3
-                    return f5 > 0 && f10 > 0 && mfi < 45 && valRating >= 3;
-                } else {
-                    // 長線模式 (Option B)：極端接刀，放棄資金正流入硬規定
-                    return valRating >= 3 &&
-                           roe > 0.08 &&
-                           rsi < 40 &&
-                           kdj_j < 20 &&
-                           sma200 > 0 && price < sma200;
-                }
-            });
-
-            if (rawFiltered.length === 0) {
-                filteredScreenerData = [];
-                renderTable();
-                return;
-            }
-
-            const maxF5 = Math.max(...rawFiltered.map(r => Number(r.multi.money_flow_5d_million) || 0), 1); 
-            // 為長線策略準備的 10D 資金流上下界 (用作相對排名)
-            const minF10 = Math.min(...rawFiltered.map(r => Number(r.multi.money_flow_10d_million) || 0));
-            const maxF10 = Math.max(...rawFiltered.map(r => Number(r.multi.money_flow_10d_million) || 0));
-            const rangeF10 = maxF10 - minF10 === 0 ? 1 : maxF10 - minF10;
-
-            // 2. 計分與組合資料
-            let processedData = rawFiltered.map(r => {
-                const f5 = Number(r.multi.money_flow_5d_million) || 0;
-                const f10 = Number(r.multi.money_flow_10d_million) || 0;
-                const f1 = Number(r.multi.money_flow_million) || 0; 
-                
-                const mfi = Number(r.MFI) || 100;
-                const volSpike = Number(r.Volspike) || 0;
-                const rsi = Number(r.multi.rsi) || 100;
-                const kdj_j = Number(r.multi.kdj_j) || 100;
-                const sma200 = Number(r.multi.sma200) || 0;
-                
-                const valRating = Number(r.multi.value_rating) || 0;
-                const divYield = Number(r.multi.dividend_yield) || 0;
-                const pe = Number(r.multi.pe_ratio) || 0;
-                const roe = Number(r.multi.roe) || 0;
-                const price = Number(r.multi.current_price) || Number(r.price) || 0;
-
-                let finalScore = 0;
-                if (activeStrategy === 'short_term') {
-                    const mfiScore = ((45 - Math.max(mfi, 15)) / 30) * 40; 
-                    const flowScore = (f5 / maxF5) * 40;
-                    const volScore = Math.min(volSpike / 2.0, 1) * 20;
-                    finalScore = mfiScore + flowScore + volScore;
-                } else {
-                    const valScore = (valRating / 5) * 30 + Math.min(divYield / 5.0, 1) * 10;
-                    // 相對資金流動能 (流出越少或流入越多，分數越高)
-                    const flowScore = ((f10 - minF10) / rangeF10) * 30; 
-                    const oversoldScore = Math.max(0, ((100 - rsi) / 100) * 30); 
-                    finalScore = valScore + flowScore + oversoldScore;
-                }
-
-                return {
-                    ticker: String(r.ticker || r.Ticker || '').trim(),
-                    market: r.market,
-                    name: r.company_name || r.Company_Name || '未知',
-                    sector: r.sector || r.Sector || '未分類',
-                    price: price,
-                    sma200: sma200,
-                    mfi: mfi,
-                    rsi: rsi,
-                    kdj_j: kdj_j,
-                    flow_1d: f1,
-                    flow_5d: f5,
-                    flow_10d: f10,
-                    accel: String(r.accel || '').trim().toUpperCase(),
-                    volSpike: volSpike,
-                    pe: pe,
-                    divYield: divYield,
-                    valRating: valRating,
-                    roe: roe,
-                    score: finalScore
-                };
-            });
-
-            if (searchTerm) {
-                processedData = processedData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
-            }
-
-            processedData.sort((a, b) => {
-                if (Math.abs(b.score - a.score) > 0.1) return b.score - a.score;
-                return activeStrategy === 'short_term' ? b.flow_5d - a.flow_5d : b.flow_10d - a.flow_10d; 
-            });
-
-            filteredScreenerData = processedData;
-            renderTable();
-        }
+        });
 
         // ==========================================
-        // 渲染表格
+        // 4. 畫面渲染 & TSV 報告組裝
         // ==========================================
-        function renderTable() {
-            const tbody = document.getElementById('stock-table-body');
-            document.getElementById('match-count').textContent = `符合條件: ${filteredScreenerData.length} 隻`;
+        function renderCards(groupedData, tickers, mfiMap, limitDays) {
+            const container = document.getElementById('resultsContainer');
             
-            // 安全重置 Checkbox
-            document.getElementById('selected-count').textContent = '0';
-            const checkAllEl = document.getElementById('check-all');
-            if(checkAllEl) checkAllEl.checked = false;
-            
-            tbody.innerHTML = '';
-
-            if (filteredScreenerData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-gray-500 text-base">今日無符合條件的股票。</td></tr>`;
-                return;
-            }
-
-            const scoreColorClass = activeStrategy === 'short_term' ? 'text-orange-600' : 'text-blue-700';
-
-            filteredScreenerData.forEach((stock) => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-blue-50 transition-colors duration-150';
+            for (const ticker of tickers) {
+                if (!groupedData[ticker]) continue; 
                 
-                let badgeHtml = '';
-                if (stock.volSpike >= 1.5) {
-                    badgeHtml += `<span class="bg-amber-100 text-amber-800 border border-amber-200 text-xs px-2.5 py-1 rounded-md font-bold mb-1.5 inline-block mr-1 shadow-sm">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
-                }
-                if (stock.accel === 'THIN') {
-                    badgeHtml += `<span class="bg-gray-100 text-gray-600 border border-gray-300 text-xs px-2.5 py-1 rounded-md inline-block shadow-sm">靜悄悄 (Thin)</span>`;
-                } else {
-                    badgeHtml += `<span class="bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs px-2.5 py-1 rounded-md inline-block shadow-sm font-semibold">建倉中 (${stock.accel})</span>`;
-                }
-
-                const f10_5 = stock.flow_10d - stock.flow_5d;
-                const f5_1 = stock.flow_5d - stock.flow_1d;
-                const f1 = stock.flow_1d;
-                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
+                const records = groupedData[ticker];
+                const latest = records[0]; 
+                // 取得昨日資料 (用於 Section 1 & 2 的動態比較)
+                const prevData = records.length > 1 ? records[1] : {};
                 
-                const h1 = (f10_5 / maxAbs) * 12;
-                const h2 = (f5_1 / maxAbs) * 12;
-                const h3 = (f1 / maxAbs) * 12;
+                const card = document.createElement('div');
+                card.className = "bg-white border rounded-lg shadow-sm overflow-hidden mb-4";
 
-                const drawBar = (h, x) => {
-                    let y, barH, color;
-                    if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
-                    else if (h < 0) { y = 15; barH = Math.abs(h); color = '#EF4444'; } 
-                    else { y = 14; barH = 2; color = '#9CA3AF'; }
-                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
-                };
+                const signalText = latest.pre_uptrend_signal || 'No';
+                const signalStyle = (signalText !== 'No' && signalText !== 'N/A') 
+                    ? 'bg-yellow-200 text-red-600 font-bold' 
+                    : 'bg-gray-200 text-gray-700';
 
-                const sparklineSvg = `
-                    <div class="flex items-center justify-center gap-3" title="歷史 3 階段資金演進：\n1. 前10至5D: ${formatMoney(f10_5)}\n2. 前5至1D: ${formatMoney(f5_1)}\n3. 今日1D: ${formatMoney(f1)}">
-                        <span class="text-blue-800 font-mono font-bold w-16 text-right">${formatMoney(stock.flow_5d)}</span>
-                        <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
-                            <line x1="0" y1="15" x2="60" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
-                            ${drawBar(h1, 4)}   
-                            ${drawBar(h2, 24)}  
-                            ${drawBar(h3, 44)}  
-                        </svg>
+                const changePct = latest.change_pct;
+                const changeColor = changePct > 0 ? 'text-green-600' : (changePct < 0 ? 'text-red-600' : 'text-gray-500');
+                const changeSign = changePct > 0 ? '+' : '';
+
+                // 準備表頭需要顯示的資料
+                const sector = latest.sector || 'N/A';
+                const valRating = latest.value_rating !== null ? latest.value_rating : 'N/A';
+                const techRating = latest.technical_rating !== null ? latest.technical_rating : 'N/A';
+                const mfiVal = mfiMap[ticker] !== undefined && mfiMap[ticker] !== null ? formatNum(mfiMap[ticker], 2) : 'N/A';
+
+                // ==========================================================
+                // ★ 建立一鍵複製的 TSV (這部分維持純文字，不加比較記號)
+                // ==========================================================
+                let tsv = `=== TICKER: ${ticker} | ${latest.company_name || 'N/A'} ===\n`;
+                tsv += `Price:\t${formatNum(latest.current_price, 3)}\n`;
+                tsv += `Change:\t${changeSign}${formatNum(changePct, 2)}%\n`;
+                tsv += `Sector:\t${sector}\n`;
+                tsv += `Value Rating:\t${valRating}\n`;
+                tsv += `Tech Rating:\t${techRating}\n`;
+                tsv += `MFI:\t${mfiVal}\n`;
+                tsv += `Signal:\t${signalText}\n`;
+                tsv += `Date:\t${latest.trading_date} (${latest.market_status})\n\n`;
+
+                tsv += `--- SECTION 1: BASIC FUNDAMENTALS ---\n`;
+                tsv += `Market Cap (M)\t${formatNum(latest.market_cap_million, 2)}\n`;
+                tsv += `P/E Ratio\t${formatNum(latest.pe_ratio, 2)}\n`;
+                tsv += `P/B Ratio\t${formatNum(latest.pb_ratio, 2)}\n`;
+                tsv += `PEG Ratio\t${formatNum(latest.peg_ratio, 2)}\n`;
+                tsv += `Dividend Yield\t${formatNum(latest.dividend_yield, 2)}\n`;
+                tsv += `ROE\t${formatNum(latest.roe, 3)}\n`;
+                tsv += `Beta\t${formatNum(latest.beta, 3)}\n`;
+                tsv += `Debt/Equity\t${formatNum(latest.debt_to_equity, 3)}\n`;
+                tsv += `52 Week High / Low\t${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}\n`;
+                tsv += `Avg Vol 10D / 3M\t${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}\n`;
+                tsv += `Target Mean Price\t${formatNum(latest.target_mean_price, 2)}\n`;
+                tsv += `Free Cash Flow (M)\t${formatNum(latest.free_cash_flow_million, 2)}\n\n`;
+
+                tsv += `--- SECTION 2: SMART MONEY ---\n`;
+                tsv += `Pre-Uptrend Signal\t${latest.pre_uptrend_signal || 'N/A'}\n`;
+                tsv += `BB Width Rank\t${formatNum(latest.bb_width_rank, 2)}\n`;
+                tsv += `RS vs Market\t${formatNum(latest.rs_vs_market, 2)}\n`;
+                tsv += `Global Sector Trend %\t${formatNum(latest.global_sector_trend_pct, 2)}\n`;
+                tsv += `ATR\t${formatNum(latest.atr, 3)}\n`;
+                tsv += `OBV Divergence\t${latest.obv_divergence || 'N/A'}\n`;
+                tsv += `Vol Spark\t${latest.vol_spark || 'N/A'}\n`;
+                tsv += `RVOL\t${formatNum(latest.rvol, 2)}\n\n`;
+
+                tsv += `--- SECTION 4: MONEY FLOW ---\n`;
+                tsv += `Last 5 Days (Accum)\t${formatNum(latest.money_flow_5d_million, 2)}\n`;
+                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n`;
+                tsv += `Daily 1D Flow:\n`;
+                
+                // TSV 資金流只需跑 limitDays 次
+                const flowRecords = records.slice(0, limitDays);
+                flowRecords.forEach((row, i) => {
+                    tsv += `Day -${i} (${row.trading_date})\t${formatNum(row.money_flow_million, 2)}\n`;
+                });
+                tsv += `\n`;
+
+                tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
+                tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
+
+                // ==========================================================
+                // HTML 畫面渲染
+                // ==========================================================
+                const headerHtml = `
+                    <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-6 mb-3">
+                                <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
+                                <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
+                                <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
+                                <span class="${changeColor} font-bold">
+                                    ${changeSign}${formatNum(changePct, 2)}%
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm font-medium">
+                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${sector}</span>
+                                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Value: ${valRating}</span>
+                                <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">Tech: ${techRating}</span>
+                                <span class="px-3 py-1 bg-teal-100 text-teal-800 rounded shadow-sm">MFI: ${mfiVal}</span>
+                                <span class="px-3 py-1 rounded ${signalStyle} shadow-sm">Signal: ${signalText}</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-2 text-sm text-right">
+                            <span class="text-gray-500 text-xs">最後更新: ${latest.trading_date} <br> (${latest.market_status})</span>
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
                     </div>
                 `;
 
-                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
+                let historyRows = "";
+                let moneyFlowDailyRows = "";
 
-                const peText = stock.pe > 0 ? stock.pe.toFixed(1) : '<span class="text-gray-400">N/A</span>';
-                const yieldText = stock.divYield > 0 ? stock.divYield.toFixed(2) + '%' : '<span class="text-gray-400">0.0%</span>';
-                const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
-                const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
-
-                tr.innerHTML = `
-                    <td class="py-4 px-5 text-center">
-                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
-                    </td>
-                    <td class="py-4 px-5 whitespace-nowrap">
-                        <div class="text-lg font-bold text-blue-900 font-mono tracking-tight">${stock.ticker}</div>
-                        <div class="text-sm text-gray-500 font-sans mt-0.5 truncate w-32" title="${stock.name}">${stock.name}</div>
-                    </td>
-                    <td class="py-4 px-5 text-gray-600 text-sm font-medium">${stock.sector}</td>
+                // 表格與資金流只顯示使用者設定的天數 (limitDays)
+                flowRecords.forEach((row, i) => {
+                    const px = row.close_price || row.current_price;
+                    const prevRow = records[i + 1] || {}; // 取前一天的紀錄做顏色比較
                     
-                    <td class="py-4 px-5 text-center font-mono text-gray-700 text-sm whitespace-nowrap">
-                        <span class="text-gray-500 text-xs mr-1">P/E:</span> <span class="font-semibold">${peText}</span><br>
-                        <span class="text-gray-500 text-xs mr-1">Div:</span> <span class="text-purple-700 font-semibold">${yieldText}</span>
-                    </td>
-                    <td class="py-4 px-5 text-center font-mono text-gray-700 text-sm whitespace-nowrap">
-                        <span class="text-gray-500 text-xs mr-1">Val:</span> <span class="text-orange-600 font-bold">${valRatingText}</span><br>
-                        <span class="text-gray-500 text-xs mr-1">ROE:</span> <span class="font-semibold">${roeText}</span>
-                    </td>
+                    // 針對波動劇烈的技術指標套用「藍/橘色」
+                    const clMacd = getCompareColorClass(row.macd, prevRow.macd);
+                    const clRsi = getCompareColorClass(row.rsi, prevRow.rsi);
+                    const clAdx = getCompareColorClass(row.adx, prevRow.adx);
+                    const clKdjk = getCompareColorClass(row.kdj_k, prevRow.kdj_k);
+                    const clKdjd = getCompareColorClass(row.kdj_d, prevRow.kdj_d);
+                    const clKdjj = getCompareColorClass(row.kdj_j, prevRow.kdj_j);
+                    const clObv = getCompareColorClass(row.obv_millions, prevRow.obv_millions);
+                    const clSharpe = getCompareColorClass(row.sharpe_ratio_20d, prevRow.sharpe_ratio_20d);
+                    const clVol = getCompareColorClass(row.vol_million, prevRow.vol_million);
+                    const clRvol = getCompareColorClass(row.rvol, prevRow.rvol);
 
-                    <td class="py-4 px-5 text-right font-mono font-bold text-gray-800 text-base">
-                        ${stock.price.toFixed(2)}<br>
-                        <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">SMA200: ${stock.sma200.toFixed(2)}</span>
-                    </td>
+                    historyRows += `
+                        <tr class="hover:bg-blue-50 text-sm">
+                            <td class="text-center">${row.trading_date}</td>
+                            <td>${formatNum(px, 3)}</td>
+                            <td>${formatNum(row.open_price, 3)}</td>
+                            <td>${formatNum(row.high_price, 3)}</td>
+                            <td>${formatNum(row.low_price, 3)}</td>
+                            <td>${formatNum(row.change_pct, 2)}%</td>
+                            <td class="${clVol}">${formatNum(row.vol_million, 3)}</td>
+                            <td class="${clRvol}">${formatNum(row.rvol, 2)}</td>
+                            <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma50)}">${formatNum(row.sma50, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma200)}">${formatNum(row.sma200, 3)}</td>
+                            <td class="${clMacd}">${formatNum(row.macd, 3)}</td>
+                            <td class="${clRsi}">${formatNum(row.rsi, 2)}</td>
+                            <td class="${clAdx}">${formatNum(row.adx, 2)}</td>
+                            <td class="${clKdjk}">${formatNum(row.kdj_k, 2)}</td>
+                            <td class="${clKdjd}">${formatNum(row.kdj_d, 2)}</td>
+                            <td class="${clKdjj}">${formatNum(row.kdj_j, 2)}</td>
+                            <td class="${clObv}">${formatNum(row.obv_millions, 3)}</td>
+                            <td class="${clSharpe}">${formatNum(row.sharpe_ratio_20d, 3)}</td>
+                        </tr>
+                    `;
                     
-                    <td class="py-4 px-5 text-center font-mono text-gray-700 text-xs whitespace-nowrap leading-relaxed border-x border-gray-100 bg-gray-50/50">
-                        <span class="text-gray-500 mr-1">MFI:</span> <span class="font-bold text-sm ${stock.mfi < 45 ? 'text-teal-600' : 'text-gray-700'}">${stock.mfi.toFixed(1)}</span><br>
-                        <span class="text-gray-500 mr-1">RSI:</span> <span class="font-bold text-sm ${stock.rsi < 40 ? 'text-teal-600' : 'text-gray-700'}">${stock.rsi.toFixed(1)}</span><br>
-                        <span class="text-gray-500 mr-1">KDJ:</span> <span class="font-bold text-sm ${stock.kdj_j < 20 ? 'text-teal-600' : 'text-gray-700'}">${stock.kdj_j.toFixed(1)}</span>
-                    </td>
+                    tsv += `${row.trading_date}\t${formatNum(px, 3)}\t${formatNum(row.open_price, 3)}\t${formatNum(row.high_price, 3)}\t${formatNum(row.low_price, 3)}\t${formatNum(row.change_pct, 2)}%\t${formatNum(row.vol_million, 3)}\t${formatNum(row.rvol, 2)}\t${formatNum(row.sma5, 3)}\t${formatNum(row.sma10, 3)}\t${formatNum(row.sma20, 3)}\t${formatNum(row.sma50, 3)}\t${formatNum(row.sma200, 3)}\t${formatNum(row.macd, 3)}\t${formatNum(row.rsi, 2)}\t${formatNum(row.adx, 2)}\t${formatNum(row.kdj_k, 2)}\t${formatNum(row.kdj_d, 2)}\t${formatNum(row.kdj_j, 2)}\t${formatNum(row.obv_millions, 3)}\t${formatNum(row.sharpe_ratio_20d, 3)}\n`;
 
-                    <td class="py-4 px-5 text-center">${sparklineSvg}</td>
-                    <td class="py-4 px-5 text-center">${badgeHtml}</td>
-                    <td class="py-4 px-6 text-right font-mono ${scoreColorClass} font-black text-2xl pr-6">${stock.score.toFixed(1)}</td>
+                    const flowColor = getFlowColor(row.money_flow_million);
+                    moneyFlowDailyRows += `
+                        <div class="grid grid-cols-2 text-sm gap-y-1">
+                            <span class="text-gray-600">Day -${i} (${row.trading_date})</span>
+                            <span class="text-right font-medium ${flowColor}">${formatNum(row.money_flow_million, 2)}</span>
+                        </div>
+                    `;
+                });
+
+                window.clipboardDataMap[ticker] = tsv;
+
+                const mf5Color = getFlowColor(latest.money_flow_5d_million);
+                const mf10Color = getFlowColor(latest.money_flow_10d_million);
+
+                const bodyHtml = `
+                    <div id="content-${ticker}" class="accordion-content p-6 border-t">
+                        <div class="grid grid-cols-3 gap-8 mb-6">
+                            
+                            <!-- Section 1: Basic Fundamentals -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
+                                    <span class="text-gray-600">Market Cap (M)</span>
+                                    ${getCompareHtml(latest.market_cap_million, prevData.market_cap_million, 2, 'pct')}
+                                    
+                                    <span class="text-gray-600">P/E Ratio</span>
+                                    ${getCompareHtml(latest.pe_ratio, prevData.pe_ratio, 2, 'pct')}
+                                    
+                                    <span class="text-gray-600">P/B Ratio</span>
+                                    ${getCompareHtml(latest.pb_ratio, prevData.pb_ratio, 2, 'pct')}
+                                    
+                                    <span class="text-gray-600">Free Cash Flow (M)</span>
+                                    ${getCompareHtml(latest.free_cash_flow_million, prevData.free_cash_flow_million, 2, 'pct')}
+
+                                    <span class="text-gray-600 pt-2 border-t mt-1">PEG Ratio</span><span class="text-right font-medium pt-2 border-t mt-1">${formatNum(latest.peg_ratio, 2)}</span>
+                                    <span class="text-gray-600">Dividend Yield</span><span class="text-right font-medium">${formatNum(latest.dividend_yield, 2)}</span>
+                                    <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
+                                    <span class="text-gray-600">Beta</span><span class="text-right font-medium">${formatNum(latest.beta, 3)}</span>
+                                    <span class="text-gray-600">Debt/Equity</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 3)}</span>
+                                    <span class="text-gray-600">52 Wk High / Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
+                                    <span class="text-gray-600">Avg Vol 10D / 3M</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
+                                    <span class="text-gray-600">Target Mean Px</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Section 2: Smart Money -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 2: SMART MONEY ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
+                                    <span class="text-gray-600">RS vs Market</span>
+                                    ${getCompareHtml(latest.rs_vs_market, prevData.rs_vs_market, 2, 'abs')}
+                                    
+                                    <span class="text-gray-600">ATR</span>
+                                    ${getCompareHtml(latest.atr, prevData.atr, 3, 'pct')}
+                                    
+                                    <span class="text-gray-600">RVOL</span>
+                                    ${getCompareHtml(latest.rvol, prevData.rvol, 2, 'pct')}
+                                    
+                                    <span class="text-gray-600">BB Width Rank</span>
+                                    ${getCompareHtml(latest.bb_width_rank, prevData.bb_width_rank, 2, 'abs')}
+
+                                    <span class="text-gray-600 pt-2 border-t mt-1">Pre-Uptrend</span><span class="text-right font-bold text-red-600 pt-2 border-t mt-1">${latest.pre_uptrend_signal || 'N/A'}</span>
+                                    <span class="text-gray-600">Global Sector %</span><span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
+                                    <span class="text-gray-600">OBV Divergence</span><span class="text-right font-medium">${latest.obv_divergence || 'N/A'}</span>
+                                    <span class="text-gray-600">Vol Spark</span><span class="text-right font-medium">${latest.vol_spark || 'N/A'}</span>
+                                </div>
+                            </div>
+
+                            <!-- Section 4: Money Flow Analysis -->
+                            <div class="bg-gray-50 p-3 rounded border">
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 4: MONEY FLOW ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1 mb-2">
+                                    <span class="text-gray-800 font-bold">Last 5 Days (Accum)</span>
+                                    <span class="text-right font-bold ${mf5Color}">${formatNum(latest.money_flow_5d_million, 2)}</span>
+                                    
+                                    <span class="text-gray-800 font-bold border-b pb-1">Last 10 Days (Accum)</span>
+                                    <span class="text-right font-bold border-b pb-1 ${mf10Color}">${formatNum(latest.money_flow_10d_million, 2)}</span>
+                                </div>
+                                <div class="mt-2 font-bold text-gray-700 mb-1 text-xs">Daily 1D Flow:</div>
+                                ${moneyFlowDailyRows}
+                            </div>
+                        </div>
+
+                        <!-- Section 3: Historical Technicals Table -->
+                        <div class="mb-2 flex justify-between items-end">
+                            <h3 class="font-bold text-blue-900">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
+                            <div class="flex items-center gap-4">
+                                <span class="text-xs text-gray-500 font-medium">提示: 藍色代表比昨日高，橙色代表比昨日低</span>
+                                <button onclick="copyToClipboard('${ticker}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-2 px-4 rounded shadow border border-blue-300">
+                                    📋 複製整張卡片資料 (TSV)
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto mb-6">
+                            <table id="table-${ticker}" class="w-full text-xs">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th><th>RVOL</th>
+                                        <th>SMA5</th><th>SMA10</th><th>SMA20</th><th>SMA50</th><th>SMA200</th>
+                                        <th>MACD</th><th>RSI</th><th>ADX</th><th>KDJ_K</th><th>KDJ_D</th><th>KDJ_J</th>
+                                        <th>OBV(M)</th><th>Sharpe</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${historyRows}
+                                </tbody>
+                            </table>
+                            <p class="text-xs text-gray-500 mt-1">* 提示: 綠色粗體代表當日收盤價突破該移動平均線</p>
+                        </div>
+                    </div>
                 `;
-                tbody.appendChild(tr);
-            });
+
+                card.innerHTML = headerHtml + bodyHtml;
+                container.appendChild(card);
+            }
         }
 
-        const checkAllBtn = document.getElementById('check-all');
-        const selectedCountSpan = document.getElementById('selected-count');
-
-        checkAllBtn.addEventListener('change', (e) => {
-            const rowChecks = document.querySelectorAll('.row-check');
-            rowChecks.forEach(chk => chk.checked = e.target.checked);
-            selectedCountSpan.textContent = document.querySelectorAll('.row-check:checked').length;
-        });
-
-        document.getElementById('stock-table-body').addEventListener('change', (e) => {
-            if (e.target.classList.contains('row-check')) {
-                const rowChecks = document.querySelectorAll('.row-check');
-                const checkedCount = document.querySelectorAll('.row-check:checked').length;
-                selectedCountSpan.textContent = checkedCount;
-                checkAllBtn.checked = (checkedCount === rowChecks.length && rowChecks.length > 0);
-            }
-        });
-
-        document.getElementById('btn-copy-selected').addEventListener('click', () => {
-            const checkedBoxes = document.querySelectorAll('.row-check:checked');
-            if (checkedBoxes.length === 0) {
-                alert("請先勾選要複製的股票！");
-                return;
-            }
-            const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
-            navigator.clipboard.writeText(tickers).then(() => {
-                const btn = document.getElementById('btn-copy-selected');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = `✅ 成功複製 ${checkedBoxes.length} 隻`;
-                btn.classList.replace('bg-gray-800', 'bg-green-600');
-                btn.classList.replace('hover:bg-gray-700', 'hover:bg-green-700');
-                setTimeout(() => { 
-                    btn.innerHTML = originalText; 
-                    btn.classList.replace('bg-green-600', 'bg-gray-800');
-                    btn.classList.replace('hover:bg-green-700', 'hover:bg-gray-700');
-                }, 2000);
-            });
-        });
-
-        document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
-        searchInput.addEventListener('input', executeScreenerLogic);
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            await fetchLatestDatesAndSetPickers();
-            await fetchFlowDataByDate();
-        });
+        function toggleAccordion(ticker) {
+            const content = document.getElementById(`content-${ticker}`);
+            content.classList.toggle('open');
+        }
     </script>
 </body>
 </html>
