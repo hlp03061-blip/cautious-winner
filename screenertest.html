@@ -167,7 +167,7 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 策略說明文字庫
+        // 策略說明文字庫 (加入市場專屬條件說明)
         const strategyTexts = {
             'short_term': `
                 <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
@@ -185,6 +185,7 @@
                 <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
                 <li><strong class="text-blue-700">底部右側起漲：</strong>現價距離 52 周低位介於 <span class="font-bold text-blue-700">10% ~ 30%</span> 之間。</li>
                 <li><strong class="text-blue-700">流動性防護：</strong>10日均成交金額大於 <span class="font-bold text-blue-700">1000 萬港幣</span> (美股 150 萬美元)。</li>
+                <li><strong class="text-indigo-600">🎯 市場專屬條件：</strong>港股要求 <span class="font-bold text-indigo-600">股息率 >= 3%</span>；美股要求 <span class="font-bold text-indigo-600">近 5 日資金正流入</span>。</li>
                 <li><strong class="text-gray-500">排序權重：</strong>基本面優勢佔 30% + 資金流向優勢佔 40% + 起漲優勢佔 30% <span class="text-gray-500">(越接近 10% 分數越高，漲多則分數遞減)</span>。</li>
             `
         };
@@ -306,14 +307,14 @@
                 const kdj_j = Number(r.multi.kdj_j) || 100;
                 const sma200 = Number(r.multi.sma200) || 0;
                 const price = Number(r.multi.current_price) || Number(r.price) || 0;
+                const divYield = Number(r.multi.dividend_yield) || 0;
                 
                 const week52Low = Number(r.multi.week_52_low) || 0;
                 const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : -1;
                 
-                // 10日平均成交量 (百萬股) -> 轉換為真實成交金額 (百萬)
                 const avgVol10D = Number(r.multi.avg_vol_10d_million) || 0;
-                const avgTurnover10D = price * avgVol10D; // 百萬金額
-                const minTurnover = activeMarket === 'HK' ? 10 : 1.5; // 港股要求千萬HKD，美股要求150萬USD
+                const avgTurnover10D = price * avgVol10D; 
+                const minTurnover = activeMarket === 'HK' ? 10 : 1.5; 
 
                 if (activeStrategy === 'short_term') {
                     // 短線：正流入 + MFI超賣 + Value防護
@@ -322,8 +323,16 @@
                     // 長線：回歸純粹的嚴格極限超賣 (RSI<40 AND KDJ<20 AND 跌破年線)
                     return valRating >= 3 && roe > 0.08 && rsi < 40 && kdj_j < 20 && sma200 > 0 && price < sma200;
                 } else if (activeStrategy === '52w_low') {
-                    // 新增：追擊 52W 低位 (10% ~ 30%) + 成交金額防護 (Turnover)
-                    return valRating >= 3 && roe > 0.08 && dist52WLow >= 10 && dist52WLow <= 30 && avgTurnover10D > minTurnover;
+                    // 追擊 52W 低位：共同防護條件
+                    const baseCondition = valRating >= 3 && roe > 0.08 && dist52WLow >= 10 && dist52WLow <= 30 && avgTurnover10D > minTurnover;
+                    
+                    // 市場專屬條件 (港股看 3% 股息，美股看 5D 正流入)
+                    if (activeMarket === 'HK') {
+                        return baseCondition && divYield >= 3;
+                    } else if (activeMarket === 'US') {
+                        return baseCondition && f5 > 0;
+                    }
+                    return false;
                 }
             });
 
