@@ -130,7 +130,7 @@
                             <th class="py-4 px-5 leading-tight">板塊<br><span class="text-xs text-gray-500 font-normal">距 52W 低</span></th>
                             <th class="py-4 px-5 text-center leading-tight">基本面<br><span class="text-xs text-gray-500 font-normal">P/E & 息率</span></th>
                             <th class="py-4 px-5 text-center leading-tight">護城河<br><span class="text-xs text-gray-500 font-normal">Value & ROE</span></th>
-                            <th class="py-4 px-5 text-right leading-tight">現價<br><span class="text-xs text-gray-500 font-normal">SMA200</span></th>
+                            <th class="py-4 px-5 text-center leading-tight">現價<br><span class="text-xs text-gray-500 font-normal">SMA200</span></th>
                             <th class="py-4 px-5 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-500 font-normal">MFI / RSI / KDJ</span></th>
                             <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金演進<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
                             <th class="py-4 px-5 text-center">狀態標籤</th>
@@ -184,6 +184,8 @@
             '52w_low': `
                 <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
                 <li><strong class="text-blue-700">底部右側起漲：</strong>現價距離 52 周低位介於 <span class="font-bold text-blue-700">10% ~ 30%</span> 之間。</li>
+                <li><strong class="text-blue-700">流動性防護：</strong>10日均成交金額大於 <span class="font-bold text-blue-700">1000 萬港幣</span> (美股 150 萬美元)。</li>
+                <li><strong class="text-indigo-600">🎯 市場專屬條件：</strong>港股要求 <span class="font-bold text-indigo-600">股息率 >= 3%</span>；美股要求 <span class="font-bold text-indigo-600">近 5 日資金正流入</span>。</li>
                 <li><strong class="text-gray-500">排序權重：</strong>基本面優勢佔 30% + 資金流向優勢佔 40% + 起漲優勢佔 30% <span class="text-gray-500">(越接近 10% 分數越高，漲多則分數遞減)</span>。</li>
             `
         };
@@ -263,7 +265,7 @@
         async function fetchFlowDataByDate() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold text-base animate-pulse">🔄 正在同時抓取資金流與基本面數據...</td></tr>`;
             try {
-                const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma200, rsi, kdj_j, money_flow_million, money_flow_5d_million, money_flow_10d_million, week_52_low';
+                const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma200, rsi, kdj_j, money_flow_million, money_flow_5d_million, money_flow_10d_million, week_52_low, avg_vol_10d_million';
                 
                 const [flowHkRes, flowUsRes, multiHkRes, multiUsRes] = await Promise.all([
                     supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(3000),
@@ -305,9 +307,14 @@
                 const kdj_j = Number(r.multi.kdj_j) || 100;
                 const sma200 = Number(r.multi.sma200) || 0;
                 const price = Number(r.multi.current_price) || Number(r.price) || 0;
+                const divYield = Number(r.multi.dividend_yield) || 0;
                 
                 const week52Low = Number(r.multi.week_52_low) || 0;
                 const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : -1;
+                
+                const avgVol10D = Number(r.multi.avg_vol_10d_million) || 0;
+                const avgTurnover10D = price * avgVol10D; 
+                const minTurnover = activeMarket === 'HK' ? 10 : 1.5; 
 
                 if (activeStrategy === 'short_term') {
                     // 短線：正流入 + MFI超賣 + Value防護
@@ -316,8 +323,16 @@
                     // 長線：回歸純粹的嚴格極限超賣 (RSI<40 AND KDJ<20 AND 跌破年線)
                     return valRating >= 3 && roe > 0.08 && rsi < 40 && kdj_j < 20 && sma200 > 0 && price < sma200;
                 } else if (activeStrategy === '52w_low') {
-                    // 新增：追擊 52W 低位 (10% ~ 30%)
-                    return valRating >= 3 && roe > 0.08 && dist52WLow >= 10 && dist52WLow <= 30;
+                    // 追擊 52W 低位：共同防護條件
+                    const baseCondition = valRating >= 3 && roe > 0.08 && dist52WLow >= 10 && dist52WLow <= 30 && avgTurnover10D > minTurnover;
+                    
+                    // 市場專屬條件 (港股看 3% 股息，美股看 5D 正流入)
+                    if (activeMarket === 'HK') {
+                        return baseCondition && divYield >= 3;
+                    } else if (activeMarket === 'US') {
+                        return baseCondition && f5 > 0;
+                    }
+                    return false;
                 }
             });
 
@@ -490,21 +505,21 @@
                 if (stock.week52Low > 0) {
                     const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
                     const sign = stock.dist52WLow > 0 ? '+' : '';
-                    distText = `<br><span class="text-xs ${distColor} mt-1 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
+                    distText = `<span class="text-xs ${distColor} mt-0.5 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
                 } else {
-                    distText = `<br><span class="text-xs text-gray-400 mt-1 inline-block">N/A</span>`;
+                    distText = `<span class="text-xs text-gray-400 mt-0.5 inline-block">N/A</span>`;
                 }
 
-                // 移除板塊的 font-medium 並改為 text-gray-500，移除現價的 align-top
+                // 移除 align-top，達成全局上下置中；在現價欄位加入 leading-tight 收緊行距
                 tr.innerHTML = `
                     <td class="py-4 px-5 text-center">
                         <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
                     </td>
-                    <td class="py-4 px-5 align-top">
+                    <td class="py-4 px-5">
                         <div class="text-lg font-bold text-blue-900 font-mono tracking-tight">${stock.ticker}</div>
                         <div class="text-xs text-gray-500 font-sans mt-1 whitespace-normal break-words w-40 sm:w-48 leading-tight">${stock.name}</div>
                     </td>
-                    <td class="py-4 px-5 align-top">
+                    <td class="py-4 px-5">
                         <span class="text-gray-500 text-xs block">${stock.sector}</span>
                         ${distText}
                     </td>
@@ -518,7 +533,7 @@
                         <span class="text-gray-500 text-xs mr-1">ROE:</span> <span class="font-semibold">${roeText}</span>
                     </td>
 
-                    <td class="py-4 px-5 text-right font-mono font-bold text-gray-800 text-base">
+                    <td class="py-4 px-5 text-center font-mono font-bold text-gray-800 text-base leading-tight">
                         ${stock.price.toFixed(2)}<br>
                         <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">${stock.sma200.toFixed(2)}</span>
                     </td>
