@@ -184,7 +184,7 @@
             '52w_low': `
                 <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
                 <li><strong class="text-blue-700">底部右側起漲：</strong>現價距離 52 周低位介於 <span class="font-bold text-blue-700">10% ~ 30%</span> 之間。</li>
-                <li><strong class="text-blue-700">流動性防護：</strong>10日平均成交量必須大於 <span class="font-bold text-blue-700">1000 萬</span> (Avg Vol 10D > 10)。</li>
+                <li><strong class="text-blue-700">流動性防護：</strong>10日均成交金額大於 <span class="font-bold text-blue-700">1000 萬港幣</span> (美股 150 萬美元)。</li>
                 <li><strong class="text-gray-500">排序權重：</strong>基本面優勢佔 30% + 資金流向優勢佔 40% + 起漲優勢佔 30% <span class="text-gray-500">(越接近 10% 分數越高，漲多則分數遞減)</span>。</li>
             `
         };
@@ -264,7 +264,6 @@
         async function fetchFlowDataByDate() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold text-base animate-pulse">🔄 正在同時抓取資金流與基本面數據...</td></tr>`;
             try {
-                // 向資料庫請求的欄位清單包含 avg_vol_10d_million
                 const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma200, rsi, kdj_j, money_flow_million, money_flow_5d_million, money_flow_10d_million, week_52_low, avg_vol_10d_million';
                 
                 const [flowHkRes, flowUsRes, multiHkRes, multiUsRes] = await Promise.all([
@@ -311,8 +310,10 @@
                 const week52Low = Number(r.multi.week_52_low) || 0;
                 const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : -1;
                 
-                // 讀取 10日平均成交量
+                // 10日平均成交量 (百萬股) -> 轉換為真實成交金額 (百萬)
                 const avgVol10D = Number(r.multi.avg_vol_10d_million) || 0;
+                const avgTurnover10D = price * avgVol10D; // 百萬金額
+                const minTurnover = activeMarket === 'HK' ? 10 : 1.5; // 港股要求千萬HKD，美股要求150萬USD
 
                 if (activeStrategy === 'short_term') {
                     // 短線：正流入 + MFI超賣 + Value防護
@@ -321,8 +322,8 @@
                     // 長線：回歸純粹的嚴格極限超賣 (RSI<40 AND KDJ<20 AND 跌破年線)
                     return valRating >= 3 && roe > 0.08 && rsi < 40 && kdj_j < 20 && sma200 > 0 && price < sma200;
                 } else if (activeStrategy === '52w_low') {
-                    // 新增：追擊 52W 低位 (10% ~ 30%) + 嚴格限制成交量 > 1000萬
-                    return valRating >= 3 && roe > 0.08 && dist52WLow >= 10 && dist52WLow <= 30 && avgVol10D > 10;
+                    // 新增：追擊 52W 低位 (10% ~ 30%) + 成交金額防護 (Turnover)
+                    return valRating >= 3 && roe > 0.08 && dist52WLow >= 10 && dist52WLow <= 30 && avgTurnover10D > minTurnover;
                 }
             });
 
@@ -500,7 +501,6 @@
                     distText = `<br><span class="text-xs text-gray-400 mt-1 inline-block">N/A</span>`;
                 }
 
-                // 移除板塊字體的粗細設定，移除現價儲存格的 align-top 屬性以達置中效果
                 tr.innerHTML = `
                     <td class="py-4 px-5 text-center">
                         <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
