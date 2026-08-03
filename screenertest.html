@@ -505,22 +505,21 @@
                 if (stock.week52Low > 0) {
                     const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
                     const sign = stock.dist52WLow > 0 ? '+' : '';
-                    // 移除 <br>，並將 mt-1 改為 mt-0.5，讓距52W低位緊貼Sector下方
                     distText = `<span class="text-xs ${distColor} mt-0.5 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
                 } else {
-                    // 移除 <br>，改為 inline-block 以配合自動換行
                     distText = `<span class="text-xs text-gray-400 mt-0.5 inline-block">N/A</span>`;
                 }
 
+                // 移除 align-top，達成全局上下置中；在現價欄位加入 leading-tight 收緊行距
                 tr.innerHTML = `
                     <td class="py-4 px-5 text-center">
                         <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
                     </td>
-                    <td class="py-4 px-5 align-top">
+                    <td class="py-4 px-5">
                         <div class="text-lg font-bold text-blue-900 font-mono tracking-tight">${stock.ticker}</div>
                         <div class="text-xs text-gray-500 font-sans mt-1 whitespace-normal break-words w-40 sm:w-48 leading-tight">${stock.name}</div>
                     </td>
-                    <td class="py-4 px-5 align-top">
+                    <td class="py-4 px-5">
                         <span class="text-gray-500 text-xs block">${stock.sector}</span>
                         ${distText}
                     </td>
@@ -534,7 +533,7 @@
                         <span class="text-gray-500 text-xs mr-1">ROE:</span> <span class="font-semibold">${roeText}</span>
                     </td>
 
-                    <td class="py-4 px-5 text-center font-mono font-bold text-gray-800 text-base">
+                    <td class="py-4 px-5 text-center font-mono font-bold text-gray-800 text-base leading-tight">
                         ${stock.price.toFixed(2)}<br>
                         <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">${stock.sma200.toFixed(2)}</span>
                     </td>
