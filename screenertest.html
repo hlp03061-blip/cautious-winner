@@ -167,7 +167,7 @@
         const usDatePicker = document.getElementById('us-date');
         const searchInput = document.getElementById('search-ticker'); 
 
-        // 策略說明文字庫 (加入市場專屬條件說明)
+        // 策略說明文字庫
         const strategyTexts = {
             'short_term': `
                 <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
@@ -505,9 +505,11 @@
                 if (stock.week52Low > 0) {
                     const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
                     const sign = stock.dist52WLow > 0 ? '+' : '';
-                    distText = `<br><span class="text-xs ${distColor} mt-1 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
+                    // 移除 <br>，並將 mt-1 改為 mt-0.5，讓距52W低位緊貼Sector下方
+                    distText = `<span class="text-xs ${distColor} mt-0.5 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
                 } else {
-                    distText = `<br><span class="text-xs text-gray-400 mt-1 inline-block">N/A</span>`;
+                    // 移除 <br>，改為 inline-block 以配合自動換行
+                    distText = `<span class="text-xs text-gray-400 mt-0.5 inline-block">N/A</span>`;
                 }
 
                 tr.innerHTML = `
