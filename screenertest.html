@@ -11,8 +11,8 @@
         .accordion-content { display: none; }
         .accordion-content.open { display: block; }
         table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #e5e7eb; padding: 0.6rem; text-align: right; white-space: nowrap; }
-        th { background-color: #f3f4f6; font-size: 0.95rem; font-weight: 600; text-align: center;}
+        th, td { border: 1px solid #e5e7eb; padding: 0.5rem; text-align: right; white-space: nowrap; }
+        th { background-color: #f3f4f6; font-size: 0.875rem; font-weight: 600; text-align: center;}
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-6">
@@ -31,9 +31,9 @@
         <!-- 頂部導覽列 -->
         <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
             <div class="flex flex-wrap gap-3">
-                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-base font-medium border border-gray-200 transition-colors shadow-sm">📊 綜合決策儀表板</a>
-                <a href="screener.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-base font-medium border border-gray-200 transition-colors shadow-sm">🎣 策略選股清單</a>
-                <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-base font-bold border border-blue-200 transition-colors shadow-sm cursor-default">📈 數據分析儀表板</a>
+                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">📊 綜合決策儀表板</a>
+                <a href="screener.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">🎣 策略選股清單</a>
+                <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-200 transition-colors shadow-sm cursor-default">📈 數據分析儀表板</a>
             </div>
         </nav>
 
@@ -42,42 +42,42 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <div>
-                    <label class="block font-semibold mb-2 text-lg">選擇市場資料庫:</label>
-                    <div class="flex gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200 inline-flex">
-                        <label class="cursor-pointer flex items-center gap-1.5 text-base font-medium">
+                    <label class="block font-semibold mb-2">選擇市場資料庫:</label>
+                    <div class="flex gap-4 bg-gray-50 p-2.5 rounded-lg border border-gray-200 inline-flex">
+                        <label class="cursor-pointer flex items-center gap-1.5 text-sm font-medium">
                             <input type="radio" name="market" value="multi_stock_analysis_hk" checked> 🇭🇰 香港股市 (HK)
                         </label>
-                        <label class="cursor-pointer flex items-center gap-1.5 text-base font-medium">
+                        <label class="cursor-pointer flex items-center gap-1.5 text-sm font-medium">
                             <input type="radio" name="market" value="multi_stock_analysis_sp500"> 🇺🇸 美股 (S&P 500)
                         </label>
                     </div>
                 </div>
                 <!-- 日期篩選器 -->
                 <div>
-                    <label class="block font-semibold mb-2 text-lg">歷史數據顯示天數:</label>
+                    <label class="block font-semibold mb-2">歷史數據顯示天數:</label>
                     <div class="flex gap-2 items-center">
-                        <select id="dateRange" class="p-2.5 border border-gray-300 rounded-md text-base bg-white" onchange="toggleCustomDate()">
+                        <select id="dateRange" class="p-2 border border-gray-300 rounded-md text-sm bg-white" onchange="toggleCustomDate()">
                             <option value="10">10 Days</option>
                             <option value="20">20 Days</option>
                             <option value="30">30 Days</option>
                             <option value="custom">自訂 (Custom)</option>
                             <option value="1000">全部顯示</option>
                         </select>
-                        <input type="number" id="customDays" placeholder="天數" class="hidden p-2.5 border border-gray-300 rounded-md w-28 text-base bg-white">
+                        <input type="number" id="customDays" placeholder="天數" class="hidden p-2 border border-gray-300 rounded-md w-24 text-sm bg-white">
                     </div>
                 </div>
             </div>
             
             <div class="mb-4">
-                <label class="block font-semibold mb-2 text-lg">輸入股票代號 (以分號 ; 分隔):</label>
-                <textarea id="tickerInput" rows="2" class="w-full p-4 border border-gray-300 rounded-lg font-mono text-base focus:border-blue-500 outline-none" placeholder="e.g., AAPL; TSLA 或 0700.HK; 9988.HK"></textarea>
+                <label class="block font-semibold mb-2">輸入股票代號 (以分號 ; 分隔):</label>
+                <textarea id="tickerInput" rows="2" class="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm focus:border-blue-500 outline-none" placeholder="e.g., AAPL; TSLA 或 0700.HK; 9988.HK"></textarea>
             </div>
 
             <div class="flex items-center gap-4">
-                <button id="fetchBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition shadow-md text-lg">
+                <button id="fetchBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg transition shadow-md text-sm">
                     🔍 開始分析
                 </button>
-                <span id="statusMsg" class="text-base font-medium text-gray-500"></span>
+                <span id="statusMsg" class="text-sm font-medium text-gray-500"></span>
             </div>
         </header>
 
@@ -96,16 +96,15 @@
             return flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800');
         };
 
-        // 放大：原本的 text-[10px] 升級為 text-xs
         function getCompareHtml(curr, prev, decimals = 2, mode = 'pct') {
             const valStr = formatNum(curr, decimals);
             if (curr === null || prev === null || prev === undefined || curr === undefined) {
-                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-xs text-transparent select-none">(-)</span></div>`;
+                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] text-transparent select-none">(-)</span></div>`;
             }
             
             const diff = Number(curr) - Number(prev);
             if (Math.abs(diff) < 0.0001) {
-                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-xs text-gray-400">(-)</span></div>`;
+                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] text-gray-400">(-)</span></div>`;
             }
 
             const isUp = diff > 0;
@@ -114,17 +113,16 @@
 
             let diffStr = mode === 'pct' ? `${sign} ${(prev !== 0 ? (Math.abs(diff) / Math.abs(prev)) * 100 : 0).toFixed(1)}%` : `${sign} ${Math.abs(diff).toFixed(decimals)}`;
 
-            return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-xs ${colorCls} font-bold leading-none">(${diffStr})</span></div>`;
+            return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] ${colorCls} font-bold leading-none mt-0.5">(${diffStr})</span></div>`;
         }
 
-        // 放大：原本的 text-[10px] 升級為 text-xs
         function getTextCompareHtml(curr, prev, defaultVal = 'N/A', mainClasses = 'font-medium', containerClasses = '') {
             const c = curr || defaultVal;
             const p = prev || defaultVal;
             if (prev === undefined || c === p) {
                 return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span></div>`;
             }
-            return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span><span class="text-xs text-blue-600 font-bold leading-none mt-1">(昨日: ${p})</span></div>`;
+            return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span><span class="text-[11px] text-blue-600 font-bold leading-none mt-1">(昨日: ${p})</span></div>`;
         }
 
         function getCompareColorClass(curr, prev) {
@@ -242,10 +240,10 @@
                 const sd = stockDataMap[ticker] || {}; 
                 
                 const card = document.createElement('div');
-                card.className = "bg-white border rounded-xl shadow-sm overflow-hidden mb-4 border-gray-200";
+                card.className = "bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-4";
 
                 const signalText = latest.pre_uptrend_signal || 'No';
-                const signalStyle = (signalText !== 'No' && signalText !== 'N/A') ? 'bg-yellow-100 text-red-600 font-bold border border-yellow-300' : 'bg-gray-100 text-gray-600';
+                const signalStyle = (signalText !== 'No' && signalText !== 'N/A') ? 'bg-yellow-100 text-red-600 font-bold border border-yellow-200' : 'bg-gray-100 text-gray-600';
 
                 const changePct = latest.change_pct;
                 const changeColor = changePct > 0 ? 'text-green-600' : (changePct < 0 ? 'text-red-600' : 'text-gray-500');
@@ -269,6 +267,7 @@
                 const pullbackSignal = sd.pullback_signal || 'N/A';
                 const volSqueeze = sd.vol_squeeze || 'Normal';
 
+                // ================== 建立 TSV ==================
                 let tsv = `=== TICKER: ${ticker} | ${latest.company_name || 'N/A'} ===\n`;
                 tsv += `Price:\t${formatNum(latest.current_price, 3)}\n`;
                 tsv += `Change:\t${changeSign}${formatNum(changePct, 2)}%\n`;
@@ -314,28 +313,30 @@
                 tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
                 tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
 
-                // 標題列：原本 text-sm 升級為 text-base
+                // ================== 表頭區 (恢復極簡無等寬字體) ==================
                 const headerHtml = `
-                    <div class="flex flex-wrap justify-between items-center p-5 bg-gray-50 cursor-pointer hover:bg-gray-100 transition border-b border-gray-100" onclick="toggleAccordion('${ticker}')">
-                        <div class="flex-1 min-w-[300px]">
-                            <div class="flex items-center gap-4 mb-3">
-                                <span class="text-2xl font-bold text-blue-900 font-mono">${ticker}</span>
-                                <span class="text-base text-gray-500 font-medium truncate max-w-[200px]">${latest.company_name || 'N/A'}</span>
-                                <span class="font-mono text-xl font-bold text-gray-800">${formatNum(latest.current_price, 2)}</span>
-                                <span class="${changeColor} font-bold font-mono text-base">${changeSign}${formatNum(changePct, 2)}%</span>
+                    <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition border-b border-gray-200" onclick="toggleAccordion('${ticker}')">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-6 mb-3">
+                                <span class="text-xl font-bold text-blue-900 w-24">${ticker}</span>
+                                <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
+                                <span class="text-lg font-bold text-gray-800">${formatNum(latest.current_price, 3)}</span>
+                                <span class="${changeColor} font-bold text-sm">
+                                    ${changeSign}${formatNum(changePct, 2)}%
+                                </span>
                             </div>
-                            <div class="flex flex-wrap items-center gap-3 text-base font-medium">
-                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded font-semibold">Sector: ${sector}</span>
-                                <span class="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded font-mono font-bold">距52W低: ${dist52WLowText}</span>
-                                <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded">Val: ${valRating}/5</span>
-                                <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded font-bold">評級: ${hybridRating}</span>
-                                <span class="px-3 py-1 bg-teal-100 text-teal-800 rounded font-mono">MFI: ${mfiVal}</span>
-                                <span class="px-3 py-1 rounded ${signalStyle}">Signal: ${signalText}</span>
+                            <div class="flex items-center gap-3 text-sm font-medium">
+                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${sector}</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded shadow-sm">距52W低: ${dist52WLowText}</span>
+                                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Val: ${valRating}</span>
+                                <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">評級: ${hybridRating}</span>
+                                <span class="px-3 py-1 bg-teal-100 text-teal-800 rounded shadow-sm">MFI: ${mfiVal}</span>
+                                <span class="px-3 py-1 rounded shadow-sm ${signalStyle}">Signal: ${signalText}</span>
                             </div>
                         </div>
-                        <div class="flex items-center gap-3 text-base text-gray-500 mt-2 sm:mt-0">
-                            <span>更新: ${latest.trading_date}</span>
-                            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <div class="flex flex-col items-end gap-2 text-sm text-right">
+                            <span class="text-gray-500 text-xs">最後更新: ${latest.trading_date} <br> (${latest.market_status})</span>
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </div>
                     </div>
                 `;
@@ -359,41 +360,39 @@
                     const clVol = getCompareColorClass(row.vol_million, prevRow.vol_million);
                     const clRvol = getCompareColorClass(row.rvol, prevRow.rvol);
 
-                    // 表格內容字體：升級為 text-base
                     historyRows += `
-                        <tr class="hover:bg-blue-50 text-base font-mono">
-                            <td class="text-center font-sans">${row.trading_date}</td>
-                            <td class="font-bold text-gray-800">${formatNum(px, 2)}</td>
-                            <td>${formatNum(row.open_price, 2)}</td>
-                            <td>${formatNum(row.high_price, 2)}</td>
-                            <td>${formatNum(row.low_price, 2)}</td>
+                        <tr class="hover:bg-blue-50 text-sm">
+                            <td class="text-center">${row.trading_date}</td>
+                            <td>${formatNum(px, 3)}</td>
+                            <td>${formatNum(row.open_price, 3)}</td>
+                            <td>${formatNum(row.high_price, 3)}</td>
+                            <td>${formatNum(row.low_price, 3)}</td>
                             <td>${formatNum(row.change_pct, 2)}%</td>
-                            <td class="${clVol}">${formatNum(row.vol_million, 2)}</td>
+                            <td class="${clVol}">${formatNum(row.vol_million, 3)}</td>
                             <td class="${clRvol}">${formatNum(row.rvol, 2)}</td>
-                            <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 2)}</td>
-                            <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 2)}</td>
-                            <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 2)}</td>
-                            <td class="${checkHighlight(px, row.sma50)}">${formatNum(row.sma50, 2)}</td>
-                            <td class="${checkHighlight(px, row.sma200)}">${formatNum(row.sma200, 2)}</td>
-                            <td class="${clMacd}">${formatNum(row.macd, 2)}</td>
-                            <td class="${clRsi}">${formatNum(row.rsi, 1)}</td>
-                            <td class="${clAdx}">${formatNum(row.adx, 1)}</td>
-                            <td class="${clKdjk}">${formatNum(row.kdj_k, 1)}</td>
-                            <td class="${clKdjd}">${formatNum(row.kdj_d, 1)}</td>
-                            <td class="${clKdjj}">${formatNum(row.kdj_j, 1)}</td>
-                            <td class="${clObv}">${formatNum(row.obv_millions, 1)}</td>
-                            <td class="${clSharpe}">${formatNum(row.sharpe_ratio_20d, 2)}</td>
+                            <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma50)}">${formatNum(row.sma50, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma200)}">${formatNum(row.sma200, 3)}</td>
+                            <td class="${clMacd}">${formatNum(row.macd, 3)}</td>
+                            <td class="${clRsi}">${formatNum(row.rsi, 2)}</td>
+                            <td class="${clAdx}">${formatNum(row.adx, 2)}</td>
+                            <td class="${clKdjk}">${formatNum(row.kdj_k, 2)}</td>
+                            <td class="${clKdjd}">${formatNum(row.kdj_d, 2)}</td>
+                            <td class="${clKdjj}">${formatNum(row.kdj_j, 2)}</td>
+                            <td class="${clObv}">${formatNum(row.obv_millions, 3)}</td>
+                            <td class="${clSharpe}">${formatNum(row.sharpe_ratio_20d, 3)}</td>
                         </tr>
                     `;
                     
                     tsv += `${row.trading_date}\t${formatNum(px, 3)}\t${formatNum(row.open_price, 3)}\t${formatNum(row.high_price, 3)}\t${formatNum(row.low_price, 3)}\t${formatNum(row.change_pct, 2)}%\t${formatNum(row.vol_million, 3)}\t${formatNum(row.rvol, 2)}\t${formatNum(row.sma5, 3)}\t${formatNum(row.sma10, 3)}\t${formatNum(row.sma20, 3)}\t${formatNum(row.sma50, 3)}\t${formatNum(row.sma200, 3)}\t${formatNum(row.macd, 3)}\t${formatNum(row.rsi, 2)}\t${formatNum(row.adx, 2)}\t${formatNum(row.kdj_k, 2)}\t${formatNum(row.kdj_d, 2)}\t${formatNum(row.kdj_j, 2)}\t${formatNum(row.obv_millions, 3)}\t${formatNum(row.sharpe_ratio_20d, 3)}\n`;
 
                     const flowColor = getFlowColor(row.money_flow_million);
-                    // 升級為 text-base
                     moneyFlowDailyRows += `
-                        <div class="grid grid-cols-2 text-base gap-y-1.5 font-mono">
-                            <span class="text-gray-500 font-sans">Day -${i} (${row.trading_date})</span>
-                            <span class="text-right font-bold ${flowColor}">${formatNum(row.money_flow_million, 1)} M</span>
+                        <div class="grid grid-cols-2 text-sm gap-y-1">
+                            <span class="text-gray-600">Day -${i} (${row.trading_date})</span>
+                            <span class="text-right font-medium ${flowColor}">${formatNum(row.money_flow_million, 2)}</span>
                         </div>
                     `;
                 });
@@ -403,101 +402,99 @@
                 const mf5Color = getFlowColor(latest.money_flow_5d_million);
                 const mf10Color = getFlowColor(latest.money_flow_10d_million);
 
+                // ================== 內容區 (恢復極簡無背景、還原行距) ==================
                 const bodyHtml = `
-                    <div id="content-${ticker}" class="accordion-content p-6 border-t border-gray-100 bg-white">
+                    <div id="content-${ticker}" class="accordion-content p-6 border-t bg-white">
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
                             
                             <!-- Section 1: Basic Fundamentals -->
-                            <div class="bg-gray-50/50 p-5 rounded-lg border border-gray-100">
-                                <h3 class="font-bold text-blue-900 border-b border-gray-200 pb-2 mb-4 text-base">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
-                                <div class="grid grid-cols-2 text-sm sm:text-base gap-y-3 items-center font-mono">
-                                    <span class="text-gray-600 font-sans">Market Cap (M)</span><span class="text-right font-semibold">${formatNum(latest.market_cap_million, 2)}</span>
-                                    <span class="text-gray-600 font-sans">P/E Ratio</span><span class="text-right font-semibold">${formatNum(latest.pe_ratio, 2)}</span>
-                                    <span class="text-gray-600 font-sans">P/B Ratio</span><span class="text-right font-semibold">${formatNum(latest.pb_ratio, 2)}</span>
-                                    <span class="text-gray-600 font-sans">Free Cash Flow</span><span class="text-right font-semibold">${formatNum(latest.free_cash_flow_million, 2)}M</span>
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
+                                    <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
+                                    <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
+                                    <span class="text-gray-600">P/B Ratio</span><span class="text-right font-medium">${formatNum(latest.pb_ratio, 2)}</span>
+                                    <span class="text-gray-600">Free Cash Flow (M)</span><span class="text-right font-medium">${formatNum(latest.free_cash_flow_million, 2)}</span>
 
-                                    <span class="text-gray-600 font-sans pt-2 border-t mt-1">PEG Ratio</span><span class="text-right font-semibold pt-2 border-t mt-1">${formatNum(latest.peg_ratio, 2)}</span>
-                                    <span class="text-gray-600 font-sans">Dividend Yield</span><span class="text-right font-semibold text-purple-700">${formatNum(latest.dividend_yield, 2)}%</span>
-                                    <span class="text-gray-600 font-sans">ROE</span><span class="text-right font-semibold">${formatNum(latest.roe, 3)}</span>
-                                    <span class="text-gray-600 font-sans">Beta</span><span class="text-right font-semibold">${formatNum(latest.beta, 3)}</span>
-                                    <span class="text-gray-600 font-sans">Debt/Equity (%)</span><span class="text-right font-semibold">${formatNum(latest.debt_to_equity, 3)}</span>
+                                    <span class="text-gray-600 pt-2 border-t mt-1">PEG Ratio</span><span class="text-right font-medium pt-2 border-t mt-1">${formatNum(latest.peg_ratio, 2)}</span>
+                                    <span class="text-gray-600">Dividend Yield (%)</span><span class="text-right font-medium">${formatNum(latest.dividend_yield, 2)}</span>
+                                    <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
+                                    <span class="text-gray-600">Beta</span><span class="text-right font-medium">${formatNum(latest.beta, 3)}</span>
+                                    <span class="text-gray-600">Debt/Equity (%)</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 3)}</span>
                                     
-                                    <span class="text-gray-600 font-sans">52W High / Low</span>
-                                    <span class="text-right font-semibold">
+                                    <span class="text-gray-600">52 Wk High / Low</span>
+                                    <span class="text-right font-medium">
                                         ${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}
-                                        <br><span class="text-sm text-blue-600 font-bold">(距低位: ${dist52WLowText})</span>
                                     </span>
                                     
-                                    <span class="text-gray-600 font-sans">Avg Vol 10D/3M</span><span class="text-right font-semibold">${formatNum(latest.avg_vol_10d_million, 2)}M / ${formatNum(latest.avg_vol_3m_million, 2)}M</span>
-                                    <span class="text-gray-600 font-sans">Target Mean Px</span><span class="text-right font-semibold">${formatNum(latest.target_mean_price, 2)}</span>
+                                    <span class="text-gray-600">Avg Vol 10D / 3M</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
+                                    <span class="text-gray-600">Target Mean Px</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
                                 </div>
                             </div>
                             
                             <!-- Section 2: Smart Money -->
-                            <div class="bg-gray-50/50 p-5 rounded-lg border border-gray-100">
-                                <h3 class="font-bold text-blue-900 border-b border-gray-200 pb-2 mb-4 text-base">--- SECTION 2: SMART MONEY ---</h3>
-                                <div class="grid grid-cols-2 text-sm sm:text-base gap-y-3 items-center font-mono">
-                                    <span class="text-gray-600 font-sans">SMA Trend</span>
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 2: SMART MONEY ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
+                                    <span class="text-gray-600">SMA Trend</span>
                                     <span class="text-right font-bold ${smaTrend === 'Bullish' ? 'text-green-600' : (smaTrend === 'Bearish' ? 'text-red-600' : 'text-gray-700')}">${smaTrend}</span>
                                     
-                                    <span class="text-gray-600 font-sans">MACD Mom.</span>
+                                    <span class="text-gray-600">MACD Mom.</span>
                                     <span class="text-right font-bold ${macdMom === 'Positive' ? 'text-green-600' : (macdMom === 'Negative' ? 'text-red-600' : 'text-gray-700')}">${macdMom}</span>
 
-                                    <span class="text-gray-600 font-sans">RS vs Market</span>
+                                    <span class="text-gray-600">RS vs Market</span>
                                     ${getCompareHtml(latest.rs_vs_market, prevData.rs_vs_market, 2, 'abs')}
                                     
-                                    <span class="text-gray-600 font-sans">ATR</span>
+                                    <span class="text-gray-600">ATR</span>
                                     ${getCompareHtml(latest.atr, prevData.atr, 3, 'pct')}
                                     
-                                    <span class="text-gray-600 font-sans">RVOL</span>
+                                    <span class="text-gray-600">RVOL</span>
                                     ${getCompareHtml(latest.rvol, prevData.rvol, 2, 'pct')}
                                     
-                                    <span class="text-gray-600 font-sans">BB Width Rank</span>
+                                    <span class="text-gray-600">BB Width Rank</span>
                                     ${getCompareHtml(latest.bb_width_rank, prevData.bb_width_rank, 2, 'abs')}
 
-                                    <span class="text-gray-600 font-sans pt-2 border-t mt-1">Pre-Uptrend</span>
+                                    <span class="text-gray-600 pt-2 border-t mt-1">Pre-Uptrend</span>
                                     ${getTextCompareHtml(latest.pre_uptrend_signal, prevData.pre_uptrend_signal, 'N/A', 'font-bold text-red-600', 'pt-2 border-t mt-1')}
                                     
-                                    <span class="text-gray-600 font-sans">Vol Squeeze</span>
+                                    <span class="text-gray-600">Vol Squeeze</span>
                                     <span class="text-right font-bold ${volSqueeze === 'Squeeze (Ready)' ? 'text-amber-600' : 'text-gray-700'}">${volSqueeze}</span>
 
-                                    <span class="text-gray-600 font-sans">Pullback Signal</span>
+                                    <span class="text-gray-600">Pullback Signal</span>
                                     <span class="text-right font-bold ${pullbackSignal === 'BUY DIP' ? 'text-green-600' : 'text-gray-500'}">${pullbackSignal}</span>
 
-                                    <span class="text-gray-600 font-sans">Global Sector %</span>
-                                    <span class="text-right font-semibold">${formatNum(latest.global_sector_trend_pct, 2)}%</span>
+                                    <span class="text-gray-600">Global Sector %</span>
+                                    <span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
                                 </div>
                             </div>
 
-                            <!-- Section 4: Money Flow Analysis -->
-                            <div class="bg-blue-50/30 p-5 rounded-lg border border-blue-100">
-                                <h3 class="font-bold text-blue-900 border-b border-blue-200 pb-2 mb-4 text-base">--- SECTION 4: MONEY FLOW ---</h3>
-                                <div class="grid grid-cols-2 text-base gap-y-3 mb-4 font-mono">
-                                    <span class="text-gray-800 font-bold font-sans">Last 5 Days (Accum)</span>
-                                    <span class="text-right font-extrabold ${mf5Color}">${formatNum(latest.money_flow_5d_million, 2)} M</span>
+                            <!-- Section 4: Money Flow Analysis (保持原本設計) -->
+                            <div class="bg-gray-50 p-3 rounded border">
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 4: MONEY FLOW ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1 mb-2">
+                                    <span class="text-gray-800 font-bold">Last 5 Days (Accum)</span>
+                                    <span class="text-right font-bold ${mf5Color}">${formatNum(latest.money_flow_5d_million, 2)}</span>
                                     
-                                    <span class="text-gray-800 font-bold font-sans border-b border-blue-200 pb-2">Last 10 Days (Accum)</span>
-                                    <span class="text-right font-extrabold border-b border-blue-200 pb-2 ${mf10Color}">${formatNum(latest.money_flow_10d_million, 2)} M</span>
+                                    <span class="text-gray-800 font-bold border-b pb-1">Last 10 Days (Accum)</span>
+                                    <span class="text-right font-bold border-b pb-1 ${mf10Color}">${formatNum(latest.money_flow_10d_million, 2)}</span>
                                 </div>
-                                <div class="mt-4 font-bold text-gray-700 mb-2 text-base">Daily 1D Flow Evolution:</div>
-                                <div class="space-y-1.5 bg-white p-3 rounded border border-blue-100">
-                                    ${moneyFlowDailyRows}
-                                </div>
+                                <div class="mt-2 font-bold text-gray-700 mb-1 text-xs">Daily 1D Flow:</div>
+                                ${moneyFlowDailyRows}
                             </div>
                         </div>
 
                         <!-- Section 3: Historical Technicals Table -->
-                        <div class="mb-4 flex flex-wrap justify-between items-end gap-2">
-                            <h3 class="font-bold text-blue-900 text-base">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
+                        <div class="mb-2 flex justify-between items-end">
+                            <h3 class="font-bold text-blue-900 text-sm">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
                             <div class="flex items-center gap-4">
-                                <span class="text-sm text-gray-500 font-medium">提示: 藍色代表比昨日高，橙色代表比昨日低</span>
-                                <button onclick="copyToClipboard('${ticker}')" class="bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow-sm transition">
-                                    📋 複製完整數據 (TSV)
+                                <span class="text-xs text-gray-500 font-medium">提示: 藍色代表比昨日高，橙色代表比昨日低</span>
+                                <button onclick="copyToClipboard('${ticker}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-2 px-4 rounded shadow border border-blue-300">
+                                    📋 複製整張卡片資料 (TSV)
                                 </button>
                             </div>
                         </div>
-                        <div class="overflow-x-auto mb-2 border border-gray-200 rounded-lg">
-                            <table id="table-${ticker}" class="w-full text-base">
+                        <div class="overflow-x-auto mb-6">
+                            <table id="table-${ticker}" class="w-full text-sm">
                                 <thead>
                                     <tr>
                                         <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th><th>RVOL</th>
@@ -510,8 +507,8 @@
                                     ${historyRows}
                                 </tbody>
                             </table>
+                            <p class="text-xs text-gray-500 mt-1">* 提示: 綠色粗體代表當日收盤價突破該移動平均線</p>
                         </div>
-                        <p class="text-sm text-gray-400 mt-2">* 提示: 綠色底色代表當日收盤價站上該條移動平均線 (SMA)</p>
                     </div>
                 `;
 
