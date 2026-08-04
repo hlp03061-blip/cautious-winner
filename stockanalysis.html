@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Stock Analysis Dashboard</title>
+    <title>數據分析 - 智能選股與資金流儀表板</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
     <style>
         .accordion-content { display: none; }
         .accordion-content.open { display: block; }
@@ -14,7 +15,7 @@
         th { background-color: #f3f4f6; font-size: 0.875rem; font-weight: 600; text-align: center;}
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen">
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-6">
 
     <script>
         // ==========================================
@@ -22,48 +23,63 @@
         // ==========================================
         const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
-        
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     </script>
 
-    <div class="max-w-7xl mx-auto py-8 px-4">
-        <h1 class="text-3xl font-bold mb-6 text-blue-900">📈 智能選股與資金流分析儀表板</h1>
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- 頂部導覽列 -->
+        <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div class="flex flex-wrap gap-3">
+                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">📊 綜合決策儀表板</a>
+                <a href="screener.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">🎣 策略選股清單</a>
+                <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-200 transition-colors shadow-sm cursor-default">📈 數據分析儀表板</a>
+            </div>
+        </nav>
 
-        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <div class="grid grid-cols-2 gap-6 mb-4">
+        <header class="bg-white p-6 rounded-xl border border-gray-200 shadow-md">
+            <h1 class="text-3xl font-bold mb-6 text-blue-900">📈 智能選股與資金流分析儀表板</h1>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <div>
                     <label class="block font-semibold mb-2">選擇市場資料庫:</label>
-                    <div class="flex gap-4">
-                        <label><input type="radio" name="market" value="multi_stock_analysis_hk" checked> 香港股市 (HK)</label>
-                        <label><input type="radio" name="market" value="multi_stock_analysis_sp500"> 美股 (S&P 500)</label>
+                    <div class="flex gap-4 bg-gray-50 p-2.5 rounded-lg border border-gray-200 inline-flex">
+                        <label class="cursor-pointer flex items-center gap-1.5 text-sm font-medium">
+                            <input type="radio" name="market" value="multi_stock_analysis_hk" checked> 🇭🇰 香港股市 (HK)
+                        </label>
+                        <label class="cursor-pointer flex items-center gap-1.5 text-sm font-medium">
+                            <input type="radio" name="market" value="multi_stock_analysis_sp500"> 🇺🇸 美股 (S&P 500)
+                        </label>
                     </div>
                 </div>
                 <!-- 日期篩選器 -->
                 <div>
                     <label class="block font-semibold mb-2">歷史數據顯示天數:</label>
                     <div class="flex gap-2 items-center">
-                        <select id="dateRange" class="p-2 border rounded-md" onchange="toggleCustomDate()">
+                        <select id="dateRange" class="p-2 border border-gray-300 rounded-md text-sm bg-white" onchange="toggleCustomDate()">
                             <option value="10">10 Days</option>
                             <option value="20">20 Days</option>
                             <option value="30">30 Days</option>
                             <option value="custom">自訂 (Custom)</option>
                             <option value="1000">全部顯示</option>
                         </select>
-                        <input type="number" id="customDays" placeholder="輸入天數" class="hidden p-2 border rounded-md w-24">
+                        <input type="number" id="customDays" placeholder="天數" class="hidden p-2 border border-gray-300 rounded-md w-24 text-sm bg-white">
                     </div>
                 </div>
             </div>
             
             <div class="mb-4">
                 <label class="block font-semibold mb-2">輸入股票代號 (以分號 ; 分隔):</label>
-                <textarea id="tickerInput" rows="3" class="w-full p-2 border rounded-md" placeholder="e.g., AAPL; TSLA 或 0700.HK; 1833.HK"></textarea>
+                <textarea id="tickerInput" rows="2" class="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm focus:border-blue-500 outline-none" placeholder="e.g., AAPL; TSLA 或 0700.HK; 9988.HK"></textarea>
             </div>
 
-            <button id="fetchBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
-                開始分析
-            </button>
-            <span id="statusMsg" class="ml-4 text-sm text-gray-500"></span>
-        </div>
+            <div class="flex items-center gap-4">
+                <button id="fetchBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg transition shadow-md text-sm">
+                    🔍 開始分析
+                </button>
+                <span id="statusMsg" class="text-sm font-medium text-gray-500"></span>
+            </div>
+        </header>
 
         <div id="resultsContainer" class="space-y-4"></div>
     </div>
@@ -72,55 +88,43 @@
         // ==========================================
         // 2. 輔助函數與全域變數
         // ==========================================
-        const formatNum = (num, decimals = 2) => num !== null && num !== undefined ? Number(num).toFixed(decimals) : 'N/A';
+        const formatNum = (num, decimals = 2) => num !== null && num !== undefined && !isNaN(num) ? Number(num).toFixed(decimals) : 'N/A';
         const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
 
-        // 資金流顏色判斷函數
         const getFlowColor = (flow) => {
             if (flow === null || flow === undefined) return 'text-gray-800';
             return flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800');
         };
 
-        // --- 用於 Section 2 的雙行比較 HTML (避開紅綠，使用藍/橘) ---
         function getCompareHtml(curr, prev, decimals = 2, mode = 'pct') {
             const valStr = formatNum(curr, decimals);
             if (curr === null || prev === null || prev === undefined || curr === undefined) {
-                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] text-transparent select-none">(-)</span></div>`;
+                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] text-transparent select-none">(-)</span></div>`;
             }
             
             const diff = Number(curr) - Number(prev);
             if (Math.abs(diff) < 0.0001) {
-                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] text-gray-400">(-)</span></div>`;
+                return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] text-gray-400">(-)</span></div>`;
             }
 
             const isUp = diff > 0;
             const sign = isUp ? '▲' : '▼';
             const colorCls = isUp ? 'text-blue-600' : 'text-orange-500';
 
-            let diffStr = '';
-            if (mode === 'pct') {
-                const pct = prev !== 0 ? (Math.abs(diff) / Math.abs(prev)) * 100 : 0;
-                diffStr = `${sign} ${pct.toFixed(1)}%`;
-            } else {
-                diffStr = `${sign} ${Math.abs(diff).toFixed(decimals)}`;
-            }
+            let diffStr = mode === 'pct' ? `${sign} ${(prev !== 0 ? (Math.abs(diff) / Math.abs(prev)) * 100 : 0).toFixed(1)}%` : `${sign} ${Math.abs(diff).toFixed(decimals)}`;
 
-            return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[10px] ${colorCls} font-bold leading-none">(${diffStr})</span></div>`;
+            return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] ${colorCls} font-bold leading-none mt-0.5">(${diffStr})</span></div>`;
         }
 
-        // --- 用於狀態標籤 (文字) 由有變無的比較 ---
         function getTextCompareHtml(curr, prev, defaultVal = 'N/A', mainClasses = 'font-medium', containerClasses = '') {
             const c = curr || defaultVal;
             const p = prev || defaultVal;
-            
             if (prev === undefined || c === p) {
                 return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span></div>`;
             }
-            
-            return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span><span class="text-[10px] text-blue-600 font-bold leading-none mt-1">(昨日: ${p})</span></div>`;
+            return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span><span class="text-[11px] text-blue-600 font-bold leading-none mt-1">(昨日: ${p})</span></div>`;
         }
 
-        // --- 用於 Section 3 表格格子的文字顏色 (避開紅綠) ---
         function getCompareColorClass(curr, prev) {
             if (curr === null || prev === null || prev === undefined || curr === undefined) return '';
             const diff = Number(curr) - Number(prev);
@@ -129,7 +133,6 @@
             return '';
         }
 
-        // 用來存放每檔股票「一鍵複製」的完整純文字(TSV)報告
         window.clipboardDataMap = {};
 
         function toggleCustomDate() {
@@ -138,15 +141,12 @@
             customInput.style.display = select.value === 'custom' ? 'block' : 'none';
         }
 
-        // 一鍵複製完整 TSV 報告
         function copyToClipboard(ticker) {
             const tsvText = window.clipboardDataMap[ticker];
             if (tsvText) {
                 navigator.clipboard.writeText(tsvText).then(() => {
-                    alert(`${ticker} 的【完整卡片數據】已複製！請直接貼上至 Excel。`);
-                }).catch(err => {
-                    alert('複製失敗，請檢查瀏覽器權限。');
-                });
+                    alert(`${ticker} 的【完整數據報告】已複製！可直接貼上至 Excel。`);
+                }).catch(() => alert('複製失敗，請檢查瀏覽器權限。'));
             }
         }
 
@@ -170,70 +170,65 @@
             const tickers = rawInput.split(';').map(t => t.trim().toUpperCase()).filter(t => t);
             
             btn.disabled = true;
-            status.innerText = "⏳ 正在從 Supabase 讀取數據...";
+            status.innerText = "⏳ 正在從 Supabase 獲取數據...";
             container.innerHTML = "";
             window.clipboardDataMap = {}; 
 
             try {
-                // 1. 抓取 multi_stock_analysis (主要大寬表)
-                const { data, error } = await supabaseClient
-                    .from(marketTable)
-                    .select('*')
-                    .in('ticker', tickers)
-                    .order('trading_date', { ascending: false });
+                const mfTable = marketTable === 'multi_stock_analysis_hk' ? 'money_flow_hk' : 'money_flow_sp500';
+                
+                const [{ data: multiData, error }, { data: mfData }, { data: stockData }] = await Promise.all([
+                    supabaseClient.from(marketTable).select('*').in('ticker', tickers).order('trading_date', { ascending: false }),
+                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date').in('ticker', tickers).order('Record_Date', { ascending: false }),
+                    supabaseClient.from('stock_data').select('*').in('ticker', tickers).order('date', { ascending: false })
+                ]);
 
                 if (error) throw error;
-                if (!data || data.length === 0) {
+                if (!multiData || multiData.length === 0) {
                     status.innerText = "⚠️ 找不到符合的數據。";
                     btn.disabled = false;
                     return;
                 }
 
-                // 2. 抓取 money_flow 表以獲取最新的 MFI 數據
-                const mfTable = marketTable === 'multi_stock_analysis_hk' ? 'money_flow_hk' : 'money_flow_sp500';
-                const { data: mfData, error: mfError } = await supabaseClient
-                    .from(mfTable)
-                    .select('ticker, MFI, Record_Date')
-                    .in('ticker', tickers)
-                    .order('Record_Date', { ascending: false });
-                
-                // 將最新的 MFI 存入字典對應
                 const mfiMap = {};
                 if (mfData) {
                     mfData.forEach(row => {
-                        if (mfiMap[row.ticker] === undefined) {
-                            mfiMap[row.ticker] = row.MFI;
-                        }
+                        if (mfiMap[row.ticker] === undefined) mfiMap[row.ticker] = row.MFI;
+                    });
+                }
+
+                const stockDataMap = {};
+                if (stockData) {
+                    stockData.forEach(row => {
+                        if (stockDataMap[row.ticker] === undefined) stockDataMap[row.ticker] = row;
                     });
                 }
 
                 const groupedData = {};
-                data.forEach(row => {
+                multiData.forEach(row => {
                     if (!groupedData[row.ticker]) groupedData[row.ticker] = [];
                     groupedData[row.ticker].push(row);
                 });
 
-                // 根據使用者設定的天數裁切資料 (多切一天，保留用來跟最末天比較的基準)
                 for (let ticker in groupedData) {
                     groupedData[ticker] = groupedData[ticker].slice(0, limitDays + 1); 
                 }
 
-                // 將排序數組(tickers)及 MFI 字典傳入渲染函數
-                renderCards(groupedData, tickers, mfiMap, limitDays);
-                status.innerText = `✅ 成功載入 ${Object.keys(groupedData).length} 檔股票資料。 (顯示最近 ${limitDays} 個交易日)`;
+                renderCards(groupedData, tickers, mfiMap, stockDataMap, limitDays);
+                status.innerText = `✅ 成功載入 ${Object.keys(groupedData).length} 檔股票資料。(顯示近 ${limitDays} 日數據)`;
 
             } catch (err) {
                 console.error(err);
-                status.innerText = "❌ 發生錯誤請檢查 Console。";
+                status.innerText = "❌ 讀取失敗，請檢查 Console 或網路連線。";
             } finally {
                 btn.disabled = false;
             }
         });
 
         // ==========================================
-        // 4. 畫面渲染 & TSV 報告組裝
+        // 4. 畫面渲染
         // ==========================================
-        function renderCards(groupedData, tickers, mfiMap, limitDays) {
+        function renderCards(groupedData, tickers, mfiMap, stockDataMap, limitDays) {
             const container = document.getElementById('resultsContainer');
             
             for (const ticker of tickers) {
@@ -241,38 +236,50 @@
                 
                 const records = groupedData[ticker];
                 const latest = records[0]; 
-                // 取得昨日資料 (用於 Section 1 & 2 的動態比較)
                 const prevData = records.length > 1 ? records[1] : {};
+                const sd = stockDataMap[ticker] || {}; 
                 
                 const card = document.createElement('div');
-                card.className = "bg-white border rounded-lg shadow-sm overflow-hidden mb-4";
+                card.className = "bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-4";
 
                 const signalText = latest.pre_uptrend_signal || 'No';
-                const signalStyle = (signalText !== 'No' && signalText !== 'N/A') 
-                    ? 'bg-yellow-200 text-red-600 font-bold' 
-                    : 'bg-gray-200 text-gray-700';
+                const signalStyle = (signalText !== 'No' && signalText !== 'N/A') ? 'bg-yellow-100 text-red-600 font-bold border border-yellow-200' : 'bg-gray-100 text-gray-600';
 
                 const changePct = latest.change_pct;
                 const changeColor = changePct > 0 ? 'text-green-600' : (changePct < 0 ? 'text-red-600' : 'text-gray-500');
                 const changeSign = changePct > 0 ? '+' : '';
 
-                // 準備表頭需要顯示的資料
                 const sector = latest.sector || 'N/A';
                 const valRating = latest.value_rating !== null ? latest.value_rating : 'N/A';
-                const techRating = latest.technical_rating !== null ? latest.technical_rating : 'N/A';
+                const hybridRating = sd.rating_hybrid || (latest.technical_rating !== null ? `${latest.technical_rating}/5` : 'N/A');
                 const mfiVal = mfiMap[ticker] !== undefined && mfiMap[ticker] !== null ? formatNum(mfiMap[ticker], 2) : 'N/A';
 
-                // ==========================================================
-                // ★ 建立一鍵複製的 TSV (這部分維持純文字，不加比較記號)
-                // ==========================================================
+                const week52Low = Number(latest.week_52_low) || 0;
+                const currentPrice = Number(latest.current_price) || 0;
+                let dist52WLowText = 'N/A';
+                if (week52Low > 0) {
+                    const distPct = ((currentPrice - week52Low) / week52Low) * 100;
+                    dist52WLowText = `+${distPct.toFixed(1)}%`;
+                }
+
+                const smaTrend = sd.sma_trend || 'N/A';
+                const macdMom = sd.macd_momentum || 'N/A';
+                const pullbackSignal = sd.pullback_signal || 'N/A';
+                const volSqueeze = sd.vol_squeeze || 'Normal';
+
+                // ================== 建立 TSV ==================
                 let tsv = `=== TICKER: ${ticker} | ${latest.company_name || 'N/A'} ===\n`;
                 tsv += `Price:\t${formatNum(latest.current_price, 3)}\n`;
                 tsv += `Change:\t${changeSign}${formatNum(changePct, 2)}%\n`;
+                tsv += `Dist 52W Low:\t${dist52WLowText}\n`;
                 tsv += `Sector:\t${sector}\n`;
                 tsv += `Value Rating:\t${valRating}\n`;
-                tsv += `Tech Rating:\t${techRating}\n`;
+                tsv += `Hybrid Rating:\t${hybridRating}\n`;
+                tsv += `SMA Trend:\t${smaTrend}\n`;
+                tsv += `MACD Momentum:\t${macdMom}\n`;
+                tsv += `Pullback Signal:\t${pullbackSignal}\n`;
+                tsv += `Vol Squeeze:\t${volSqueeze}\n`;
                 tsv += `MFI:\t${mfiVal}\n`;
-                tsv += `Signal:\t${signalText}\n`;
                 tsv += `Date:\t${latest.trading_date} (${latest.market_status})\n\n`;
 
                 tsv += `--- SECTION 1: BASIC FUNDAMENTALS ---\n`;
@@ -284,7 +291,7 @@
                 tsv += `ROE\t${formatNum(latest.roe, 3)}\n`;
                 tsv += `Beta\t${formatNum(latest.beta, 3)}\n`;
                 tsv += `Debt/Equity (%)\t${formatNum(latest.debt_to_equity, 3)}\n`;
-                tsv += `52 Week High / Low\t${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}\n`;
+                tsv += `52W High / Low\t${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)} (距低位: ${dist52WLowText})\n`;
                 tsv += `Avg Vol 10D / 3M\t${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}\n`;
                 tsv += `Target Mean Price\t${formatNum(latest.target_mean_price, 2)}\n`;
                 tsv += `Free Cash Flow (M)\t${formatNum(latest.free_cash_flow_million, 2)}\n\n`;
@@ -301,39 +308,30 @@
 
                 tsv += `--- SECTION 4: MONEY FLOW ---\n`;
                 tsv += `Last 5 Days (Accum)\t${formatNum(latest.money_flow_5d_million, 2)}\n`;
-                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n`;
-                tsv += `Daily 1D Flow:\n`;
-                
-                // TSV 資金流只需跑 limitDays 次
-                const flowRecords = records.slice(0, limitDays);
-                flowRecords.forEach((row, i) => {
-                    tsv += `Day -${i} (${row.trading_date})\t${formatNum(row.money_flow_million, 2)}\n`;
-                });
-                tsv += `\n`;
+                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n\n`;
 
                 tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
                 tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
 
-                // ==========================================================
-                // HTML 畫面渲染
-                // ==========================================================
+                // ================== 表頭區 (恢復極簡無等寬字體) ==================
                 const headerHtml = `
-                    <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition" onclick="toggleAccordion('${ticker}')">
+                    <div class="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition border-b border-gray-200" onclick="toggleAccordion('${ticker}')">
                         <div class="flex-1">
                             <div class="flex items-center gap-6 mb-3">
-                                <span class="text-xl font-bold text-blue-800 w-24">${ticker}</span>
+                                <span class="text-xl font-bold text-blue-900 w-24">${ticker}</span>
                                 <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
-                                <span class="font-mono text-lg font-semibold">${formatNum(latest.current_price, 3)}</span>
-                                <span class="${changeColor} font-bold">
+                                <span class="text-lg font-bold text-gray-800">${formatNum(latest.current_price, 3)}</span>
+                                <span class="${changeColor} font-bold text-sm">
                                     ${changeSign}${formatNum(changePct, 2)}%
                                 </span>
                             </div>
                             <div class="flex items-center gap-3 text-sm font-medium">
                                 <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${sector}</span>
-                                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Value: ${valRating}</span>
-                                <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">Tech: ${techRating}</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded shadow-sm">距52W低: ${dist52WLowText}</span>
+                                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Val: ${valRating}</span>
+                                <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">評級: ${hybridRating}</span>
                                 <span class="px-3 py-1 bg-teal-100 text-teal-800 rounded shadow-sm">MFI: ${mfiVal}</span>
-                                <span class="px-3 py-1 rounded ${signalStyle} shadow-sm">Signal: ${signalText}</span>
+                                <span class="px-3 py-1 rounded shadow-sm ${signalStyle}">Signal: ${signalText}</span>
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-2 text-sm text-right">
@@ -346,12 +344,11 @@
                 let historyRows = "";
                 let moneyFlowDailyRows = "";
 
-                // 表格與資金流只顯示使用者設定的天數 (limitDays)
+                const flowRecords = records.slice(0, limitDays);
                 flowRecords.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
-                    const prevRow = records[i + 1] || {}; // 取前一天的紀錄做顏色比較
+                    const prevRow = records[i + 1] || {};
                     
-                    // 針對波動劇烈的技術指標套用「藍/橘色」
                     const clMacd = getCompareColorClass(row.macd, prevRow.macd);
                     const clRsi = getCompareColorClass(row.rsi, prevRow.rsi);
                     const clAdx = getCompareColorClass(row.adx, prevRow.adx);
@@ -405,13 +402,14 @@
                 const mf5Color = getFlowColor(latest.money_flow_5d_million);
                 const mf10Color = getFlowColor(latest.money_flow_10d_million);
 
+                // ================== 內容區 (恢復極簡無背景、還原行距) ==================
                 const bodyHtml = `
-                    <div id="content-${ticker}" class="accordion-content p-6 border-t">
-                        <div class="grid grid-cols-3 gap-8 mb-6">
+                    <div id="content-${ticker}" class="accordion-content p-6 border-t bg-white">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
                             
                             <!-- Section 1: Basic Fundamentals -->
                             <div>
-                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
                                     <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
                                     <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
@@ -423,7 +421,12 @@
                                     <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
                                     <span class="text-gray-600">Beta</span><span class="text-right font-medium">${formatNum(latest.beta, 3)}</span>
                                     <span class="text-gray-600">Debt/Equity (%)</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 3)}</span>
-                                    <span class="text-gray-600">52 Wk High / Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
+                                    
+                                    <span class="text-gray-600">52 Wk High / Low</span>
+                                    <span class="text-right font-medium">
+                                        ${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}
+                                    </span>
+                                    
                                     <span class="text-gray-600">Avg Vol 10D / 3M</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
                                     <span class="text-gray-600">Target Mean Px</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
                                 </div>
@@ -431,8 +434,14 @@
                             
                             <!-- Section 2: Smart Money -->
                             <div>
-                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 2: SMART MONEY ---</h3>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 2: SMART MONEY ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
+                                    <span class="text-gray-600">SMA Trend</span>
+                                    <span class="text-right font-bold ${smaTrend === 'Bullish' ? 'text-green-600' : (smaTrend === 'Bearish' ? 'text-red-600' : 'text-gray-700')}">${smaTrend}</span>
+                                    
+                                    <span class="text-gray-600">MACD Mom.</span>
+                                    <span class="text-right font-bold ${macdMom === 'Positive' ? 'text-green-600' : (macdMom === 'Negative' ? 'text-red-600' : 'text-gray-700')}">${macdMom}</span>
+
                                     <span class="text-gray-600">RS vs Market</span>
                                     ${getCompareHtml(latest.rs_vs_market, prevData.rs_vs_market, 2, 'abs')}
                                     
@@ -448,20 +457,20 @@
                                     <span class="text-gray-600 pt-2 border-t mt-1">Pre-Uptrend</span>
                                     ${getTextCompareHtml(latest.pre_uptrend_signal, prevData.pre_uptrend_signal, 'N/A', 'font-bold text-red-600', 'pt-2 border-t mt-1')}
                                     
+                                    <span class="text-gray-600">Vol Squeeze</span>
+                                    <span class="text-right font-bold ${volSqueeze === 'Squeeze (Ready)' ? 'text-amber-600' : 'text-gray-700'}">${volSqueeze}</span>
+
+                                    <span class="text-gray-600">Pullback Signal</span>
+                                    <span class="text-right font-bold ${pullbackSignal === 'BUY DIP' ? 'text-green-600' : 'text-gray-500'}">${pullbackSignal}</span>
+
                                     <span class="text-gray-600">Global Sector %</span>
                                     <span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
-                                    
-                                    <span class="text-gray-600">OBV Divergence</span>
-                                    ${getTextCompareHtml(latest.obv_divergence, prevData.obv_divergence, 'N/A')}
-                                    
-                                    <span class="text-gray-600">Vol Spark</span>
-                                    ${getTextCompareHtml(latest.vol_spark, prevData.vol_spark, 'N/A')}
                                 </div>
                             </div>
 
-                            <!-- Section 4: Money Flow Analysis -->
+                            <!-- Section 4: Money Flow Analysis (保持原本設計) -->
                             <div class="bg-gray-50 p-3 rounded border">
-                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2">--- SECTION 4: MONEY FLOW ---</h3>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 4: MONEY FLOW ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-1 mb-2">
                                     <span class="text-gray-800 font-bold">Last 5 Days (Accum)</span>
                                     <span class="text-right font-bold ${mf5Color}">${formatNum(latest.money_flow_5d_million, 2)}</span>
@@ -476,7 +485,7 @@
 
                         <!-- Section 3: Historical Technicals Table -->
                         <div class="mb-2 flex justify-between items-end">
-                            <h3 class="font-bold text-blue-900">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
+                            <h3 class="font-bold text-blue-900 text-sm">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
                             <div class="flex items-center gap-4">
                                 <span class="text-xs text-gray-500 font-medium">提示: 藍色代表比昨日高，橙色代表比昨日低</span>
                                 <button onclick="copyToClipboard('${ticker}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-2 px-4 rounded shadow border border-blue-300">
@@ -485,7 +494,7 @@
                             </div>
                         </div>
                         <div class="overflow-x-auto mb-6">
-                            <table id="table-${ticker}" class="w-full text-xs">
+                            <table id="table-${ticker}" class="w-full text-sm">
                                 <thead>
                                     <tr>
                                         <th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th><th>RVOL</th>
@@ -507,7 +516,7 @@
                 container.appendChild(card);
             }
         }
-
+        
         function toggleAccordion(ticker) {
             const content = document.getElementById(`content-${ticker}`);
             content.classList.toggle('open');
