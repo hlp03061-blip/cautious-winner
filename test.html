@@ -51,7 +51,7 @@
                     <h1 class="text-3xl font-bold text-blue-900">
                         🎣 雙引擎資金流選股策略 (Screener)
                     </h1>
-                    <!-- 四大策略切換按鈕 -->
+                    <!-- 策略切換按鈕 -->
                     <div class="flex flex-wrap gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 inline-flex shadow-inner">
                         <label class="cursor-pointer relative">
                             <input type="radio" name="strategy" value="short_term" checked onchange="switchStrategy('short_term')" class="peer sr-only">
@@ -72,9 +72,9 @@
                             </div>
                         </label>
                         <label class="cursor-pointer relative">
-                            <input type="radio" name="strategy" value="ultimate_resonance" onchange="switchStrategy('ultimate_resonance')" class="peer sr-only">
-                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-purple-700 peer-checked:shadow transition-all">
-                                👑 終極共振精選 (轉折起漲)
+                            <input type="radio" name="strategy" value="bazi_phase" onchange="switchStrategy('bazi_phase')" class="peer sr-only">
+                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-emerald-700 peer-checked:shadow transition-all">
+                                🔮 八字長生尋寶 (測試版)
                             </div>
                         </label>
                     </div>
@@ -144,10 +144,10 @@
                             <th class="py-4 px-5 leading-tight">板塊<br><span class="text-xs text-gray-500 font-normal">距 52W 低</span></th>
                             <th class="py-4 px-5 text-center leading-tight">基本面<br><span class="text-xs text-gray-500 font-normal">P/E & 息率</span></th>
                             <th class="py-4 px-5 text-center leading-tight">護城河<br><span class="text-xs text-gray-500 font-normal">Value & ROE</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">現價<br><span class="text-xs text-gray-500 font-normal">SMA200</span></th>
+                            <th class="py-4 px-5 text-center leading-tight">現價<br><span class="text-xs text-gray-500 font-normal">SMA20/200</span></th>
                             <th class="py-4 px-5 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-500 font-normal">MFI / RSI / KDJ</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金演進<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
-                            <th class="py-4 px-5 text-center">狀態標籤</th>
+                            <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
+                            <th class="py-4 px-5 text-center">狀態標籤 (動態計算)</th>
                             <th class="py-4 px-6 text-right font-bold text-blue-800 text-base" id="score-header">綜合分數</th>
                         </tr>
                     </thead>
@@ -174,7 +174,7 @@
 
         let latestMarketData = [];
         let filteredScreenerData = []; 
-        let userLists = {}; // 儲存持倉與監察狀態 { '0700.HK': 'holding', 'AAPL': 'watchlist' }
+        let userLists = {}; 
         
         let activeMarket = 'HK'; 
         let activeStrategy = 'short_term'; 
@@ -202,16 +202,52 @@
                 <li><strong class="text-blue-700">底部右側起漲：</strong>現價距離 52 周低位介於 <span class="font-bold text-blue-700">10% ~ 30%</span> 之間。</li>
                 <li><strong class="text-blue-700">流動性防護：</strong>10日均成交金額大於 <span class="font-bold text-blue-700">1000 萬港幣</span> (美股 150 萬美元)。</li>
                 <li><strong class="text-indigo-600">🎯 市場專屬條件：</strong>港股要求 <span class="font-bold text-indigo-600">股息率 >= 3%</span>；美股要求 <span class="font-bold text-indigo-600">近 5 日資金正流入</span>。</li>
-                <li><strong class="text-gray-500">排序權重：</strong>基本面優勢佔 30% + 資金流向優勢佔 40% + 起漲優勢佔 30% <span class="text-gray-500">(越接近 10% 分數越高，漲多則分數遞減)</span>。</li>
             `,
-            'ultimate_resonance': `
-                <li><strong class="text-purple-700">命格要硬：</strong>Value Rating <span class="font-bold text-purple-700">>= 3</span> + ROE <span class="font-bold text-purple-700">> 8%</span> + 有派息。</li>
-                <li><strong class="text-purple-700">剛走過絕地 (死/墓)：</strong>目前價格 <span class="font-bold text-red-600">低於</span> 年線 SMA200 (經歷過長期下跌洗盤)。</li>
-                <li><strong class="text-purple-700">處於胎養 (孕育)：</strong>近 10 日資金 <span class="font-bold text-green-600">正流入</span> + (MACD 為正 <span class="font-bold">或</span> 主力吸籌背離)。</li>
-                <li><strong class="text-purple-700">右側轉折起漲 (長生)：</strong>今日收盤價 <span class="font-bold text-green-600">剛好突破</span> 月線 SMA20。</li>
-                <li><strong class="text-gray-500">提示：</strong>這是最嚴格的共振條件，旨在尋找從「養」邁入「長生」爆發期的稀有潛力股！</li>
+            'bazi_phase': `
+                <li><strong class="text-emerald-700">即時推算：</strong>網頁前端即時計算每檔股票過去 5 日的資金連貫性與突破軌跡。</li>
+                <li><strong class="text-emerald-700">篩選目標：</strong>僅顯示目前處於 <span class="font-bold bg-green-100 text-green-800 px-1 rounded">🌱 胎/養 (底部孕育)</span> 或 <span class="font-bold bg-blue-100 text-blue-800 px-1 rounded">🚀 長生 (右側起漲)</span> 的股票。</li>
+                <li><strong class="text-emerald-700">過濾假長生：</strong>嚴格剔除近 5 日資金失血 (如9988) 或跌破短期均線的標的。</li>
+                <li><strong class="text-gray-500">提示：</strong>您可以透過這個清單，驗證我們討論的十二長生定義是否能精準抓出有生命力的轉折股。</li>
             `
         };
+
+        // ==========================================
+        // 前端動態計算：十二長生狀態 (5日演進邏輯)
+        // ==========================================
+        function calculateBaZiPhase(s) {
+            // 1. ⚡ 絕 (Exhaustion) - 恐慌拋售極值
+            if (s.price < s.sma200 && s.rsi < 35 && s.kdj_j < 20) {
+                return { label: '⚡ 絕 (極度超賣)', class: 'bg-purple-100 text-purple-800 border-purple-200' };
+            }
+            
+            // 2. 🍂 衰 / 病 (Decay) - 原本在高檔，但短線跌破且資金失血 (過濾假長生，如9988)
+            if (s.price < s.sma20 && s.flow_5d < 0 && s.price > s.sma200) {
+                return { label: '🍂 衰/病 (動能衰退)', class: 'bg-orange-100 text-orange-800 border-orange-200' };
+            }
+            
+            // 3. 🚀 長生 (Breakout) - 剛站上月線，資金流入，MACD為正
+            if (s.price > s.sma20 && s.flow_5d > 0 && s.macd > 0 && s.price < s.sma200 * 1.1) {
+                return { label: '🚀 長生 (右側起漲)', class: 'bg-blue-100 text-blue-800 border-blue-200' };
+            }
+            
+            // 4. 🌱 胎 / 養 (Nourishing) - 還在年線下，但資金已經連續正流入且有背離/動能
+            if (s.price < s.sma200 && s.flow_5d > 0 && (s.obvDiv || s.macd > -0.5)) {
+                return { label: '🌱 胎/養 (底部孕育)', class: 'bg-green-100 text-green-800 border-green-200' };
+            }
+            
+            // 5. 🔥 帝旺/臨官 (Uptrend) - 完美多頭排列
+            if (s.price > s.sma20 && s.price > s.sma50 && s.price > s.sma200 && s.macd > 0) {
+                 return { label: '🔥 帝旺/臨官 (強勢多頭)', class: 'bg-red-100 text-red-800 border-red-200' };
+            }
+            
+            // 6. 🪦 死 / 墓 (Dormant) - 均線之下且資金失血休眠
+            if (s.price < s.sma50 && s.price < s.sma200 && s.flow_5d <= 0) {
+                return { label: '🪦 死/墓 (空頭沉睡)', class: 'bg-gray-200 text-gray-700 border-gray-300' };
+            }
+            
+            // Default
+            return { label: '🔄 轉換/震盪期', class: 'bg-gray-50 text-gray-500 border-gray-200' };
+        }
 
         // ==========================================
         // 工具函數
@@ -241,7 +277,7 @@
         }
 
         // ==========================================
-        // UI 互動事件與資料庫寫入 (加入/刪除)
+        // UI 互動事件與資料庫寫入
         // ==========================================
         window.switchTab = function(market) {
             activeMarket = market;
@@ -267,31 +303,23 @@
             } else if (strategy === '52w_low') {
                 scoreHeader.textContent = '起漲追擊分';
                 scoreHeader.className = 'py-4 px-6 text-right font-bold text-blue-700 text-base';
-            } else if (strategy === 'ultimate_resonance') {
-                scoreHeader.textContent = '共振爆發力';
-                scoreHeader.className = 'py-4 px-6 text-right font-bold text-purple-700 text-base';
+            } else if (strategy === 'bazi_phase') {
+                scoreHeader.textContent = '資金吸籌力道';
+                scoreHeader.className = 'py-4 px-6 text-right font-bold text-emerald-700 text-base';
             }
             executeScreenerLogic();
         };
 
-        // 核心切換功能：點擊同一狀態即刪除，點擊不同狀態則更新
         window.toggleList = async function(ticker, targetCategory) {
             const currentCategory = userLists[ticker];
-            
             if (currentCategory === targetCategory) {
-                // 若已經是該狀態，再點一次代表「刪除」
                 delete userLists[ticker];
-                executeScreenerLogic(); // UI 樂觀更新
-                try {
-                    await supabaseClient.from('my_portfolio').delete().eq('ticker', ticker);
-                } catch (e) { console.error("刪除失敗", e); }
+                executeScreenerLogic(); 
+                try { await supabaseClient.from('my_portfolio').delete().eq('ticker', ticker); } catch (e) { console.error(e); }
             } else {
-                // 若是新的狀態或尚未加入，則「新增 / 更新」
                 userLists[ticker] = targetCategory;
-                executeScreenerLogic(); // UI 樂觀更新
-                try {
-                    await supabaseClient.from('my_portfolio').upsert({ ticker: ticker, category: targetCategory }, { onConflict: 'ticker' });
-                } catch (e) { console.error("更新失敗", e); }
+                executeScreenerLogic(); 
+                try { await supabaseClient.from('my_portfolio').upsert({ ticker: ticker, category: targetCategory }, { onConflict: 'ticker' }); } catch (e) { console.error(e); }
             }
         };
 
@@ -302,17 +330,13 @@
             const [{ data: hkDateData }, { data: usDateData }, { data: portfolioData }] = await Promise.all([
                 supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
                 supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                supabaseClient.from('my_portfolio').select('ticker, category') // 抓取完整使用者名單
+                supabaseClient.from('my_portfolio').select('ticker, category') 
             ]);
             if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
             if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
             
             userLists = {};
-            if (portfolioData) {
-                portfolioData.forEach(row => {
-                    userLists[row.ticker] = row.category || 'watchlist'; // 預設為監察
-                });
-            }
+            if (portfolioData) portfolioData.forEach(row => userLists[row.ticker] = row.category || 'watchlist');
         }
 
         async function fetchFlowDataByDate() {
@@ -343,7 +367,6 @@
             }
         }
 
-        // 資料預處理模組化 (用來計算所有需要的分數和變數)
         function processStockRecord(r) {
             const f5 = Number(r.multi.money_flow_5d_million) || 0;
             const f10 = Number(r.multi.money_flow_10d_million) || 0;
@@ -364,26 +387,25 @@
             const pe = Number(r.multi.pe_ratio) || 0;
             const roe = Number(r.multi.roe) || 0;
             const price = Number(r.multi.current_price) || Number(r.price) || 0;
-            
             const week52Low = Number(r.multi.week_52_low) || 0;
             const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : -1;
-            
             const avgVol10D = Number(r.multi.avg_vol_10d_million) || 0;
             const avgTurnover10D = price * avgVol10D; 
 
-            return {
+            let stockObj = {
                 raw: r,
                 ticker: String(r.ticker || r.Ticker || '').trim(),
-                market: r.market,
-                name: r.company_name || r.Company_Name || '未知',
-                sector: r.sector || r.Sector || '未分類',
+                market: r.market, name: r.company_name || r.Company_Name || '未知', sector: r.sector || r.Sector || '未分類',
                 price, sma20, sma50, sma200, macd, obvDiv,
                 week52Low, dist52WLow, avgTurnover10D,
-                mfi, rsi, kdj_j,
-                flow_1d: f1, flow_5d: f5, flow_10d: f10,
+                mfi, rsi, kdj_j, flow_1d: f1, flow_5d: f5, flow_10d: f10,
                 accel: String(r.accel || '').trim().toUpperCase(),
                 volSpike, pe, divYield, valRating, roe, score: 0
             };
+
+            // 運算十二長生標籤
+            stockObj.bazi = calculateBaZiPhase(stockObj);
+            return stockObj;
         }
 
         function executeScreenerLogic() {
@@ -391,13 +413,11 @@
             let allProcessed = latestMarketData.filter(r => r.market === activeMarket).map(processStockRecord);
             const minTurnover = activeMarket === 'HK' ? 10 : 1.5; 
 
-            // 1. 分離出「已持倉」與「監察」名單 (無視篩選條件)
             let holdingData = allProcessed.filter(s => userLists[s.ticker] === 'holding');
             let watchlistData = allProcessed.filter(s => userLists[s.ticker] === 'watchlist');
 
-            // 2. 對其餘尚未加入清單的股票執行「嚴格篩選」
             let rawFiltered = allProcessed.filter(s => {
-                if (userLists[s.ticker]) return false; // 已在名單內的不用重複出現在結果區
+                if (userLists[s.ticker]) return false;
 
                 if (activeStrategy === 'short_term') {
                     return s.flow_5d > 0 && s.flow_10d > 0 && s.mfi < 45 && s.valRating >= 3;
@@ -408,17 +428,14 @@
                     if (activeMarket === 'HK') return baseCondition && s.divYield >= 3;
                     if (activeMarket === 'US') return baseCondition && s.flow_5d > 0;
                     return false;
-                } else if (activeStrategy === 'ultimate_resonance') {
-                    // 👑 終極共振精選 (八字轉折：養 -> 長生)
-                    const isFundamentalSolid = s.valRating >= 3 && s.roe > 0.08 && s.divYield > 0;
-                    const isOversoldHistorically = s.sma200 > 0 && s.price < s.sma200; // 死/墓 (跌破年線)
-                    const isAccumulating = s.flow_10d > 0 && (s.obvDiv || s.macd > 0); // 胎/養 (資金進場 + 動能孕育)
-                    const isBreakingOut = s.sma20 > 0 && s.price > s.sma20; // 長生 (剛突破月線起漲)
-                    return isFundamentalSolid && isOversoldHistorically && isAccumulating && isBreakingOut;
+                } else if (activeStrategy === 'bazi_phase') {
+                    // 🔮 八字策略：只挑選「胎/養」與「長生」，且成交量不能是死水
+                    const isFetusOrBirth = s.bazi.label.includes('胎/養') || s.bazi.label.includes('長生');
+                    return isFetusOrBirth && s.avgTurnover10D > minTurnover;
                 }
             });
 
-            // 3. 分數計算
+            // 分數計算
             const maxF5 = Math.max(...allProcessed.map(s => s.flow_5d), 1); 
             const minF10 = Math.min(...allProcessed.map(s => s.flow_10d));
             const maxF10 = Math.max(...allProcessed.map(s => s.flow_10d));
@@ -427,33 +444,21 @@
             const calcScore = (s) => {
                 let finalScore = 0;
                 if (activeStrategy === 'short_term') {
-                    const mfiScore = ((45 - Math.max(s.mfi, 15)) / 30) * 40; 
-                    const flowScore = (s.flow_5d / maxF5) * 40;
-                    const volScore = Math.min(s.volSpike / 2.0, 1) * 20;
-                    finalScore = mfiScore + flowScore + volScore;
+                    finalScore = ((45 - Math.max(s.mfi, 15)) / 30) * 40 + (s.flow_5d / maxF5) * 40 + Math.min(s.volSpike / 2.0, 1) * 20;
                 } else if (activeStrategy === 'long_term') {
-                    const valScore = (s.valRating / 5) * 30 + Math.min(s.divYield / 5.0, 1) * 10;
-                    const flowScore = ((s.flow_10d - minF10) / rangeF10) * 30; 
-                    const oversoldScore = Math.max(0, ((100 - s.rsi) / 100) * 30); 
-                    finalScore = valScore + flowScore + oversoldScore;
+                    finalScore = (s.valRating / 5) * 30 + Math.min(s.divYield / 5.0, 1) * 10 + ((s.flow_10d - minF10) / rangeF10) * 30 + Math.max(0, ((100 - s.rsi) / 100) * 30);
                 } else if (activeStrategy === '52w_low') {
-                    const valScore = (s.valRating / 5) * 30; 
-                    const flowScore = ((s.flow_10d - minF10) / rangeF10) * 40; 
-                    const distScore = Math.max(0, ((30 - s.dist52WLow) / 20) * 30);
-                    finalScore = valScore + flowScore + distScore;
-                } else if (activeStrategy === 'ultimate_resonance') {
-                    const flowScore = ((s.flow_10d - minF10) / rangeF10) * 50; 
-                    const valScore = (s.valRating / 5) * 50;
-                    finalScore = flowScore + valScore;
+                    finalScore = (s.valRating / 5) * 30 + ((s.flow_10d - minF10) / rangeF10) * 40 + Math.max(0, ((30 - s.dist52WLow) / 20) * 30);
+                } else if (activeStrategy === 'bazi_phase') {
+                    finalScore = ((s.flow_10d - minF10) / rangeF10) * 50 + ((s.flow_5d - Math.min(...allProcessed.map(x=>x.flow_5d))) / (maxF5 - Math.min(...allProcessed.map(x=>x.flow_5d)))) * 50;
                 }
-                s.score = finalScore;
+                s.score = finalScore || 0;
             };
 
             holdingData.forEach(calcScore);
             watchlistData.forEach(calcScore);
             rawFiltered.forEach(calcScore);
 
-            // 4. 搜尋與排序
             if (searchTerm) {
                 holdingData = holdingData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
                 watchlistData = watchlistData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
@@ -478,11 +483,8 @@
         function renderTable(holdingData, watchlistData, screenedData) {
             const tbody = document.getElementById('stock-table-body');
             document.getElementById('match-count').textContent = `符合條件: ${screenedData.length} 隻`;
-            
             document.getElementById('selected-count').textContent = '0';
-            const checkAllEl = document.getElementById('check-all');
-            if(checkAllEl) checkAllEl.checked = false;
-            
+            if(document.getElementById('check-all')) document.getElementById('check-all').checked = false;
             tbody.innerHTML = '';
 
             if (holdingData.length === 0 && watchlistData.length === 0 && screenedData.length === 0) {
@@ -494,42 +496,32 @@
             if (activeStrategy === 'short_term') scoreColorClass = 'text-orange-600';
             if (activeStrategy === 'long_term') scoreColorClass = 'text-indigo-700';
             if (activeStrategy === '52w_low') scoreColorClass = 'text-blue-700';
-            if (activeStrategy === 'ultimate_resonance') scoreColorClass = 'text-purple-700';
+            if (activeStrategy === 'bazi_phase') scoreColorClass = 'text-emerald-700';
 
             const createRowHtml = (stock, category) => {
                 const tr = document.createElement('tr');
-                
-                // 動態判斷外觀與底色
                 const isHolding = category === 'holding';
                 const isWatchlist = category === 'watchlist';
                 
                 let rowBgClass = 'hover:bg-blue-50 border-b border-gray-100 transition-colors duration-150';
                 if (isHolding) rowBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/70 border-b border-yellow-200 transition-colors duration-150';
                 else if (isWatchlist) rowBgClass = 'bg-teal-50/40 hover:bg-teal-100/60 border-b border-teal-100 transition-colors duration-150';
-                
                 tr.className = rowBgClass;
 
-                // 獨立圖示按鈕邏輯
                 const holdingClass = isHolding ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchlistClass = isWatchlist ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
                 
-                let badgeHtml = '';
+                // 動態狀態標籤 + 爆量標籤
+                let badgeHtml = `<span class="border text-xs px-2.5 py-1 rounded-md font-bold mb-1.5 inline-block mr-1 shadow-sm ${stock.bazi.class}">${stock.bazi.label}</span><br>`;
+                
                 if (stock.volSpike >= 1.5) {
                     badgeHtml += `<span class="bg-amber-100 text-amber-800 border border-amber-200 text-xs px-2.5 py-1 rounded-md font-bold mb-1.5 inline-block mr-1 shadow-sm">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
-                }
-                if (stock.accel === 'THIN') {
-                    badgeHtml += `<span class="bg-gray-100 text-gray-600 border border-gray-300 text-xs px-2.5 py-1 rounded-md inline-block shadow-sm">靜悄悄 (Thin)</span>`;
-                } else {
-                    badgeHtml += `<span class="bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs px-2.5 py-1 rounded-md inline-block shadow-sm font-semibold">建倉中 (${stock.accel})</span>`;
                 }
 
                 const f10_5 = stock.flow_10d - stock.flow_5d;
                 const f5_1 = stock.flow_5d - stock.flow_1d;
                 const f1 = stock.flow_1d;
                 const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
-                const h1 = (f10_5 / maxAbs) * 12;
-                const h2 = (f5_1 / maxAbs) * 12;
-                const h3 = (f1 / maxAbs) * 12;
                 const drawBar = (h, x) => {
                     let y, barH, color;
                     if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
@@ -543,9 +535,9 @@
                         <span class="text-blue-800 font-mono font-bold w-16 text-right">${formatMoney(stock.flow_5d)}</span>
                         <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
                             <line x1="0" y1="15" x2="60" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
-                            ${drawBar(h1, 4)}   
-                            ${drawBar(h2, 24)}  
-                            ${drawBar(h3, 44)}  
+                            ${drawBar((f10_5/maxAbs)*12, 4)}   
+                            ${drawBar((f5_1/maxAbs)*12, 24)}  
+                            ${drawBar((f1/maxAbs)*12, 44)}  
                         </svg>
                     </div>
                 `;
@@ -555,15 +547,10 @@
                 const yieldText = stock.divYield > 0 ? stock.divYield.toFixed(2) + '%' : '<span class="text-gray-400">0.0%</span>';
                 const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
                 const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
-
-                let distText = '';
-                if (stock.week52Low > 0) {
-                    const distColor = (stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500';
-                    const sign = stock.dist52WLow > 0 ? '+' : '';
-                    distText = `<span class="text-xs ${distColor} mt-0.5 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${sign}${stock.dist52WLow.toFixed(1)}%</span>`;
-                } else {
-                    distText = `<span class="text-xs text-gray-400 mt-0.5 inline-block">N/A</span>`;
-                }
+                
+                let distText = stock.week52Low > 0 
+                    ? `<span class="text-xs ${(stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500'} mt-0.5 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${stock.dist52WLow > 0 ? '+' : ''}${stock.dist52WLow.toFixed(1)}%</span>`
+                    : `<span class="text-xs text-gray-400 mt-0.5 inline-block">N/A</span>`;
 
                 tr.innerHTML = `
                     <td class="py-4 px-2 text-center w-20 border-r border-gray-100">
@@ -572,17 +559,12 @@
                             <span class="action-btn ${watchlistClass}" title="加入監察" onclick="toggleList('${stock.ticker}', 'watchlist')">👀</span>
                         </div>
                     </td>
-                    <td class="py-4 px-3 text-center">
-                        <input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}">
-                    </td>
+                    <td class="py-4 px-3 text-center"><input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}"></td>
                     <td class="py-4 px-5">
                         <div class="text-lg font-bold ${isHolding ? 'text-yellow-800' : (isWatchlist ? 'text-teal-800' : 'text-blue-900')} font-mono tracking-tight">${stock.ticker}</div>
                         <div class="text-xs text-gray-500 font-sans mt-1 whitespace-normal break-words w-40 sm:w-48 leading-tight">${stock.name}</div>
                     </td>
-                    <td class="py-4 px-5">
-                        <span class="text-gray-500 text-xs block">${stock.sector}</span>
-                        ${distText}
-                    </td>
+                    <td class="py-4 px-5"><span class="text-gray-500 text-xs block">${stock.sector}</span>${distText}</td>
                     <td class="py-4 px-5 text-center font-mono text-gray-700 text-sm whitespace-nowrap">
                         <span class="text-gray-500 text-xs mr-1">P/E:</span> <span class="font-semibold">${peText}</span><br>
                         <span class="text-gray-500 text-xs mr-1">Div:</span> <span class="text-purple-700 font-semibold">${yieldText}</span>
@@ -593,7 +575,7 @@
                     </td>
                     <td class="py-4 px-5 text-center font-mono font-bold text-gray-800 text-base leading-tight">
                         ${stock.price.toFixed(2)}<br>
-                        <span class="text-sm ${stock.price < stock.sma200 ? 'text-red-500' : 'text-gray-400'} font-normal">${stock.sma200.toFixed(2)}</span>
+                        <span class="text-sm ${stock.price < stock.sma20 ? 'text-red-500 font-bold' : 'text-gray-400'} font-normal">M: ${stock.sma20.toFixed(2)}</span>
                     </td>
                     <td class="py-4 px-5 text-center font-mono text-gray-700 text-xs whitespace-nowrap leading-relaxed border-x border-gray-100 ${isHolding ? 'bg-yellow-100/40' : (isWatchlist ? 'bg-teal-50/60' : 'bg-gray-50/50')}">
                         <span class="text-gray-500 mr-1">MFI:</span> <span class="font-bold text-sm ${stock.mfi < 45 ? 'text-teal-600' : 'text-gray-700'}">${stock.mfi.toFixed(1)}</span><br>
@@ -601,30 +583,25 @@
                         <span class="text-gray-500 mr-1">KDJ:</span> <span class="font-bold text-sm ${stock.kdj_j < 20 ? 'text-teal-600' : 'text-gray-700'}">${stock.kdj_j.toFixed(1)}</span>
                     </td>
                     <td class="py-4 px-5 text-center">${sparklineSvg}</td>
-                    <td class="py-4 px-5 text-center">${badgeHtml}</td>
+                    <td class="py-4 px-5 text-center leading-relaxed">${badgeHtml}</td>
                     <td class="py-4 px-6 text-right font-mono ${scoreColorClass} font-black text-2xl pr-6">${stock.score.toFixed(1)}</td>
                 `;
                 return tr;
             };
 
-            // 1. 印出持倉區 (層級 1)
-            if (holdingData.length > 0) {
-                holdingData.forEach(stock => tbody.appendChild(createRowHtml(stock, 'holding')));
-            }
-
-            // 2. 印出監察區 (層級 2)
+            if (holdingData.length > 0) holdingData.forEach(stock => tbody.appendChild(createRowHtml(stock, 'holding')));
+            
             if (watchlistData.length > 0) {
-                const sepRow1 = document.createElement('tr');
-                sepRow1.innerHTML = `<td colspan="11" class="text-center font-bold bg-teal-100/60 py-2 text-teal-800 text-sm tracking-widest shadow-inner border-y border-teal-200">👀 您的監察名單 👀</td>`;
-                tbody.appendChild(sepRow1);
+                const sep1 = document.createElement('tr');
+                sep1.innerHTML = `<td colspan="11" class="text-center font-bold bg-teal-100/60 py-2 text-teal-800 text-sm tracking-widest shadow-inner border-y border-teal-200">👀 您的監察名單 👀</td>`;
+                tbody.appendChild(sep1);
                 watchlistData.forEach(stock => tbody.appendChild(createRowHtml(stock, 'watchlist')));
             }
 
-            // 3. 印出最新篩選結果 (層級 3)
             if (screenedData.length > 0) {
-                const sepRow2 = document.createElement('tr');
-                sepRow2.innerHTML = `<td colspan="11" class="text-center font-bold bg-gray-200/80 py-2.5 text-gray-600 text-sm tracking-widest shadow-inner border-y border-gray-300">👇 最新策略篩選結果 👇</td>`;
-                tbody.appendChild(sepRow2);
+                const sep2 = document.createElement('tr');
+                sep2.innerHTML = `<td colspan="11" class="text-center font-bold bg-gray-200/80 py-2.5 text-gray-600 text-sm tracking-widest shadow-inner border-y border-gray-300">👇 最新策略篩選結果 👇</td>`;
+                tbody.appendChild(sep2);
                 screenedData.forEach(stock => tbody.appendChild(createRowHtml(stock, 'screened')));
             }
         }
@@ -649,10 +626,7 @@
 
         document.getElementById('btn-copy-selected').addEventListener('click', () => {
             const checkedBoxes = document.querySelectorAll('.row-check:checked');
-            if (checkedBoxes.length === 0) {
-                alert("請先勾選要複製的股票！");
-                return;
-            }
+            if (checkedBoxes.length === 0) { alert("請先勾選要複製的股票！"); return; }
             const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
             navigator.clipboard.writeText(tickers).then(() => {
                 const btn = document.getElementById('btn-copy-selected');
