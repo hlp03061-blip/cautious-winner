@@ -3,19 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>策略選股清單 - 雙引擎資金流 (Screener)</title>
+    <title>策略選股與深度分析 - 雙引擎資金流</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎣</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👑</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        .stock-checkbox {
-            appearance: none; background-color: #fff; margin: 0; font: inherit; color: currentColor;
-            width: 1.25em; height: 1.25em; border: 1px solid #d1d5db; border-radius: 0.25em; display: grid; place-content: center; cursor: pointer; transition: all 0.2s;
-        }
-        .stock-checkbox::before {
-            content: ""; width: 0.7em; height: 0.7em; transform: scale(0); transition: 120ms transform ease-in-out;
-            box-shadow: inset 1em 1em #fff; transform-origin: center; clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-        }
+        .stock-checkbox { appearance: none; background-color: #fff; margin: 0; font: inherit; color: currentColor; width: 1.25em; height: 1.25em; border: 1px solid #d1d5db; border-radius: 0.25em; display: grid; place-content: center; cursor: pointer; transition: all 0.2s; }
+        .stock-checkbox::before { content: ""; width: 0.7em; height: 0.7em; transform: scale(0); transition: 120ms transform ease-in-out; box-shadow: inset 1em 1em #fff; transform-origin: center; clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%); }
         .stock-checkbox:checked { border-color: #2563eb; background-color: #2563eb; }
         .stock-checkbox:checked::before { transform: scale(1); }
         .action-btn { cursor: pointer; user-select: none; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -23,136 +17,111 @@
         .btn-inactive { opacity: 0.25; filter: grayscale(100%); }
         .btn-inactive:hover { opacity: 0.7; filter: grayscale(0%); transform: scale(1.1); }
         .btn-active { opacity: 1; filter: grayscale(0%); transform: scale(1.15); drop-shadow: 0 4px 3px rgb(0 0 0 / 0.07); }
+        
+        /* 手風琴展開動畫 */
+        .expansion-row { display: none; background-color: #fafafa; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.03); }
+        .expansion-row.open { display: table-row; }
+        .history-table th, .history-table td { border: 1px solid #e5e7eb; padding: 0.4rem; text-align: right; white-space: nowrap; font-size: 0.8rem;}
+        .history-table th { background-color: #f3f4f6; text-align: center; font-weight: 600;}
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-6">
-    <div class="max-w-7xl mx-auto space-y-6">
+    <script>
+        // ==========================================
+        // 1. SUPABASE 設定 (請填入 KEY)
+        // ==========================================
+        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </script>
+
+    <div class="max-w-[1400px] mx-auto space-y-6">
         
         <!-- 頂部導覽列 -->
         <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
             <div class="flex flex-wrap gap-3">
-                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">📊 綜合決策儀表板</a>
-                <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-200 transition-colors shadow-sm cursor-default">🎣 策略選股清單</a>
-                <a href="stockanalysis.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 transition-colors shadow-sm">數據分析</a>
+                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 shadow-sm">📊 綜合決策儀表板</a>
+                <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-200 shadow-sm cursor-default">👑 選股與深度分析</a>
             </div>
-            
             <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <div class="relative w-full sm:w-64">
-                    <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" 
-                           class="w-full bg-white border border-gray-300 rounded-lg text-sm px-4 py-2 text-gray-800 placeholder-gray-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-sm">
-                </div>
+                <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" class="w-full sm:w-64 bg-white border border-gray-300 rounded-lg text-sm px-4 py-2 outline-none focus:border-blue-500 shadow-sm">
             </div>
         </nav>
 
         <!-- 儀表板控制區 -->
         <header class="bg-white border border-gray-200 p-6 rounded-xl shadow-md space-y-4">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
+            <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-gray-100 pb-4">
                 <div class="space-y-3">
-                    <h1 class="text-3xl font-bold text-blue-900">
-                        🎣 雙引擎資金流選股策略 (Screener)
-                    </h1>
+                    <h1 class="text-3xl font-bold text-blue-900">🎣 智能選股與十二長生儀表板</h1>
                     <!-- 策略切換按鈕 -->
                     <div class="flex flex-wrap gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 inline-flex shadow-inner">
                         <label class="cursor-pointer relative">
-                            <input type="radio" name="strategy" value="short_term" checked onchange="switchStrategy('short_term')" class="peer sr-only">
-                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-orange-600 peer-checked:shadow transition-all">
-                                🔥 短線動能抄底
-                            </div>
+                            <input type="radio" name="strategy" value="short_term" onchange="switchStrategy('short_term')" class="peer sr-only">
+                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-orange-600 peer-checked:shadow transition-all">🔥 短線動能抄底</div>
                         </label>
                         <label class="cursor-pointer relative">
                             <input type="radio" name="strategy" value="long_term" onchange="switchStrategy('long_term')" class="peer sr-only">
-                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-indigo-700 peer-checked:shadow transition-all">
-                                🛡️ 長線極端超賣
-                            </div>
+                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-indigo-700 peer-checked:shadow transition-all">🛡️ 長線極端超賣</div>
                         </label>
                         <label class="cursor-pointer relative">
-                            <input type="radio" name="strategy" value="52w_low" onchange="switchStrategy('52w_low')" class="peer sr-only">
-                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-blue-700 peer-checked:shadow transition-all">
-                                📈 追擊 52W 低位
-                            </div>
-                        </label>
-                        <label class="cursor-pointer relative">
-                            <input type="radio" name="strategy" value="bazi_phase" onchange="switchStrategy('bazi_phase')" class="peer sr-only">
-                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-emerald-700 peer-checked:shadow transition-all">
-                                🔮 八字長生尋寶 (測試版)
-                            </div>
+                            <input type="radio" name="strategy" value="ultimate_resonance" checked onchange="switchStrategy('ultimate_resonance')" class="peer sr-only">
+                            <div class="px-4 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 peer-checked:bg-white peer-checked:text-purple-700 peer-checked:shadow transition-all">🔮 八字長生尋寶 (胎/養/長生)</div>
                         </label>
                     </div>
                 </div>
                 
                 <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-wrap items-end gap-4 shadow-sm">
                     <div>
-                        <label class="text-xs text-gray-600 font-bold block mb-1">🇭🇰 港股數據日</label>
-                        <input type="date" id="hk-date" class="bg-white border border-gray-300 rounded text-sm px-3 py-2 text-gray-700 font-mono outline-none focus:border-blue-500 shadow-sm">
+                        <label class="text-xs text-gray-600 font-bold block mb-1">🇭🇰 港股</label>
+                        <input type="date" id="hk-date" class="bg-white border border-gray-300 rounded text-sm px-3 py-2 outline-none">
                     </div>
                     <div>
-                        <label class="text-xs text-gray-600 font-bold block mb-1">🇺🇸 美股數據日</label>
-                        <input type="date" id="us-date" class="bg-white border border-gray-300 rounded text-sm px-3 py-2 text-gray-700 font-mono outline-none focus:border-blue-500 shadow-sm">
+                        <label class="text-xs text-gray-600 font-bold block mb-1">🇺🇸 美股</label>
+                        <input type="date" id="us-date" class="bg-white border border-gray-300 rounded text-sm px-3 py-2 outline-none">
                     </div>
-                    <button id="btn-load-date" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2.5 rounded-lg transition shadow-md flex items-center gap-2">
-                        🔄 載入數據
-                    </button>
+                    <button id="btn-load-date" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-md">🔄 載入數據</button>
                 </div>
-            </div>
-
-            <!-- 動態策略說明區 -->
-            <div class="bg-blue-50/50 p-5 rounded-lg border border-blue-100 text-sm text-gray-700">
-                <p class="font-bold text-blue-900 mb-2 text-base">📌 當前篩選邏輯與參數：</p>
-                <ul id="strategy-desc" class="list-disc list-inside space-y-1.5 text-sm text-gray-600">
-                    <!-- Javascript 動態注入 -->
-                </ul>
             </div>
         </header>
 
         <!-- 數據表格區 -->
         <section class="bg-white border border-gray-200 rounded-xl shadow-md overflow-hidden">
-            <!-- 頁籤區 -->
             <div class="flex border-b border-gray-200 bg-gray-50 pt-2 px-2 gap-1">
-                <button id="tab-hk" class="market-tab px-6 py-3 text-sm font-bold transition-all bg-white text-blue-700 border-t-2 border-blue-600 border-x border-gray-200 rounded-t-lg z-10 -mb-px" onclick="switchTab('HK')">
-                    🇭🇰 港股市場 (HKEX)
-                </button>
-                <button id="tab-us" class="market-tab px-6 py-3 text-sm font-bold transition-all bg-gray-100 text-gray-500 hover:bg-gray-50 hover:text-gray-700 border-b border-gray-200 rounded-t-lg" onclick="switchTab('US')">
-                    🇺🇸 美股市場 (S&P 500)
-                </button>
+                <button id="tab-hk" class="market-tab px-6 py-3 text-sm font-bold transition-all bg-white text-blue-700 border-t-2 border-blue-600 border-x border-gray-200 rounded-t-lg z-10 -mb-px" onclick="switchTab('HK')">🇭🇰 港股市場 (HKEX)</button>
+                <button id="tab-us" class="market-tab px-6 py-3 text-sm font-bold transition-all bg-gray-100 text-gray-500 hover:bg-gray-50 border-b border-gray-200 rounded-t-lg" onclick="switchTab('US')">🇺🇸 美股市場 (S&P 500)</button>
             </div>
 
-            <!-- 工具列 -->
             <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
                 <div class="flex items-center gap-4">
-                    <label class="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-100 transition">
+                    <label class="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded border border-gray-200">
                         <input type="checkbox" id="check-all" class="stock-checkbox">
                         <span class="text-sm text-gray-700 font-bold">全選篩選結果</span>
                     </label>
                     <span id="match-count" class="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-1 rounded-full border border-blue-200">載入中...</span>
                 </div>
-                
-                <div class="flex gap-2">
-                    <button id="btn-copy-selected" class="bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
-                        📋 複製已勾選代號 (<span id="selected-count">0</span>)
-                    </button>
-                </div>
+                <button id="btn-copy-selected" class="bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold px-5 py-2 rounded-lg flex gap-2">
+                    📋 複製選取代號 (<span id="selected-count">0</span>)
+                </button>
             </div>
             
-            <!-- 表格本體 -->
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm text-gray-700 border-collapse">
                     <thead>
                         <tr class="border-b border-gray-200 text-gray-600 font-semibold bg-gray-50">
                             <th class="py-4 px-2 w-20 text-center text-xs tracking-tighter">持倉/監察</th>
-                            <th class="py-4 px-3 w-10 text-center text-xs">選取</th>
-                            <th class="py-4 px-5">市場/代號</th>
-                            <th class="py-4 px-5 leading-tight">板塊<br><span class="text-xs text-gray-500 font-normal">距 52W 低</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">基本面<br><span class="text-xs text-gray-500 font-normal">P/E & 息率</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">護城河<br><span class="text-xs text-gray-500 font-normal">Value & ROE</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">現價<br><span class="text-xs text-gray-500 font-normal">SMA20/200</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-500 font-normal">MFI / RSI / KDJ</span></th>
-                            <th class="py-4 px-5 text-center leading-tight">歷史 3 段資金<br><span class="text-xs text-gray-500 font-normal">10D ➔ 5D ➔ 1D</span></th>
-                            <th class="py-4 px-5 text-center">狀態標籤 (動態計算)</th>
-                            <th class="py-4 px-6 text-right font-bold text-blue-800 text-base" id="score-header">綜合分數</th>
+                            <th class="py-4 px-2 text-center text-xs">選取</th>
+                            <th class="py-4 px-4">市場/代號</th>
+                            <th class="py-4 px-4 text-center">十二長生狀態</th>
+                            <th class="py-4 px-4 text-center">歷史資金 (10➔5➔1)</th>
+                            <th class="py-4 px-4 text-center leading-tight">超賣指標<br><span class="text-xs text-gray-400 font-normal">MFI/RSI/KDJ</span></th>
+                            <th class="py-4 px-4 text-center leading-tight">基本面<br><span class="text-xs text-gray-400 font-normal">P/E & 息率</span></th>
+                            <th class="py-4 px-4 text-center leading-tight">護城河<br><span class="text-xs text-gray-400 font-normal">Val & ROE</span></th>
+                            <th class="py-4 px-4 text-right" id="score-header">綜合分數</th>
+                            <th class="py-4 px-4 text-center">動作</th>
                         </tr>
                     </thead>
                     <tbody id="stock-table-body" class="divide-y divide-gray-100">
-                        <tr><td colspan="11" class="p-8 text-center text-gray-500 text-base">正在下載最新雲端數據...</td></tr>
+                        <tr><td colspan="10" class="p-8 text-center text-gray-500">正在下載最新雲端數據...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -161,493 +130,298 @@
 
     <script>
         // ==========================================
-        // 初始化設置
+        // 2. 狀態與輔助函數
         // ==========================================
-        const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        const TABLE_FLOW_HK = 'money_flow_hk';          
-        const TABLE_FLOW_US = 'money_flow_sp500';       
-        const TABLE_MULTI_HK = 'multi_stock_analysis_hk';
-        const TABLE_MULTI_US = 'multi_stock_analysis_sp500';
-
-        let latestMarketData = [];
-        let filteredScreenerData = []; 
-        let userLists = {}; 
+        let latestMarketData = [], userLists = {}, windowCache = {}; // windowCache 用於存放延遲載入的歷史數據
+        let activeMarket = 'HK', activeStrategy = 'ultimate_resonance'; 
         
-        let activeMarket = 'HK'; 
-        let activeStrategy = 'short_term'; 
+        const formatMoney = (v) => v ? (Math.abs(v) >= 1000000 ? (v/1000000).toFixed(1)+'M' : v.toFixed(1)) : '-';
+        const formatPct = (v) => v ? (v*100).toFixed(1)+'%' : '-';
+        const formatNum = (v, d=2) => v ? Number(v).toFixed(d) : 'N/A';
 
-        const hkDatePicker = document.getElementById('hk-date');
-        const usDatePicker = document.getElementById('us-date');
-        const searchInput = document.getElementById('search-ticker'); 
+        // 十二長生動態演算 (基於第一性原理)
+        function getBaZiState(s) {
+            const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
+            const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
+            const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd, macdMom = s.macdMom;
+            const obvDiv = s.obvDiv, squeeze = s.volSqueeze;
 
-        // 策略說明文字庫
-        const strategyTexts = {
-            'short_term': `
-                <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
-                <li><strong class="text-orange-600">跌深反彈：</strong>資金流量指標 (MFI) 必須小於 <span class="font-bold text-red-600">45</span>。</li>
-                <li><strong class="text-orange-600">安全防護：</strong>價值評分 Value Rating <span class="font-bold text-orange-600">>= 3</span> <span class="text-gray-500">(確保公司有底子)</span>。</li>
-                <li><strong class="text-gray-500">排序權重：</strong>極度冷門 (MFI越低 40%) + 吸籌力道 (5D資金 40%) + 點火跡象 (爆量 20%)。</li>
-            `,
-            'long_term': `
-                <li><strong class="text-indigo-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-indigo-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-indigo-700">> 8%</span>。</li>
-                <li><strong class="text-indigo-700">技術面極限接刀：</strong>RSI <span class="font-bold text-red-600">< 40</span> 且 KDJ_J <span class="font-bold text-red-600">< 20</span>。</li>
-                <li><strong class="text-indigo-700">跌破年線打折區：</strong>現價 <span class="font-bold text-red-600">低於</span> 200日均線 (SMA200)。</li>
-                <li><strong class="text-gray-500">排序權重：</strong>資金不限正流入，靠綜合分數找出<span class="font-bold text-indigo-700">資金流出縮減</span>的最深恐慌底點。</li>
-            `,
-            '52w_low': `
-                <li><strong class="text-blue-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-blue-700">>= 3</span>，且 賺錢效率 ROE <span class="font-bold text-blue-700">> 8%</span>。</li>
-                <li><strong class="text-blue-700">底部右側起漲：</strong>現價距離 52 周低位介於 <span class="font-bold text-blue-700">10% ~ 30%</span> 之間。</li>
-                <li><strong class="text-blue-700">流動性防護：</strong>10日均成交金額大於 <span class="font-bold text-blue-700">1000 萬港幣</span> (美股 150 萬美元)。</li>
-                <li><strong class="text-indigo-600">🎯 市場專屬條件：</strong>港股要求 <span class="font-bold text-indigo-600">股息率 >= 3%</span>；美股要求 <span class="font-bold text-indigo-600">近 5 日資金正流入</span>。</li>
-            `,
-            'bazi_phase': `
-                <li><strong class="text-emerald-700">即時推算：</strong>網頁前端即時計算每檔股票過去 5 日的資金連貫性與突破軌跡。</li>
-                <li><strong class="text-emerald-700">篩選目標：</strong>僅顯示目前處於 <span class="font-bold bg-green-100 text-green-800 px-1 rounded">🌱 胎/養 (底部孕育)</span> 或 <span class="font-bold bg-blue-100 text-blue-800 px-1 rounded">🚀 長生 (右側起漲)</span> 的股票。</li>
-                <li><strong class="text-emerald-700">過濾假長生：</strong>嚴格剔除近 5 日資金失血 (如9988) 或跌破短期均線的標的。</li>
-                <li><strong class="text-gray-500">提示：</strong>您可以透過這個清單，驗證我們討論的十二長生定義是否能精準抓出有生命力的轉折股。</li>
-            `
-        };
-
-        // ==========================================
-        // 前端動態計算：十二長生狀態 (5日演進邏輯)
-        // ==========================================
-        function calculateBaZiPhase(s) {
-            // 1. ⚡ 絕 (Exhaustion) - 恐慌拋售極值
-            if (s.price < s.sma200 && s.rsi < 35 && s.kdj_j < 20) {
-                return { label: '⚡ 絕 (極度超賣)', class: 'bg-purple-100 text-purple-800 border-purple-200' };
-            }
+            if (rsi > 75 && kdj_j > 100) return { label: '🔥 帝旺', c: 'bg-orange-100 text-orange-800 border-orange-300 font-bold' };
+            // 長生: 突破 SMA20 且 RVOL 爆量 且 MACD為正 (嚴格防守假突破)
+            if (p > sma20 && rvol >= 1.5 && macd > 0) return { label: '🚀 長生 (爆量)', c: 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm' };
+            if (p > sma20 && s.smaTrend === 'Bullish') return { label: '🌳 生長', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
+            if (p < sma200 && rsi < 30 && kdj_j < 0) return { label: '⚡ 絕', c: 'bg-slate-800 text-white border-slate-900 font-bold' };
+            // 養: 資金連續流入, 動能轉正
+            if (p <= sma20 && f5 > 0 && f10 > 0 && macdMom === 'Positive') return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
+            // 胎: 有背離或收斂，資金開始微流入
+            if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || squeeze === 'Squeeze (Ready)')) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
             
-            // 2. 🍂 衰 / 病 (Decay) - 原本在高檔，但短線跌破且資金失血 (過濾假長生，如9988)
-            if (s.price < s.sma20 && s.flow_5d < 0 && s.price > s.sma200) {
-                return { label: '🍂 衰/病 (動能衰退)', class: 'bg-orange-100 text-orange-800 border-orange-200' };
-            }
-            
-            // 3. 🚀 長生 (Breakout) - 剛站上月線，資金流入，MACD為正
-            if (s.price > s.sma20 && s.flow_5d > 0 && s.macd > 0 && s.price < s.sma200 * 1.1) {
-                return { label: '🚀 長生 (右側起漲)', class: 'bg-blue-100 text-blue-800 border-blue-200' };
-            }
-            
-            // 4. 🌱 胎 / 養 (Nourishing) - 還在年線下，但資金已經連續正流入且有背離/動能
-            if (s.price < s.sma200 && s.flow_5d > 0 && (s.obvDiv || s.macd > -0.5)) {
-                return { label: '🌱 胎/養 (底部孕育)', class: 'bg-green-100 text-green-800 border-green-200' };
-            }
-            
-            // 5. 🔥 帝旺/臨官 (Uptrend) - 完美多頭排列
-            if (s.price > s.sma20 && s.price > s.sma50 && s.price > s.sma200 && s.macd > 0) {
-                 return { label: '🔥 帝旺/臨官 (強勢多頭)', class: 'bg-red-100 text-red-800 border-red-200' };
-            }
-            
-            // 6. 🪦 死 / 墓 (Dormant) - 均線之下且資金失血休眠
-            if (s.price < s.sma50 && s.price < s.sma200 && s.flow_5d <= 0) {
-                return { label: '🪦 死/墓 (空頭沉睡)', class: 'bg-gray-200 text-gray-700 border-gray-300' };
-            }
-            
-            // Default
-            return { label: '🔄 轉換/震盪期', class: 'bg-gray-50 text-gray-500 border-gray-200' };
+            return { label: '🍂 衰/死', c: 'bg-gray-100 text-gray-500 border-gray-200' };
         }
 
         // ==========================================
-        // 工具函數
+        // 3. UI 互動與主資料抓取
         // ==========================================
-        function formatCopyTicker(ticker, market) {
-            let t = String(ticker).trim();
-            if (market === 'HK') {
-                t = t.replace(/\.HK$/i, ''); 
-                if (/^\d+$/.test(t)) t = t.padStart(4, '0'); 
-                return t + '.HK';
-            }
-            return t; 
-        }
-
-        function formatMoney(value) {
-            if (value == null || value === 0) return '-';
-            const num = Number(value);
-            const absNum = Math.abs(num);
-            if (absNum >= 1000000) return (num / 1000000).toFixed(1) + ' M';
-            if (absNum >= 10000) return (num / 10000).toFixed(1) + ' 萬';
-            return num.toFixed(1);
-        }
-
-        function formatPct(value) {
-            if (value == null || isNaN(value)) return '-';
-            return (Number(value) * 100).toFixed(1) + '%';
-        }
-
-        // ==========================================
-        // UI 互動事件與資料庫寫入
-        // ==========================================
-        window.switchTab = function(market) {
-            activeMarket = market;
-            document.querySelectorAll('.market-tab').forEach(tab => {
-                tab.className = 'market-tab px-6 py-3 text-sm font-bold transition-all bg-gray-100 text-gray-500 hover:bg-gray-50 hover:text-gray-700 border-b border-gray-200 rounded-t-lg';
-            });
-            const activeTab = document.getElementById(`tab-${market.toLowerCase()}`);
-            activeTab.className = 'market-tab px-6 py-3 text-sm font-bold transition-all bg-white text-blue-700 border-t-2 border-blue-600 border-x border-gray-200 rounded-t-lg z-10 -mb-px';
-            executeScreenerLogic();
-        };
-
-        window.switchStrategy = function(strategy) {
-            activeStrategy = strategy;
-            document.getElementById('strategy-desc').innerHTML = strategyTexts[strategy];
-            const scoreHeader = document.getElementById('score-header');
-            
-            if (strategy === 'short_term') {
-                scoreHeader.textContent = '短線動能分';
-                scoreHeader.className = 'py-4 px-6 text-right font-bold text-orange-600 text-base';
-            } else if (strategy === 'long_term') {
-                scoreHeader.textContent = '長線價值分';
-                scoreHeader.className = 'py-4 px-6 text-right font-bold text-indigo-700 text-base';
-            } else if (strategy === '52w_low') {
-                scoreHeader.textContent = '起漲追擊分';
-                scoreHeader.className = 'py-4 px-6 text-right font-bold text-blue-700 text-base';
-            } else if (strategy === 'bazi_phase') {
-                scoreHeader.textContent = '資金吸籌力道';
-                scoreHeader.className = 'py-4 px-6 text-right font-bold text-emerald-700 text-base';
-            }
-            executeScreenerLogic();
-        };
-
-        window.toggleList = async function(ticker, targetCategory) {
-            const currentCategory = userLists[ticker];
-            if (currentCategory === targetCategory) {
+        window.switchTab = (m) => { activeMarket = m; executeScreenerLogic(); };
+        window.switchStrategy = (s) => { activeStrategy = s; executeScreenerLogic(); };
+        
+        window.toggleList = async (ticker, category) => {
+            const current = userLists[ticker];
+            if (current === category) {
                 delete userLists[ticker];
-                executeScreenerLogic(); 
-                try { await supabaseClient.from('my_portfolio').delete().eq('ticker', ticker); } catch (e) { console.error(e); }
+                executeScreenerLogic();
+                await supabaseClient.from('my_portfolio').delete().eq('ticker', ticker);
             } else {
-                userLists[ticker] = targetCategory;
-                executeScreenerLogic(); 
-                try { await supabaseClient.from('my_portfolio').upsert({ ticker: ticker, category: targetCategory }, { onConflict: 'ticker' }); } catch (e) { console.error(e); }
+                userLists[ticker] = category;
+                executeScreenerLogic();
+                await supabaseClient.from('my_portfolio').upsert({ ticker, category }, { onConflict: 'ticker' });
             }
         };
 
-        // ==========================================
-        // 資料庫抓取與核心邏輯
-        // ==========================================
-        async function fetchLatestDatesAndSetPickers() {
-            const [{ data: hkDateData }, { data: usDateData }, { data: portfolioData }] = await Promise.all([
-                supabaseClient.from(TABLE_FLOW_HK).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                supabaseClient.from(TABLE_FLOW_US).select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
-                supabaseClient.from('my_portfolio').select('ticker, category') 
+        async function fetchInitialData() {
+            const [{ data: hD }, { data: uD }, { data: pD }] = await Promise.all([
+                supabaseClient.from('money_flow_hk').select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                supabaseClient.from('money_flow_sp500').select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
+                supabaseClient.from('my_portfolio').select('ticker, category')
             ]);
-            if (hkDateData && hkDateData.length > 0) hkDatePicker.value = String(hkDateData[0].Record_Date).slice(0, 10);
-            if (usDateData && usDateData.length > 0) usDatePicker.value = String(usDateData[0].Record_Date).slice(0, 10);
-            
-            userLists = {};
-            if (portfolioData) portfolioData.forEach(row => userLists[row.ticker] = row.category || 'watchlist');
+            if(hD?.length) document.getElementById('hk-date').value = hD[0].Record_Date.slice(0,10);
+            if(uD?.length) document.getElementById('us-date').value = uD[0].Record_Date.slice(0,10);
+            userLists = {}; if(pD) pD.forEach(r => userLists[r.ticker] = r.category || 'watchlist');
         }
 
-        async function fetchFlowDataByDate() {
-            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="11" class="p-8 text-center text-blue-600 font-bold text-base animate-pulse">🔄 正在同時抓取資金流與基本面數據...</td></tr>`;
+        async function fetchMacroData() {
+            document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold animate-pulse">🔄 正在抓取全市場巨觀數據...</td></tr>`;
             try {
-                const multiColumns = 'ticker, pe_ratio, dividend_yield, value_rating, roe, current_price, sma20, sma50, sma200, rsi, kdj_j, macd, obv_divergence, money_flow_million, money_flow_5d_million, money_flow_10d_million, week_52_low, avg_vol_10d_million';
+                // 抓取所需的欄位以計算十二長生
+                const multiCols = 'ticker, company_name, sector, current_price, sma20, sma200, macd, macd_momentum, rsi, kdj_j, obv_divergence, vol_squeeze, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
                 
-                const [flowHkRes, flowUsRes, multiHkRes, multiUsRes] = await Promise.all([
-                    supabaseClient.from(TABLE_FLOW_HK).select('*').eq('Record_Date', hkDatePicker.value).limit(3000),
-                    supabaseClient.from(TABLE_FLOW_US).select('*').eq('Record_Date', usDatePicker.value).limit(3000),
-                    supabaseClient.from(TABLE_MULTI_HK).select(multiColumns).eq('trading_date', hkDatePicker.value).limit(3000),
-                    supabaseClient.from(TABLE_MULTI_US).select(multiColumns).eq('trading_date', usDatePicker.value).limit(3000)
+                const [mHK, mUS] = await Promise.all([
+                    supabaseClient.from('multi_stock_analysis_hk').select(multiCols).eq('trading_date', document.getElementById('hk-date').value).limit(3000),
+                    supabaseClient.from('multi_stock_analysis_sp500').select(multiCols).eq('trading_date', document.getElementById('us-date').value).limit(3000)
                 ]);
 
-                const multiHkMap = {};
-                (multiHkRes.data || []).forEach(r => multiHkMap[r.ticker] = r);
-                const multiUsMap = {};
-                (multiUsRes.data || []).forEach(r => multiUsMap[r.ticker] = r);
-
-                const hkData = (flowHkRes.data || []).map(r => ({ ...r, market: 'HK', multi: multiHkMap[r.ticker] || {} }));
-                const usData = (flowUsRes.data || []).map(r => ({ ...r, market: 'US', multi: multiUsMap[r.ticker] || {} }));
-                
-                latestMarketData = [...hkData, ...usData];
+                latestMarketData = [
+                    ...(mHK.data||[]).map(r => ({...r, market: 'HK'})), 
+                    ...(mUS.data||[]).map(r => ({...r, market: 'US'}))
+                ];
                 executeScreenerLogic();
-            } catch (err) {
-                console.error(err);
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="11" class="p-8 text-center text-red-500 font-bold">❌ 獲取數據失敗，請檢查網路或金鑰設定。</td></tr>`;
-            }
+            } catch (err) { console.error(err); }
         }
 
-        function processStockRecord(r) {
-            const f5 = Number(r.multi.money_flow_5d_million) || 0;
-            const f10 = Number(r.multi.money_flow_10d_million) || 0;
-            const f1 = Number(r.multi.money_flow_million) || 0; 
-            
-            const mfi = r.MFI != null ? Number(r.MFI) : 100;
-            const volSpike = Number(r.Volspike) || 0;
-            const rsi = Number(r.multi.rsi) || 100;
-            const kdj_j = Number(r.multi.kdj_j) || 100;
-            const sma20 = Number(r.multi.sma20) || 0;
-            const sma50 = Number(r.multi.sma50) || 0;
-            const sma200 = Number(r.multi.sma200) || 0;
-            const macd = Number(r.multi.macd) || 0;
-            const obvDiv = r.multi.obv_divergence === 'Yes';
-            
-            const valRating = Number(r.multi.value_rating) || 0;
-            const divYield = Number(r.multi.dividend_yield) || 0;
-            const pe = Number(r.multi.pe_ratio) || 0;
-            const roe = Number(r.multi.roe) || 0;
-            const price = Number(r.multi.current_price) || Number(r.price) || 0;
-            const week52Low = Number(r.multi.week_52_low) || 0;
-            const dist52WLow = week52Low > 0 ? ((price - week52Low) / week52Low) * 100 : -1;
-            const avgVol10D = Number(r.multi.avg_vol_10d_million) || 0;
-            const avgTurnover10D = price * avgVol10D; 
-
-            let stockObj = {
-                raw: r,
-                ticker: String(r.ticker || r.Ticker || '').trim(),
-                market: r.market, name: r.company_name || r.Company_Name || '未知', sector: r.sector || r.Sector || '未分類',
-                price, sma20, sma50, sma200, macd, obvDiv,
-                week52Low, dist52WLow, avgTurnover10D,
-                mfi, rsi, kdj_j, flow_1d: f1, flow_5d: f5, flow_10d: f10,
-                accel: String(r.accel || '').trim().toUpperCase(),
-                volSpike, pe, divYield, valRating, roe, score: 0
+        // ==========================================
+        // 4. 篩選與渲染 (Screener Logic)
+        // ==========================================
+        function processStock(r) {
+            return {
+                ticker: r.ticker, market: r.market, name: r.company_name, sector: r.sector,
+                price: r.current_price, sma20: r.sma20, sma200: r.sma200, macd: r.macd, macdMom: r.macd_momentum,
+                rsi: r.rsi, kdj_j: r.kdj_j, rvol: r.rvol, obvDiv: r.obv_divergence === 'Yes', volSqueeze: r.vol_squeeze,
+                flow_1d: r.money_flow_million||0, flow_5d: r.money_flow_5d_million||0, flow_10d: r.money_flow_10d_million||0,
+                pe: r.pe_ratio||0, divYield: r.dividend_yield||0, valRating: r.value_rating||0, roe: r.roe||0, score: 0
             };
-
-            // 運算十二長生標籤
-            stockObj.bazi = calculateBaZiPhase(stockObj);
-            return stockObj;
         }
 
         function executeScreenerLogic() {
-            const searchTerm = searchInput.value.trim().toUpperCase();
-            let allProcessed = latestMarketData.filter(r => r.market === activeMarket).map(processStockRecord);
-            const minTurnover = activeMarket === 'HK' ? 10 : 1.5; 
+            let all = latestMarketData.filter(r => r.market === activeMarket).map(processStock);
+            
+            // 賦予八字狀態
+            all.forEach(s => s.bazi = getBaZiState(s));
 
-            let holdingData = allProcessed.filter(s => userLists[s.ticker] === 'holding');
-            let watchlistData = allProcessed.filter(s => userLists[s.ticker] === 'watchlist');
-
-            let rawFiltered = allProcessed.filter(s => {
-                if (userLists[s.ticker]) return false;
-
-                if (activeStrategy === 'short_term') {
-                    return s.flow_5d > 0 && s.flow_10d > 0 && s.mfi < 45 && s.valRating >= 3;
-                } else if (activeStrategy === 'long_term') {
-                    return s.valRating >= 3 && s.roe > 0.08 && s.rsi < 40 && s.kdj_j < 20 && s.sma200 > 0 && s.price < s.sma200;
-                } else if (activeStrategy === '52w_low') {
-                    const baseCondition = s.valRating >= 3 && s.roe > 0.08 && s.dist52WLow >= 10 && s.dist52WLow <= 30 && s.avgTurnover10D > minTurnover;
-                    if (activeMarket === 'HK') return baseCondition && s.divYield >= 3;
-                    if (activeMarket === 'US') return baseCondition && s.flow_5d > 0;
-                    return false;
-                } else if (activeStrategy === 'bazi_phase') {
-                    // 🔮 八字策略：只挑選「胎/養」與「長生」，且成交量不能是死水
-                    const isFetusOrBirth = s.bazi.label.includes('胎/養') || s.bazi.label.includes('長生');
-                    return isFetusOrBirth && s.avgTurnover10D > minTurnover;
+            let holding = all.filter(s => userLists[s.ticker] === 'holding');
+            let watchlist = all.filter(s => userLists[s.ticker] === 'watchlist');
+            
+            let filtered = all.filter(s => {
+                if (userLists[s.ticker]) return false; // 避開重複
+                if (activeStrategy === 'short_term') return s.flow_5d > 0 && s.rsi < 40 && s.valRating >= 3;
+                if (activeStrategy === 'long_term') return s.valRating >= 3 && s.rsi < 35 && s.price < s.sma200;
+                if (activeStrategy === 'ultimate_resonance') {
+                    // 🔮 八字尋寶：只找胎、養、長生
+                    return ['🌱 胎', '🍼 養', '🚀 長生 (爆量)'].includes(s.bazi.label) && s.valRating >= 3;
                 }
             });
 
-            // 分數計算
-            const maxF5 = Math.max(...allProcessed.map(s => s.flow_5d), 1); 
-            const minF10 = Math.min(...allProcessed.map(s => s.flow_10d));
-            const maxF10 = Math.max(...allProcessed.map(s => s.flow_10d));
-            const rangeF10 = maxF10 - minF10 === 0 ? 1 : maxF10 - minF10;
+            // 簡單排序：以5D資金排
+            const sorter = (a, b) => b.flow_5d - a.flow_5d;
+            holding.sort(sorter); watchlist.sort(sorter); filtered.sort(sorter);
 
-            const calcScore = (s) => {
-                let finalScore = 0;
-                if (activeStrategy === 'short_term') {
-                    finalScore = ((45 - Math.max(s.mfi, 15)) / 30) * 40 + (s.flow_5d / maxF5) * 40 + Math.min(s.volSpike / 2.0, 1) * 20;
-                } else if (activeStrategy === 'long_term') {
-                    finalScore = (s.valRating / 5) * 30 + Math.min(s.divYield / 5.0, 1) * 10 + ((s.flow_10d - minF10) / rangeF10) * 30 + Math.max(0, ((100 - s.rsi) / 100) * 30);
-                } else if (activeStrategy === '52w_low') {
-                    finalScore = (s.valRating / 5) * 30 + ((s.flow_10d - minF10) / rangeF10) * 40 + Math.max(0, ((30 - s.dist52WLow) / 20) * 30);
-                } else if (activeStrategy === 'bazi_phase') {
-                    finalScore = ((s.flow_10d - minF10) / rangeF10) * 50 + ((s.flow_5d - Math.min(...allProcessed.map(x=>x.flow_5d))) / (maxF5 - Math.min(...allProcessed.map(x=>x.flow_5d)))) * 50;
-                }
-                s.score = finalScore || 0;
-            };
-
-            holdingData.forEach(calcScore);
-            watchlistData.forEach(calcScore);
-            rawFiltered.forEach(calcScore);
-
-            if (searchTerm) {
-                holdingData = holdingData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
-                watchlistData = watchlistData.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
-                rawFiltered = rawFiltered.filter(s => s.ticker.toUpperCase().includes(searchTerm) || s.name.toUpperCase().includes(searchTerm));
-            }
-
-            const sortFunc = (a, b) => {
-                if (Math.abs(b.score - a.score) > 0.1) return b.score - a.score;
-                return activeStrategy === 'short_term' ? b.flow_5d - a.flow_5d : b.flow_10d - a.flow_10d; 
-            };
-            holdingData.sort(sortFunc);
-            watchlistData.sort(sortFunc);
-            rawFiltered.sort(sortFunc);
-
-            filteredScreenerData = rawFiltered; 
-            renderTable(holdingData, watchlistData, rawFiltered);
+            renderTable(holding, watchlist, filtered);
         }
 
-        // ==========================================
-        // 渲染表格 (動態三層結構)
-        // ==========================================
-        function renderTable(holdingData, watchlistData, screenedData) {
+        function renderTable(holding, watchlist, filtered) {
             const tbody = document.getElementById('stock-table-body');
-            document.getElementById('match-count').textContent = `符合條件: ${screenedData.length} 隻`;
-            document.getElementById('selected-count').textContent = '0';
-            if(document.getElementById('check-all')) document.getElementById('check-all').checked = false;
+            document.getElementById('match-count').innerText = `篩選結果: ${filtered.length} 隻`;
             tbody.innerHTML = '';
 
-            if (holdingData.length === 0 && watchlistData.length === 0 && screenedData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="11" class="p-8 text-center text-gray-500 text-base">目前無任何清單，且無符合條件的篩選結果。</td></tr>`;
-                return;
-            }
-
-            let scoreColorClass = 'text-gray-800';
-            if (activeStrategy === 'short_term') scoreColorClass = 'text-orange-600';
-            if (activeStrategy === 'long_term') scoreColorClass = 'text-indigo-700';
-            if (activeStrategy === '52w_low') scoreColorClass = 'text-blue-700';
-            if (activeStrategy === 'bazi_phase') scoreColorClass = 'text-emerald-700';
-
-            const createRowHtml = (stock, category) => {
+            const createRow = (s, category) => {
                 const tr = document.createElement('tr');
-                const isHolding = category === 'holding';
-                const isWatchlist = category === 'watchlist';
-                
-                let rowBgClass = 'hover:bg-blue-50 border-b border-gray-100 transition-colors duration-150';
-                if (isHolding) rowBgClass = 'bg-yellow-50/60 hover:bg-yellow-100/70 border-b border-yellow-200 transition-colors duration-150';
-                else if (isWatchlist) rowBgClass = 'bg-teal-50/40 hover:bg-teal-100/60 border-b border-teal-100 transition-colors duration-150';
-                tr.className = rowBgClass;
+                let bg = 'hover:bg-blue-50 border-b border-gray-100';
+                if(category==='holding') bg = 'bg-yellow-50/60 hover:bg-yellow-100 border-b border-yellow-200';
+                if(category==='watchlist') bg = 'bg-teal-50/40 hover:bg-teal-100 border-b border-teal-100';
+                tr.className = bg;
 
-                const holdingClass = isHolding ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
-                const watchlistClass = isWatchlist ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
-                
-                // 動態狀態標籤 + 爆量標籤
-                let badgeHtml = `<span class="border text-xs px-2.5 py-1 rounded-md font-bold mb-1.5 inline-block mr-1 shadow-sm ${stock.bazi.class}">${stock.bazi.label}</span><br>`;
-                
-                if (stock.volSpike >= 1.5) {
-                    badgeHtml += `<span class="bg-amber-100 text-amber-800 border border-amber-200 text-xs px-2.5 py-1 rounded-md font-bold mb-1.5 inline-block mr-1 shadow-sm">📈 ${stock.volSpike.toFixed(1)}x 爆量</span>`;
-                }
+                const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
+                const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
 
-                const f10_5 = stock.flow_10d - stock.flow_5d;
-                const f5_1 = stock.flow_5d - stock.flow_1d;
-                const f1 = stock.flow_1d;
-                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
-                const drawBar = (h, x) => {
-                    let y, barH, color;
-                    if (h > 0) { y = 15 - h; barH = h; color = '#10B981'; } 
-                    else if (h < 0) { y = 15; barH = Math.abs(h); color = '#EF4444'; } 
-                    else { y = 14; barH = 2; color = '#9CA3AF'; }
-                    return `<rect x="${x}" y="${y}" width="12" height="${barH}" rx="1.5" fill="${color}" />`;
+                // Sparkline
+                const maxF = Math.max(Math.abs(s.flow_10d), 1);
+                const drawBar = (val, x) => {
+                    const h = Math.abs((val/maxF)*12);
+                    return `<rect x="${x}" y="${val>0 ? 15-h : 15}" width="8" height="${h||2}" rx="1" fill="${val>0?'#10B981':'#EF4444'}" />`;
                 };
 
-                const sparklineSvg = `
-                    <div class="flex items-center justify-center gap-3" title="歷史 3 階段資金演進：\n1. 前10至5D: ${formatMoney(f10_5)}\n2. 前5至1D: ${formatMoney(f5_1)}\n3. 今日1D: ${formatMoney(f1)}">
-                        <span class="text-blue-800 font-mono font-bold w-16 text-right">${formatMoney(stock.flow_5d)}</span>
-                        <svg class="w-16 h-8" viewBox="0 0 60 30" style="overflow: visible;">
-                            <line x1="0" y1="15" x2="60" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
-                            ${drawBar((f10_5/maxAbs)*12, 4)}   
-                            ${drawBar((f5_1/maxAbs)*12, 24)}  
-                            ${drawBar((f1/maxAbs)*12, 44)}  
-                        </svg>
-                    </div>
-                `;
-
-                const lookupSymbol = formatCopyTicker(stock.ticker, stock.market);
-                const peText = stock.pe > 0 ? stock.pe.toFixed(1) : '<span class="text-gray-400">N/A</span>';
-                const yieldText = stock.divYield > 0 ? stock.divYield.toFixed(2) + '%' : '<span class="text-gray-400">0.0%</span>';
-                const valRatingText = stock.valRating > 0 ? `${stock.valRating}/5` : '<span class="text-gray-400">-</span>';
-                const roeText = stock.roe !== 0 ? formatPct(stock.roe) : '<span class="text-gray-400">N/A</span>';
-                
-                let distText = stock.week52Low > 0 
-                    ? `<span class="text-xs ${(stock.dist52WLow >= 10 && stock.dist52WLow <= 30) ? 'text-blue-600 font-bold' : 'text-gray-500'} mt-0.5 inline-block bg-white px-2 py-0.5 border border-gray-100 rounded shadow-sm">${stock.dist52WLow > 0 ? '+' : ''}${stock.dist52WLow.toFixed(1)}%</span>`
-                    : `<span class="text-xs text-gray-400 mt-0.5 inline-block">N/A</span>`;
-
                 tr.innerHTML = `
-                    <td class="py-4 px-2 text-center w-20 border-r border-gray-100">
-                        <div class="flex items-center justify-center gap-3 text-[1.35rem]">
-                            <span class="action-btn ${holdingClass}" title="設為持倉" onclick="toggleList('${stock.ticker}', 'holding')">💼</span>
-                            <span class="action-btn ${watchlistClass}" title="加入監察" onclick="toggleList('${stock.ticker}', 'watchlist')">👀</span>
+                    <td class="py-3 px-2 text-center border-r border-gray-100">
+                        <div class="flex justify-center gap-2 text-xl">
+                            <span class="action-btn ${holdCls}" onclick="toggleList('${s.ticker}', 'holding')">💼</span>
+                            <span class="action-btn ${watchCls}" onclick="toggleList('${s.ticker}', 'watchlist')">👀</span>
                         </div>
                     </td>
-                    <td class="py-4 px-3 text-center"><input type="checkbox" class="stock-checkbox row-check" data-ticker="${lookupSymbol}"></td>
-                    <td class="py-4 px-5">
-                        <div class="text-lg font-bold ${isHolding ? 'text-yellow-800' : (isWatchlist ? 'text-teal-800' : 'text-blue-900')} font-mono tracking-tight">${stock.ticker}</div>
-                        <div class="text-xs text-gray-500 font-sans mt-1 whitespace-normal break-words w-40 sm:w-48 leading-tight">${stock.name}</div>
+                    <td class="py-3 px-2 text-center"><input type="checkbox" class="stock-checkbox"></td>
+                    <td class="py-3 px-4">
+                        <div class="font-bold text-blue-900 font-mono tracking-tight text-base">${s.ticker}</div>
+                        <div class="text-xs text-gray-500 truncate w-32">${s.name}</div>
                     </td>
-                    <td class="py-4 px-5"><span class="text-gray-500 text-xs block">${stock.sector}</span>${distText}</td>
-                    <td class="py-4 px-5 text-center font-mono text-gray-700 text-sm whitespace-nowrap">
-                        <span class="text-gray-500 text-xs mr-1">P/E:</span> <span class="font-semibold">${peText}</span><br>
-                        <span class="text-gray-500 text-xs mr-1">Div:</span> <span class="text-purple-700 font-semibold">${yieldText}</span>
+                    <td class="py-3 px-4 text-center">
+                        <span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${s.bazi.c}">${s.bazi.label}</span>
                     </td>
-                    <td class="py-4 px-5 text-center font-mono text-gray-700 text-sm whitespace-nowrap">
-                        <span class="text-gray-500 text-xs mr-1">Val:</span> <span class="text-orange-600 font-bold">${valRatingText}</span><br>
-                        <span class="text-gray-500 text-xs mr-1">ROE:</span> <span class="font-semibold">${roeText}</span>
+                    <td class="py-3 px-4 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <svg class="w-12 h-8" viewBox="0 0 40 30" style="overflow:visible">
+                                <line x1="0" y1="15" x2="40" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
+                                ${drawBar(s.flow_10d-s.flow_5d, 2)} ${drawBar(s.flow_5d-s.flow_1d, 16)} ${drawBar(s.flow_1d, 30)}
+                            </svg>
+                        </div>
                     </td>
-                    <td class="py-4 px-5 text-center font-mono font-bold text-gray-800 text-base leading-tight">
-                        ${stock.price.toFixed(2)}<br>
-                        <span class="text-sm ${stock.price < stock.sma20 ? 'text-red-500 font-bold' : 'text-gray-400'} font-normal">M: ${stock.sma20.toFixed(2)}</span>
+                    <td class="py-3 px-4 text-center font-mono text-xs">
+                        <span class="${s.rsi < 40 ? 'text-teal-600 font-bold' : 'text-gray-500'}">RSI:${s.rsi.toFixed(1)}</span><br>
+                        <span class="${s.kdj_j < 20 ? 'text-teal-600 font-bold' : 'text-gray-500'}">KDJ:${s.kdj_j.toFixed(1)}</span>
                     </td>
-                    <td class="py-4 px-5 text-center font-mono text-gray-700 text-xs whitespace-nowrap leading-relaxed border-x border-gray-100 ${isHolding ? 'bg-yellow-100/40' : (isWatchlist ? 'bg-teal-50/60' : 'bg-gray-50/50')}">
-                        <span class="text-gray-500 mr-1">MFI:</span> <span class="font-bold text-sm ${stock.mfi < 45 ? 'text-teal-600' : 'text-gray-700'}">${stock.mfi.toFixed(1)}</span><br>
-                        <span class="text-gray-500 mr-1">RSI:</span> <span class="font-bold text-sm ${stock.rsi < 40 ? 'text-teal-600' : 'text-gray-700'}">${stock.rsi.toFixed(1)}</span><br>
-                        <span class="text-gray-500 mr-1">KDJ:</span> <span class="font-bold text-sm ${stock.kdj_j < 20 ? 'text-teal-600' : 'text-gray-700'}">${stock.kdj_j.toFixed(1)}</span>
+                    <td class="py-3 px-4 text-center font-mono text-xs">
+                        <span class="text-gray-500">P/E:</span> <span class="font-bold">${s.pe>0?s.pe.toFixed(1):'N/A'}</span><br>
+                        <span class="text-gray-500">Div:</span> <span class="text-purple-700 font-bold">${s.divYield>0?s.divYield.toFixed(2)+'%':'0%'}</span>
                     </td>
-                    <td class="py-4 px-5 text-center">${sparklineSvg}</td>
-                    <td class="py-4 px-5 text-center leading-relaxed">${badgeHtml}</td>
-                    <td class="py-4 px-6 text-right font-mono ${scoreColorClass} font-black text-2xl pr-6">${stock.score.toFixed(1)}</td>
+                    <td class="py-3 px-4 text-center font-mono text-xs">
+                        <span class="text-gray-500">Val:</span> <span class="text-orange-600 font-bold">${s.valRating>0?s.valRating+'/5':'-'}</span><br>
+                        <span class="text-gray-500">ROE:</span> <span class="font-bold">${s.roe?formatPct(s.roe):'N/A'}</span>
+                    </td>
+                    <td class="py-3 px-4 text-right font-mono font-bold text-gray-800">${formatMoney(s.flow_5d)}</td>
+                    <td class="py-3 px-4 text-center">
+                        <button onclick="toggleAnalysis('${s.ticker}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition">📊 分析</button>
+                    </td>
                 `;
-                return tr;
+                tbody.appendChild(tr);
+
+                // 隱藏的展開列 (Lazy Load Container)
+                const expandTr = document.createElement('tr');
+                expandTr.id = `expand-${s.ticker}`;
+                expandTr.className = 'expansion-row';
+                expandTr.innerHTML = `<td colspan="10" class="p-4"><div id="content-${s.ticker}" class="text-center text-sm text-gray-500">載入歷史數據中...</div></td>`;
+                tbody.appendChild(expandTr);
             };
 
-            if (holdingData.length > 0) holdingData.forEach(stock => tbody.appendChild(createRowHtml(stock, 'holding')));
-            
-            if (watchlistData.length > 0) {
-                const sep1 = document.createElement('tr');
-                sep1.innerHTML = `<td colspan="11" class="text-center font-bold bg-teal-100/60 py-2 text-teal-800 text-sm tracking-widest shadow-inner border-y border-teal-200">👀 您的監察名單 👀</td>`;
-                tbody.appendChild(sep1);
-                watchlistData.forEach(stock => tbody.appendChild(createRowHtml(stock, 'watchlist')));
+            if(holding.length) { holding.forEach(s => createRow(s, 'holding')); }
+            if(watchlist.length) {
+                const sep = document.createElement('tr'); sep.innerHTML=`<td colspan="10" class="text-center font-bold bg-teal-100/60 py-2 text-teal-800 text-xs">👀 監察名單</td>`; tbody.appendChild(sep);
+                watchlist.forEach(s => createRow(s, 'watchlist'));
             }
-
-            if (screenedData.length > 0) {
-                const sep2 = document.createElement('tr');
-                sep2.innerHTML = `<td colspan="11" class="text-center font-bold bg-gray-200/80 py-2.5 text-gray-600 text-sm tracking-widest shadow-inner border-y border-gray-300">👇 最新策略篩選結果 👇</td>`;
-                tbody.appendChild(sep2);
-                screenedData.forEach(stock => tbody.appendChild(createRowHtml(stock, 'screened')));
+            if(filtered.length) {
+                const sep = document.createElement('tr'); sep.innerHTML=`<td colspan="10" class="text-center font-bold bg-gray-200/80 py-2 text-gray-600 text-xs">👇 最新篩選結果</td>`; tbody.appendChild(sep);
+                filtered.forEach(s => createRow(s, 'filtered'));
             }
         }
 
-        const checkAllBtn = document.getElementById('check-all');
-        const selectedCountSpan = document.getElementById('selected-count');
-
-        checkAllBtn.addEventListener('change', (e) => {
-            const rowChecks = document.querySelectorAll('.row-check');
-            rowChecks.forEach(chk => chk.checked = e.target.checked);
-            selectedCountSpan.textContent = document.querySelectorAll('.row-check:checked').length;
-        });
-
-        document.getElementById('stock-table-body').addEventListener('change', (e) => {
-            if (e.target.classList.contains('row-check')) {
-                const rowChecks = document.querySelectorAll('.row-check');
-                const checkedCount = document.querySelectorAll('.row-check:checked').length;
-                selectedCountSpan.textContent = checkedCount;
-                checkAllBtn.checked = (checkedCount === rowChecks.length && rowChecks.length > 0);
+        // ==========================================
+        // 5. 延遲載入 (Lazy Load) 歷史分析數據
+        // ==========================================
+        window.toggleAnalysis = async (ticker) => {
+            const row = document.getElementById(`expand-${ticker}`);
+            const content = document.getElementById(`content-${ticker}`);
+            
+            // 開關切換
+            if (row.classList.contains('open')) {
+                row.classList.remove('open'); return;
             }
-        });
+            // 關閉其他已展開的列 (保持畫面整潔)
+            document.querySelectorAll('.expansion-row.open').forEach(el => el.classList.remove('open'));
+            row.classList.add('open');
 
-        document.getElementById('btn-copy-selected').addEventListener('click', () => {
-            const checkedBoxes = document.querySelectorAll('.row-check:checked');
-            if (checkedBoxes.length === 0) { alert("請先勾選要複製的股票！"); return; }
-            const tickers = Array.from(checkedBoxes).map(chk => chk.getAttribute('data-ticker')).join(';');
-            navigator.clipboard.writeText(tickers).then(() => {
-                const btn = document.getElementById('btn-copy-selected');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = `✅ 成功複製 ${checkedBoxes.length} 隻`;
-                btn.classList.replace('bg-gray-800', 'bg-green-600');
-                btn.classList.replace('hover:bg-gray-700', 'hover:bg-green-700');
-                setTimeout(() => { 
-                    btn.innerHTML = originalText; 
-                    btn.classList.replace('bg-green-600', 'bg-gray-800');
-                    btn.classList.replace('hover:bg-green-700', 'hover:bg-gray-700');
-                }, 2000);
-            });
-        });
+            // 如果已經抓過數據，就不用重抓
+            if (windowCache[ticker]) return;
 
-        document.getElementById('btn-load-date').addEventListener('click', fetchFlowDataByDate);
-        searchInput.addEventListener('input', executeScreenerLogic);
+            content.innerHTML = `<div class="animate-pulse text-indigo-600 font-bold py-4">⏳ 正在為 ${ticker} 抓取 20 天歷史軌跡...</div>`;
 
+            try {
+                // 瞬間單獨查詢該股票的 20 天歷史 (極快)
+                const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
+                const [mfRes, sdRes] = await Promise.all([
+                    supabaseClient.from(mfTable).select('*').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
+                    supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(20)
+                ]);
+
+                if (!sdRes.data || sdRes.data.length === 0) {
+                    content.innerHTML = `<div class="text-red-500 py-4">無法取得歷史數據。</div>`; return;
+                }
+
+                // 產生歷史表格 HTML
+                let historyRows = '';
+                sdRes.data.forEach(row => {
+                    historyRows += `
+                        <tr class="hover:bg-indigo-50">
+                            <td>${row.date}</td>
+                            <td class="font-bold">${formatNum(row.close_price, 3)}</td>
+                            <td>${formatNum(row.change_pct, 2)}%</td>
+                            <td class="${row.close_price > row.sma5 ? 'text-green-600 font-bold' : ''}">${formatNum(row.sma5, 2)}</td>
+                            <td class="${row.close_price > row.sma20 ? 'text-green-600 font-bold' : ''}">${formatNum(row.sma20, 2)}</td>
+                            <td>${formatNum(row.rvol, 2)}</td>
+                            <td>${formatNum(row.macd, 3)}</td>
+                            <td>${formatNum(row.obv_millions, 2)}</td>
+                        </tr>
+                    `;
+                });
+
+                // 產生資金流 HTML
+                let flowRows = '';
+                if(mfRes.data) {
+                    mfRes.data.forEach(row => {
+                        flowRows += `<div class="flex justify-between border-b border-gray-100 py-1"><span class="text-gray-500">${row.Record_Date.slice(5)}</span><span class="${row.money_flow_million>0?'text-green-600':'text-red-600'} font-bold">${formatMoney(row.money_flow_million)}</span></div>`;
+                    });
+                }
+
+                // 渲染至畫面
+                const html = `
+                    <div class="bg-white p-4 rounded border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6 text-left">
+                        <div class="md:col-span-3">
+                            <h4 class="font-bold text-indigo-900 mb-2 border-b border-indigo-100 pb-1">📈 過去 20 天價格與技術軌跡</h4>
+                            <div class="overflow-x-auto">
+                                <table class="history-table w-full">
+                                    <thead><tr><th>Date</th><th>Close</th><th>Chg%</th><th>SMA5</th><th>SMA20</th><th>RVOL</th><th>MACD</th><th>OBV(M)</th></tr></thead>
+                                    <tbody>${historyRows}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-indigo-900 mb-2 border-b border-indigo-100 pb-1">💰 每日資金淨流入</h4>
+                            <div class="text-xs font-mono max-h-64 overflow-y-auto pr-2">${flowRows}</div>
+                        </div>
+                    </div>
+                `;
+                content.innerHTML = html;
+                windowCache[ticker] = true; // 標記為已快取
+
+            } catch (err) {
+                content.innerHTML = `<div class="text-red-500 py-4">數據載入失敗，請重試。</div>`;
+            }
+        };
+
+        // ==========================================
+        // 初始化啟動
+        // ==========================================
+        document.getElementById('btn-load-date').addEventListener('click', fetchMacroData);
+        document.getElementById('search-ticker').addEventListener('input', executeScreenerLogic);
+        
         document.addEventListener('DOMContentLoaded', async () => {
-            await fetchLatestDatesAndSetPickers();
-            await fetchFlowDataByDate();
+            await fetchInitialData();
+            await fetchMacroData();
         });
     </script>
 </body>
