@@ -117,6 +117,14 @@
                     <button id="btn-load-date" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-md">🔄 載入數據</button>
                 </div>
             </div>
+
+            <!-- 策略說明區 -->
+            <div class="bg-blue-50/50 p-5 rounded-lg border border-blue-100 text-sm text-gray-700">
+                <p class="font-bold text-blue-900 mb-2 text-base">📌 當前篩選邏輯與參數：</p>
+                <ul id="strategy-desc" class="list-disc list-inside space-y-1.5 text-sm text-gray-600">
+                    <!-- Javascript 動態注入 -->
+                </ul>
+            </div>
         </header>
 
         <!-- 數據表格區 -->
@@ -170,6 +178,24 @@
         let latestMarketData = [], userLists = {}, windowCache = {}; 
         let activeMarket = 'HK', activeStrategy = 'ultimate_resonance'; 
         window.clipboardDataMap = {}; 
+
+        const strategyTexts = {
+            'short_term': `
+                <li><strong class="text-orange-600">主力建倉：</strong>過去 5 日與 10 日資金皆必須為<span class="font-bold text-green-600">正流入</span>。</li>
+                <li><strong class="text-orange-600">跌深反彈：</strong>資金流量指標 (MFI) 必須小於 <span class="font-bold text-red-600">45</span>。</li>
+                <li><strong class="text-gray-500">排序權重：</strong>極度冷門 (MFI越低 40%) + 吸籌力道 (5D資金 40%) + 點火跡象 (爆量 20%)。</li>
+            `,
+            'long_term': `
+                <li><strong class="text-indigo-700">技術面極限接刀：</strong>RSI <span class="font-bold text-red-600">< 35</span> 且現價 <span class="font-bold text-red-600">低於</span> 200日均線。</li>
+                <li><strong class="text-indigo-700">護城河條件：</strong>價值評分 Value Rating <span class="font-bold text-indigo-700">>= 3</span>。</li>
+                <li><strong class="text-gray-500">排序權重：</strong>護城河與股息 40% + 相對資金強弱 30% + 嚴重超賣度 30%。</li>
+            `,
+            'ultimate_resonance': `
+                <li><strong class="text-purple-700">命格要硬：</strong>Value Rating <span class="font-bold text-purple-700">>= 3</span>。</li>
+                <li><strong class="text-purple-700">十二長生狀態：</strong>系統精選處於 <span class="font-bold text-green-600">胎、養、長生</span> 的轉折潛力股。</li>
+                <li><strong class="text-gray-500">排序權重 (全新)：</strong><span class="font-bold">狀態優先 40%</span> (長生>養>胎) + <span class="font-bold">爆發動能 30%</span> (RVOL越大越高分) + <span class="font-bold">護城河 30%</span> (Value Rating)。</li>
+            `
+        };
         
         function getBaZiState(s) {
             const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
@@ -257,10 +283,11 @@
         }
 
         function executeScreenerLogic() {
+            document.getElementById('strategy-desc').innerHTML = strategyTexts[activeStrategy];
+
             let all = latestMarketData.filter(r => r.market === activeMarket).map(processStock);
             all.forEach(s => s.bazi = getBaZiState(s));
 
-            // 🎯 修復 2：重新加回綜合分數的計算邏輯 (不再綁定 flow_5d)
             const maxF5 = Math.max(...all.map(s => s.flow_5d), 1);
             const minF10 = Math.min(...all.map(s => s.flow_10d));
             const maxF10 = Math.max(...all.map(s => s.flow_10d));
@@ -274,16 +301,23 @@
                     const volScore = Math.min((s.rvol||0) / 2.0, 1) * 20; 
                     finalScore = mfiScore + flowScore + volScore;
                 } else if (activeStrategy === 'long_term') {
-                    const valScore = (s.valRating / 5) * 30 + Math.min(s.divYield / 5.0, 1) * 10;
+                    const valScore = (s.valRating / 5) * 40;
                     const flowScore = ((s.flow_10d - minF10) / rangeF10) * 30;
                     const oversoldScore = Math.max(0, ((100 - (s.rsi||100)) / 100) * 30);
                     finalScore = valScore + flowScore + oversoldScore;
                 } else if (activeStrategy === 'ultimate_resonance') {
-                    const flowScore = ((s.flow_10d - minF10) / rangeF10) * 50;
-                    const valScore = (s.valRating / 5) * 50;
-                    finalScore = flowScore + valScore;
+                    // 全新狀態與動能優先計分引擎
+                    let stateScore = 0;
+                    if (s.bazi.label.includes('長生')) stateScore = 40;
+                    else if (s.bazi.label.includes('養')) stateScore = 20;
+                    else if (s.bazi.label.includes('胎')) stateScore = 10;
+                    
+                    const momentumScore = Math.min((s.rvol || 0) / 2.0, 1) * 30;
+                    const valScore = (s.valRating / 5) * 30;
+                    
+                    finalScore = stateScore + momentumScore + valScore;
                 }
-                s.score = Math.max(finalScore, 0); // 防止負分出現
+                s.score = Math.max(finalScore, 0); 
             };
             all.forEach(calcScore);
 
@@ -296,7 +330,6 @@
                 if (activeStrategy === 'ultimate_resonance') return ['🌱 胎', '🍼 養', '🚀 長生 (爆量)'].includes(s.bazi.label) && s.valRating >= 3;
             });
 
-            // 以分數排高低
             const sorter = (a, b) => b.score - a.score;
             holding.sort(sorter); watchlist.sort(sorter); filtered.sort(sorter);
 
@@ -307,7 +340,6 @@
             const tbody = document.getElementById('stock-table-body');
             document.getElementById('match-count').innerText = `篩選結果: ${filtered.length} 隻`;
             
-            // 設定分數欄位的顏色
             let scoreColorClass = 'text-gray-800';
             if (activeStrategy === 'short_term') scoreColorClass = 'text-orange-600';
             if (activeStrategy === 'long_term') scoreColorClass = 'text-indigo-700';
@@ -434,9 +466,11 @@
 
             try {
                 const multiTable = activeMarket === 'HK' ? 'multi_stock_analysis_hk' : 'multi_stock_analysis_sp500';
+                const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
                 
-                const [multiRes, sdRes] = await Promise.all([
+                const [multiRes, mfRes, sdRes] = await Promise.all([
                     supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(20),
+                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
                     supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(1)
                 ]);
 
@@ -493,7 +527,7 @@
                 `;
 
                 let historyRows = "";
-                let moneyFlowDailyRows = ""; // 🎯 修復 1：重新宣告變數來儲存每日資金流
+                let moneyFlowDailyRows = ""; 
 
                 records.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
@@ -523,7 +557,6 @@
                         </tr>
                     `;
 
-                    // 🎯 修復 1：正確地從 multi_stock_analysis (records) 提取每日資金流，不再需要向 money_flow 抓取
                     moneyFlowDailyRows += `
                         <div class="grid grid-cols-2 text-sm gap-y-1">
                             <span class="text-gray-600">Day -${i} (${row.trading_date.slice(5)})</span>
