@@ -306,7 +306,6 @@
                     const oversoldScore = Math.max(0, ((100 - (s.rsi||100)) / 100) * 30);
                     finalScore = valScore + flowScore + oversoldScore;
                 } else if (activeStrategy === 'ultimate_resonance') {
-                    // 全新狀態與動能優先計分引擎
                     let stateScore = 0;
                     if (s.bazi.label.includes('長生')) stateScore = 40;
                     else if (s.bazi.label.includes('養')) stateScore = 20;
@@ -556,14 +555,18 @@
                             <td class="${getCompareColorClass(row.obv_millions, prevR.obv_millions)}">${formatNum(row.obv_millions, 3)}</td>
                         </tr>
                     `;
-
-                    moneyFlowDailyRows += `
-                        <div class="grid grid-cols-2 text-sm gap-y-1">
-                            <span class="text-gray-600">Day -${i} (${row.trading_date.slice(5)})</span>
-                            <span class="text-right font-medium ${getFlowColor(row.money_flow_million)}">${formatNum(row.money_flow_million, 2)}</span>
-                        </div>
-                    `;
                 });
+
+                if(mfRes.data) {
+                    mfRes.data.forEach((row, i) => {
+                        moneyFlowDailyRows += `
+                            <div class="grid grid-cols-2 text-sm gap-y-1">
+                                <span class="text-gray-600">Day -${i} (${row.Record_Date.slice(5)})</span>
+                                <span class="text-right font-medium ${getFlowColor(row.money_flow_million)}">${formatNum(row.money_flow_million, 2)}</span>
+                            </div>
+                        `;
+                    });
+                }
 
                 const bodyHtml = `
                     <div class="p-6 bg-white">
@@ -629,9 +632,54 @@
                     </div>
                 `;
 
-                let tsv = `=== TICKER: ${ticker} ===\nDate:\t${latest.trading_date}\nPrice:\t${formatNum(latest.current_price, 3)}\nChange:\t${changeSign}${formatNum(changePct, 2)}%\nBaZi:\t${bazi.label}\n\n`;
-                tsv += `Date\tClose\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA20\tMACD\tRSI\tKDJ_J\tOBV(M)\n`;
-                records.forEach(r => tsv += `${r.trading_date}\t${formatNum(r.close_price||r.current_price,3)}\t${formatNum(r.change_pct,2)}%\t${formatNum(r.vol_million,3)}\t${formatNum(r.rvol,2)}\t${formatNum(r.sma5,3)}\t${formatNum(r.sma20,3)}\t${formatNum(r.macd,3)}\t${formatNum(r.rsi,2)}\t${formatNum(r.kdj_j,2)}\t${formatNum(r.obv_millions,3)}\n`);
+                // 完整組合複製專用 TSV
+                let tsv = `=== TICKER: ${ticker} | ${latest.company_name || 'N/A'} ===\n`;
+                tsv += `Price:\t${formatNum(latest.current_price, 3)}\n`;
+                tsv += `Change:\t${changeSign}${formatNum(changePct, 2)}%\n`;
+                tsv += `Dist 52W Low:\t${dist52WLowText}\n`;
+                tsv += `Sector:\t${latest.sector || 'N/A'}\n`;
+                tsv += `Value Rating:\t${latest.value_rating || 'N/A'}\n`;
+                tsv += `Hybrid Rating:\t${sd.rating_hybrid || 'N/A'}\n`;
+                tsv += `SMA Trend:\t${sd.sma_trend || 'N/A'}\n`;
+                tsv += `MACD Momentum:\t${sd.macd_momentum || 'N/A'}\n`;
+                tsv += `Pullback Signal:\t${sd.pullback_signal || 'N/A'}\n`;
+                tsv += `Vol Squeeze:\t${sd.vol_squeeze || 'Normal'}\n`;
+                tsv += `MFI:\t${mfiVal}\n`;
+                tsv += `Date:\t${latest.trading_date} (${latest.market_status})\n`;
+                tsv += `BaZi:\t${bazi.label}\n\n`;
+
+                tsv += `--- SECTION 1: BASIC FUNDAMENTALS ---\n`;
+                tsv += `Market Cap (M)\t${formatNum(latest.market_cap_million, 2)}\n`;
+                tsv += `P/E Ratio\t${formatNum(latest.pe_ratio, 2)}\n`;
+                tsv += `P/B Ratio\t${formatNum(latest.pb_ratio, 2)}\n`;
+                tsv += `PEG Ratio\t${formatNum(latest.peg_ratio, 2)}\n`;
+                tsv += `Dividend Yield (%)\t${formatNum(latest.dividend_yield, 2)}\n`;
+                tsv += `ROE\t${formatNum(latest.roe, 3)}\n`;
+                tsv += `Beta\t${formatNum(latest.beta, 3)}\n`;
+                tsv += `Debt/Equity (%)\t${formatNum(latest.debt_to_equity, 3)}\n`;
+                tsv += `52W High / Low\t${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)} (距低位: ${dist52WLowText})\n`;
+                tsv += `Avg Vol 10D / 3M\t${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}\n`;
+                tsv += `Target Mean Price\t${formatNum(latest.target_mean_price, 2)}\n`;
+                tsv += `Free Cash Flow (M)\t${formatNum(latest.free_cash_flow_million, 2)}\n\n`;
+
+                tsv += `--- SECTION 2: SMART MONEY ---\n`;
+                tsv += `Pre-Uptrend Signal\t${latest.pre_uptrend_signal || 'N/A'}\n`;
+                tsv += `BB Width Rank\t${formatNum(latest.bb_width_rank, 2)}\n`;
+                tsv += `RS vs Market\t${formatNum(latest.rs_vs_market, 2)}\n`;
+                tsv += `Global Sector Trend %\t${formatNum(latest.global_sector_trend_pct, 2)}\n`;
+                tsv += `ATR\t${formatNum(latest.atr, 3)}\n`;
+                tsv += `OBV Divergence\t${latest.obv_divergence || 'N/A'}\n`;
+                tsv += `Vol Spark\t${latest.vol_spark || 'N/A'}\n`;
+                tsv += `RVOL\t${formatNum(latest.rvol, 2)}\n\n`;
+
+                tsv += `--- SECTION 4: MONEY FLOW ---\n`;
+                tsv += `Last 5 Days (Accum)\t${formatNum(latest.money_flow_5d_million, 2)}\n`;
+                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n\n`;
+
+                tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
+                tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
+                records.forEach(r => tsv += `${r.trading_date}\t${formatNum(r.close_price||r.current_price,3)}\t${formatNum(r.open_price,3)}\t${formatNum(r.high_price,3)}\t${formatNum(r.low_price,3)}\t${formatNum(r.change_pct,2)}%\t${formatNum(r.vol_million,3)}\t${formatNum(r.rvol,2)}\t${formatNum(r.sma5,3)}\t${formatNum(r.sma10,3)}\t${formatNum(r.sma20,3)}\t${formatNum(r.sma50,3)}\t${formatNum(r.sma200,3)}\t${formatNum(r.macd,3)}\t${formatNum(r.rsi,2)}\t${formatNum(r.adx,2)}\t${formatNum(r.kdj_k,2)}\t${formatNum(r.kdj_d,2)}\t${formatNum(r.kdj_j,2)}\t${formatNum(r.obv_millions,3)}\t${formatNum(r.sharpe_ratio_20d,3)}\n`);
+                
                 window.clipboardDataMap[ticker] = tsv;
 
                 content.innerHTML = `<div class="analysis-card text-left">${headerHtml}${bodyHtml}</div>`;
