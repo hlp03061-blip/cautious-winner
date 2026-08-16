@@ -18,10 +18,12 @@
         .btn-inactive:hover { opacity: 0.7; filter: grayscale(0%); transform: scale(1.1); }
         .btn-active { opacity: 1; filter: grayscale(0%); transform: scale(1.15); drop-shadow: 0 4px 3px rgb(0 0 0 / 0.07); }
         
-        /* 手風琴展開動畫 */
-        .expansion-row { display: none; background-color: #fafafa; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.03); }
+        /* 手風琴展開與深度分析樣式 */
+        .expansion-row { display: none; background-color: #f8fafc; box-shadow: inset 0 3px 6px 0 rgba(0, 0, 0, 0.03); }
         .expansion-row.open { display: table-row; }
-        .history-table th, .history-table td { border: 1px solid #e5e7eb; padding: 0.4rem; text-align: right; white-space: nowrap; font-size: 0.8rem;}
+        .analysis-card { border: 1px solid #e5e7eb; border-radius: 0.5rem; background: #fff; margin: 0.5rem; }
+        .history-table { border-collapse: collapse; width: 100%; font-size: 0.8rem;}
+        .history-table th, .history-table td { border: 1px solid #e5e7eb; padding: 0.4rem; text-align: right; white-space: nowrap; }
         .history-table th { background-color: #f3f4f6; text-align: center; font-weight: 600;}
     </style>
 </head>
@@ -33,6 +35,40 @@
         const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // 共用輔助函數 (完美克隆原有的 formatNum 與 getCompareHtml)
+        const formatNum = (num, decimals = 2) => num !== null && num !== undefined && !isNaN(num) ? Number(num).toFixed(decimals) : 'N/A';
+        const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
+        const getFlowColor = (flow) => flow === null || flow === undefined ? 'text-gray-800' : (flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800'));
+        const formatMoney = (v) => v ? (Math.abs(v) >= 1000000 ? (v/1000000).toFixed(1)+'M' : v.toFixed(1)) : '-';
+        const formatPct = (v) => v ? (v*100).toFixed(1)+'%' : '-';
+
+        function getCompareColorClass(curr, prev) {
+            if (curr === null || prev === null || prev === undefined || curr === undefined) return '';
+            const diff = Number(curr) - Number(prev);
+            if (diff > 0) return 'text-blue-600 font-bold';
+            if (diff < 0) return 'text-orange-500 font-bold';
+            return '';
+        }
+
+        function getCompareHtml(curr, prev, decimals = 2, mode = 'pct') {
+            const valStr = formatNum(curr, decimals);
+            if (curr === null || prev === null || prev === undefined || curr === undefined) return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] text-transparent select-none">(-)</span></div>`;
+            const diff = Number(curr) - Number(prev);
+            if (Math.abs(diff) < 0.0001) return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] text-gray-400">(-)</span></div>`;
+            const isUp = diff > 0;
+            const sign = isUp ? '▲' : '▼';
+            const colorCls = isUp ? 'text-blue-600' : 'text-orange-500';
+            let diffStr = mode === 'pct' ? `${sign} ${(prev !== 0 ? (Math.abs(diff) / Math.abs(prev)) * 100 : 0).toFixed(1)}%` : `${sign} ${Math.abs(diff).toFixed(decimals)}`;
+            return `<div class="flex flex-col items-end"><span>${valStr}</span><span class="text-[11px] ${colorCls} font-bold leading-none mt-0.5">(${diffStr})</span></div>`;
+        }
+
+        function getTextCompareHtml(curr, prev, defaultVal = 'N/A', mainClasses = 'font-medium', containerClasses = '') {
+            const c = curr || defaultVal;
+            const p = prev || defaultVal;
+            if (prev === undefined || c === p) return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span></div>`;
+            return `<div class="flex flex-col items-end ${containerClasses}"><span class="${mainClasses}">${c}</span><span class="text-[11px] text-blue-600 font-bold leading-none mt-1">(昨日: ${p})</span></div>`;
+        }
     </script>
 
     <div class="max-w-[1400px] mx-auto space-y-6">
@@ -130,38 +166,27 @@
 
     <script>
         // ==========================================
-        // 2. 狀態與輔助函數
+        // 2. 狀態與核心邏輯
         // ==========================================
         let latestMarketData = [], userLists = {}, windowCache = {}; 
         let activeMarket = 'HK', activeStrategy = 'ultimate_resonance'; 
+        window.clipboardDataMap = {}; // 複製 TSV 用
         
-        const formatMoney = (v) => v ? (Math.abs(v) >= 1000000 ? (v/1000000).toFixed(1)+'M' : v.toFixed(1)) : '-';
-        const formatPct = (v) => v ? (v*100).toFixed(1)+'%' : '-';
-        const formatNum = (v, d=2) => v ? Number(v).toFixed(d) : 'N/A';
-
-        // 十二長生動態演算 (修正無效欄位後)
         function getBaZiState(s) {
             const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
             const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
             const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd;
-            const obvDiv = s.obvDiv, preUp = s.preUp;
+            const obvDiv = s.obvDiv, preUp = s.preUp || '';
 
             if (rsi > 75 && kdj_j > 100) return { label: '🔥 帝旺', c: 'bg-orange-100 text-orange-800 border-orange-300 font-bold' };
-            // 長生: 突破 SMA20 且 RVOL 爆量 且 MACD為正
             if (p > sma20 && rvol >= 1.5 && macd > 0) return { label: '🚀 長生 (爆量)', c: 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm' };
             if (p > sma20) return { label: '🌳 生長', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
             if (p < sma200 && rsi < 30 && kdj_j < 0) return { label: '⚡ 絕', c: 'bg-slate-800 text-white border-slate-900 font-bold' };
-            // 養: 資金連續流入
             if (p <= sma20 && f5 > 0 && f10 > 0) return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
-            // 胎: 有背離或準備訊號，資金開始微流入
             if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || preUp.includes('Squeeze') || preUp.includes('Accumulation'))) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
-            
             return { label: '🍂 衰/死', c: 'bg-gray-100 text-gray-500 border-gray-200' };
         }
 
-        // ==========================================
-        // 3. UI 互動與主資料抓取
-        // ==========================================
         window.switchTab = (m) => { activeMarket = m; executeScreenerLogic(); };
         window.switchStrategy = (s) => { activeStrategy = s; executeScreenerLogic(); };
         
@@ -178,6 +203,16 @@
             }
         };
 
+        window.copyToClipboard = (ticker) => {
+            const tsvText = window.clipboardDataMap[ticker];
+            if (tsvText) {
+                navigator.clipboard.writeText(tsvText).then(() => alert(`${ticker} 的【完整數據報告】已複製！可直接貼上至 Excel。`))
+                .catch(() => alert('複製失敗，請檢查瀏覽器權限。'));
+            } else {
+                alert('資料尚未載入完成。');
+            }
+        }
+
         async function fetchInitialData() {
             const [{ data: hD }, { data: uD }, { data: pD }] = await Promise.all([
                 supabaseClient.from('money_flow_hk').select('Record_Date').order('Record_Date', { ascending: false }).limit(1),
@@ -192,7 +227,7 @@
         async function fetchMacroData() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold animate-pulse">🔄 正在抓取全市場巨觀數據...</td></tr>`;
             try {
-                // 👉 修正重點：移除了不存在的 macd_momentum 與 vol_squeeze，換成正確的 pre_uptrend_signal
+                // 這裡只抓快照，點擊「分析」才去抓歷史
                 const multiCols = 'ticker, company_name, sector, current_price, sma20, sma200, macd, rsi, kdj_j, obv_divergence, pre_uptrend_signal, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
                 
                 const [mHK, mUS] = await Promise.all([
@@ -205,15 +240,9 @@
                     ...(mUS.data||[]).map(r => ({...r, market: 'US'}))
                 ];
                 executeScreenerLogic();
-            } catch (err) { 
-                console.error(err); 
-                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-bold">❌ 抓取失敗，請檢查網路。</td></tr>`;
-            }
+            } catch (err) { console.error(err); }
         }
 
-        // ==========================================
-        // 4. 篩選與渲染 (Screener Logic)
-        // ==========================================
         function processStock(r) {
             return {
                 ticker: r.ticker, market: r.market, name: r.company_name, sector: r.sector,
@@ -226,19 +255,15 @@
 
         function executeScreenerLogic() {
             let all = latestMarketData.filter(r => r.market === activeMarket).map(processStock);
-            
             all.forEach(s => s.bazi = getBaZiState(s));
 
             let holding = all.filter(s => userLists[s.ticker] === 'holding');
             let watchlist = all.filter(s => userLists[s.ticker] === 'watchlist');
-            
             let filtered = all.filter(s => {
                 if (userLists[s.ticker]) return false; 
                 if (activeStrategy === 'short_term') return s.flow_5d > 0 && s.rsi < 40 && s.valRating >= 3;
                 if (activeStrategy === 'long_term') return s.valRating >= 3 && s.rsi < 35 && s.price < s.sma200;
-                if (activeStrategy === 'ultimate_resonance') {
-                    return ['🌱 胎', '🍼 養', '🚀 長生 (爆量)'].includes(s.bazi.label) && s.valRating >= 3;
-                }
+                if (activeStrategy === 'ultimate_resonance') return ['🌱 胎', '🍼 養', '🚀 長生 (爆量)'].includes(s.bazi.label) && s.valRating >= 3;
             });
 
             const sorter = (a, b) => b.flow_5d - a.flow_5d;
@@ -263,10 +288,7 @@
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
 
                 const maxF = Math.max(Math.abs(s.flow_10d), 1);
-                const drawBar = (val, x) => {
-                    const h = Math.abs((val/maxF)*12);
-                    return `<rect x="${x}" y="${val>0 ? 15-h : 15}" width="8" height="${h||2}" rx="1" fill="${val>0?'#10B981':'#EF4444'}" />`;
-                };
+                const drawBar = (val, x) => `<rect x="${x}" y="${val>0 ? 15-Math.abs((val/maxF)*12) : 15}" width="8" height="${Math.abs((val/maxF)*12)||2}" rx="1" fill="${val>0?'#10B981':'#EF4444'}" />`;
 
                 tr.innerHTML = `
                     <td class="py-3 px-2 text-center border-r border-gray-100">
@@ -280,9 +302,7 @@
                         <div class="font-bold text-blue-900 font-mono tracking-tight text-base">${s.ticker}</div>
                         <div class="text-xs text-gray-500 truncate w-32">${s.name}</div>
                     </td>
-                    <td class="py-3 px-4 text-center">
-                        <span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${s.bazi.c}">${s.bazi.label}</span>
-                    </td>
+                    <td class="py-3 px-4 text-center"><span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${s.bazi.c}">${s.bazi.label}</span></td>
                     <td class="py-3 px-4 text-center">
                         <div class="flex items-center justify-center gap-2">
                             <svg class="w-12 h-8" viewBox="0 0 40 30" style="overflow:visible">
@@ -313,7 +333,7 @@
                 const expandTr = document.createElement('tr');
                 expandTr.id = `expand-${s.ticker}`;
                 expandTr.className = 'expansion-row';
-                expandTr.innerHTML = `<td colspan="10" class="p-4"><div id="content-${s.ticker}" class="text-center text-sm text-gray-500">載入歷史數據中...</div></td>`;
+                expandTr.innerHTML = `<td colspan="10" class="p-0"><div id="content-${s.ticker}"></div></td>`;
                 tbody.appendChild(expandTr);
             };
 
@@ -329,78 +349,202 @@
         }
 
         // ==========================================
-        // 5. 延遲載入 (Lazy Load) 歷史分析數據
+        // 5. 展開完整分析卡片 (100% 完美克隆)
         // ==========================================
         window.toggleAnalysis = async (ticker) => {
             const row = document.getElementById(`expand-${ticker}`);
             const content = document.getElementById(`content-${ticker}`);
             
-            if (row.classList.contains('open')) {
-                row.classList.remove('open'); return;
-            }
+            if (row.classList.contains('open')) { row.classList.remove('open'); return; }
             document.querySelectorAll('.expansion-row.open').forEach(el => el.classList.remove('open'));
             row.classList.add('open');
 
             if (windowCache[ticker]) return;
 
-            content.innerHTML = `<div class="animate-pulse text-indigo-600 font-bold py-4">⏳ 正在為 ${ticker} 抓取 20 天歷史軌跡...</div>`;
+            content.innerHTML = `<div class="p-8 text-center animate-pulse text-indigo-600 font-bold">⏳ 正在為 ${ticker} 抓取完整分析報告...</div>`;
 
             try {
+                const multiTable = activeMarket === 'HK' ? 'multi_stock_analysis_hk' : 'multi_stock_analysis_sp500';
                 const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
-                const [mfRes, sdRes] = await Promise.all([
-                    supabaseClient.from(mfTable).select('*').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
-                    supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(20)
+                
+                const [multiRes, mfRes, sdRes] = await Promise.all([
+                    supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(20),
+                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
+                    supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(1)
                 ]);
 
-                if (!sdRes.data || sdRes.data.length === 0) {
-                    content.innerHTML = `<div class="text-red-500 py-4">無法取得歷史數據。</div>`; return;
+                if (!multiRes.data || multiRes.data.length === 0) {
+                    content.innerHTML = `<div class="p-8 text-red-500">無法取得歷史數據。</div>`; return;
                 }
 
-                let historyRows = '';
-                sdRes.data.forEach(row => {
+                const records = multiRes.data;
+                const latest = records[0]; 
+                const prevData = records.length > 1 ? records[1] : {};
+                const sd = sdRes.data && sdRes.data.length > 0 ? sdRes.data[0] : {};
+                const mfiVal = mfRes.data && mfRes.data.length > 0 && mfRes.data[0].MFI !== null ? formatNum(mfRes.data[0].MFI, 2) : 'N/A';
+
+                // ================= 頂部排版 (加入十二長生標籤) =================
+                const changePct = latest.change_pct;
+                const changeColor = changePct > 0 ? 'text-green-600' : (changePct < 0 ? 'text-red-600' : 'text-gray-500');
+                const changeSign = changePct > 0 ? '+' : '';
+                const week52Low = Number(latest.week_52_low) || 0;
+                let dist52WLowText = 'N/A';
+                if (week52Low > 0) dist52WLowText = `+${(((Number(latest.current_price) - week52Low) / week52Low) * 100).toFixed(1)}%`;
+                
+                // 計算當前十二長生狀態
+                const mockObjForBazi = {
+                    price: latest.current_price, sma20: latest.sma20, sma200: latest.sma200, rvol: latest.rvol, rsi: latest.rsi, kdj_j: latest.kdj_j,
+                    flow_5d: latest.money_flow_5d_million, flow_10d: latest.money_flow_10d_million, macd: latest.macd, 
+                    obvDiv: latest.obv_divergence === 'Yes', preUp: latest.pre_uptrend_signal || ''
+                };
+                const bazi = getBaZiState(mockObjForBazi);
+
+                const headerHtml = `
+                    <div class="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-6 mb-3">
+                                <span class="text-xl font-bold text-blue-900 w-24">${ticker}</span>
+                                <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
+                                <span class="text-lg font-bold text-gray-800">${formatNum(latest.current_price, 3)}</span>
+                                <span class="${changeColor} font-bold text-sm">${changeSign}${formatNum(changePct, 2)}%</span>
+                                <!-- 👑 十二長生標籤 -->
+                                <span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${bazi.c} ml-4">${bazi.label}</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm font-medium">
+                                <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded shadow-sm">Sector: ${latest.sector || 'N/A'}</span>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded shadow-sm">距52W低: ${dist52WLowText}</span>
+                                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded shadow-sm">Val: ${latest.value_rating || 'N/A'}</span>
+                                <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded shadow-sm">評級: ${sd.rating_hybrid || 'N/A'}</span>
+                                <span class="px-3 py-1 bg-teal-100 text-teal-800 rounded shadow-sm">MFI: ${mfiVal}</span>
+                                <span class="px-3 py-1 rounded shadow-sm ${latest.pre_uptrend_signal !== 'No' ? 'bg-yellow-100 text-red-600 font-bold border border-yellow-200' : 'bg-gray-100 text-gray-600'}">Signal: ${latest.pre_uptrend_signal || 'No'}</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-2 text-sm text-right">
+                            <span class="text-gray-500 text-xs">最後更新: ${latest.trading_date} <br> (${latest.market_status})</span>
+                        </div>
+                    </div>
+                `;
+
+                // ================= 四大區塊與歷史表格 =================
+                let historyRows = "", moneyFlowDailyRows = "";
+                records.forEach((row, i) => {
+                    const px = row.close_price || row.current_price;
+                    const prevR = records[i + 1] || {};
                     historyRows += `
-                        <tr class="hover:bg-indigo-50">
-                            <td>${row.date}</td>
-                            <td class="font-bold">${formatNum(row.close_price, 3)}</td>
+                        <tr class="hover:bg-blue-50 text-sm">
+                            <td class="text-center">${row.trading_date}</td>
+                            <td>${formatNum(px, 3)}</td>
+                            <td>${formatNum(row.open_price, 3)}</td>
+                            <td>${formatNum(row.high_price, 3)}</td>
+                            <td>${formatNum(row.low_price, 3)}</td>
                             <td>${formatNum(row.change_pct, 2)}%</td>
-                            <td class="${row.close_price > row.sma5 ? 'text-green-600 font-bold' : ''}">${formatNum(row.sma5, 2)}</td>
-                            <td class="${row.close_price > row.sma20 ? 'text-green-600 font-bold' : ''}">${formatNum(row.sma20, 2)}</td>
-                            <td>${formatNum(row.rvol, 2)}</td>
-                            <td>${formatNum(row.macd, 3)}</td>
-                            <td>${formatNum(row.obv_millions, 2)}</td>
+                            <td class="${getCompareColorClass(row.vol_million, prevR.vol_million)}">${formatNum(row.vol_million, 3)}</td>
+                            <td class="${getCompareColorClass(row.rvol, prevR.rvol)}">${formatNum(row.rvol, 2)}</td>
+                            <td class="${checkHighlight(px, row.sma5)}">${formatNum(row.sma5, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma10)}">${formatNum(row.sma10, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma20)}">${formatNum(row.sma20, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma50)}">${formatNum(row.sma50, 3)}</td>
+                            <td class="${checkHighlight(px, row.sma200)}">${formatNum(row.sma200, 3)}</td>
+                            <td class="${getCompareColorClass(row.macd, prevR.macd)}">${formatNum(row.macd, 3)}</td>
+                            <td class="${getCompareColorClass(row.rsi, prevR.rsi)}">${formatNum(row.rsi, 2)}</td>
+                            <td class="${getCompareColorClass(row.adx, prevR.adx)}">${formatNum(row.adx, 2)}</td>
+                            <td class="${getCompareColorClass(row.kdj_k, prevR.kdj_k)}">${formatNum(row.kdj_k, 2)}</td>
+                            <td class="${getCompareColorClass(row.kdj_d, prevR.kdj_d)}">${formatNum(row.kdj_d, 2)}</td>
+                            <td class="${getCompareColorClass(row.kdj_j, prevR.kdj_j)}">${formatNum(row.kdj_j, 2)}</td>
+                            <td class="${getCompareColorClass(row.obv_millions, prevR.obv_millions)}">${formatNum(row.obv_millions, 3)}</td>
                         </tr>
                     `;
                 });
 
-                let flowRows = '';
                 if(mfRes.data) {
-                    mfRes.data.forEach(row => {
-                        flowRows += `<div class="flex justify-between border-b border-gray-100 py-1"><span class="text-gray-500">${row.Record_Date.slice(5)}</span><span class="${row.money_flow_million>0?'text-green-600':'text-red-600'} font-bold">${formatMoney(row.money_flow_million)}</span></div>`;
+                    mfRes.data.forEach((row, i) => {
+                        moneyFlowDailyRows += `
+                            <div class="grid grid-cols-2 text-sm gap-y-1">
+                                <span class="text-gray-600">Day -${i} (${row.Record_Date.slice(5)})</span>
+                                <span class="text-right font-medium ${getFlowColor(row.money_flow_million)}">${formatNum(row.money_flow_million, 2)}</span>
+                            </div>
+                        `;
                     });
                 }
 
-                const html = `
-                    <div class="bg-white p-4 rounded border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6 text-left">
-                        <div class="md:col-span-3">
-                            <h4 class="font-bold text-indigo-900 mb-2 border-b border-indigo-100 pb-1">📈 過去 20 天價格與技術軌跡</h4>
-                            <div class="overflow-x-auto">
-                                <table class="history-table w-full">
-                                    <thead><tr><th>Date</th><th>Close</th><th>Chg%</th><th>SMA5</th><th>SMA20</th><th>RVOL</th><th>MACD</th><th>OBV(M)</th></tr></thead>
-                                    <tbody>${historyRows}</tbody>
-                                </table>
+                // 組合卡片內容
+                const bodyHtml = `
+                    <div class="p-6 bg-white">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
+                            <!-- Section 1 -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
+                                    <span class="text-gray-600">Market Cap (M)</span><span class="text-right font-medium">${formatNum(latest.market_cap_million, 2)}</span>
+                                    <span class="text-gray-600">P/E Ratio</span><span class="text-right font-medium">${formatNum(latest.pe_ratio, 2)}</span>
+                                    <span class="text-gray-600">P/B Ratio</span><span class="text-right font-medium">${formatNum(latest.pb_ratio, 2)}</span>
+                                    <span class="text-gray-600">Free Cash Flow (M)</span><span class="text-right font-medium">${formatNum(latest.free_cash_flow_million, 2)}</span>
+                                    <span class="text-gray-600 pt-2 border-t mt-1">PEG Ratio</span><span class="text-right font-medium pt-2 border-t mt-1">${formatNum(latest.peg_ratio, 2)}</span>
+                                    <span class="text-gray-600">Dividend Yield (%)</span><span class="text-right font-medium">${formatNum(latest.dividend_yield, 2)}</span>
+                                    <span class="text-gray-600">ROE</span><span class="text-right font-medium">${formatNum(latest.roe, 3)}</span>
+                                    <span class="text-gray-600">Beta</span><span class="text-right font-medium">${formatNum(latest.beta, 3)}</span>
+                                    <span class="text-gray-600">Debt/Equity (%)</span><span class="text-right font-medium">${formatNum(latest.debt_to_equity, 3)}</span>
+                                    <span class="text-gray-600">52 Wk High / Low</span><span class="text-right font-medium">${formatNum(latest.week_52_high, 2)} / ${formatNum(latest.week_52_low, 2)}</span>
+                                    <span class="text-gray-600">Avg Vol 10D / 3M</span><span class="text-right font-medium">${formatNum(latest.avg_vol_10d_million, 3)} / ${formatNum(latest.avg_vol_3m_million, 3)}</span>
+                                    <span class="text-gray-600">Target Mean Px</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
+                                </div>
+                            </div>
+                            <!-- Section 2 -->
+                            <div>
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 2: SMART MONEY ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
+                                    <span class="text-gray-600">SMA Trend</span><span class="text-right font-bold ${sd.sma_trend==='Bullish'?'text-green-600':(sd.sma_trend==='Bearish'?'text-red-600':'text-gray-700')}">${sd.sma_trend||'N/A'}</span>
+                                    <span class="text-gray-600">MACD Mom.</span><span class="text-right font-bold ${sd.macd_momentum==='Positive'?'text-green-600':(sd.macd_momentum==='Negative'?'text-red-600':'text-gray-700')}">${sd.macd_momentum||'N/A'}</span>
+                                    <span class="text-gray-600">RS vs Market</span>${getCompareHtml(latest.rs_vs_market, prevData.rs_vs_market, 2, 'abs')}
+                                    <span class="text-gray-600">ATR</span>${getCompareHtml(latest.atr, prevData.atr, 3, 'pct')}
+                                    <span class="text-gray-600">RVOL</span>${getCompareHtml(latest.rvol, prevData.rvol, 2, 'pct')}
+                                    <span class="text-gray-600">BB Width Rank</span>${getCompareHtml(latest.bb_width_rank, prevData.bb_width_rank, 2, 'abs')}
+                                    <span class="text-gray-600 pt-2 border-t mt-1">Pre-Uptrend</span>${getTextCompareHtml(latest.pre_uptrend_signal, prevData.pre_uptrend_signal, 'N/A', 'font-bold text-red-600', 'pt-2 border-t mt-1')}
+                                    <span class="text-gray-600">Vol Squeeze</span><span class="text-right font-bold ${sd.vol_squeeze==='Squeeze (Ready)'?'text-amber-600':'text-gray-700'}">${sd.vol_squeeze||'Normal'}</span>
+                                    <span class="text-gray-600">Pullback Signal</span><span class="text-right font-bold ${sd.pullback_signal==='BUY DIP'?'text-green-600':'text-gray-500'}">${sd.pullback_signal||'N/A'}</span>
+                                    <span class="text-gray-600">Global Sector %</span><span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
+                                </div>
+                            </div>
+                            <!-- Section 4 -->
+                            <div class="bg-gray-50 p-3 rounded border">
+                                <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 4: MONEY FLOW ---</h3>
+                                <div class="grid grid-cols-2 text-sm gap-y-1 mb-2">
+                                    <span class="text-gray-800 font-bold">Last 5 Days</span><span class="text-right font-bold ${getFlowColor(latest.money_flow_5d_million)}">${formatNum(latest.money_flow_5d_million, 2)}</span>
+                                    <span class="text-gray-800 font-bold border-b pb-1">Last 10 Days</span><span class="text-right font-bold border-b pb-1 ${getFlowColor(latest.money_flow_10d_million)}">${formatNum(latest.money_flow_10d_million, 2)}</span>
+                                </div>
+                                <div class="mt-2 font-bold text-gray-700 mb-1 text-xs">Daily 1D Flow:</div>
+                                ${moneyFlowDailyRows}
                             </div>
                         </div>
-                        <div>
-                            <h4 class="font-bold text-indigo-900 mb-2 border-b border-indigo-100 pb-1">💰 每日資金淨流入</h4>
-                            <div class="text-xs font-mono max-h-64 overflow-y-auto pr-2">${flowRows}</div>
+                        
+                        <!-- Section 3: History Table -->
+                        <div class="mb-2 flex justify-between items-end">
+                            <h3 class="font-bold text-blue-900 text-sm">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
+                            <div class="flex items-center gap-4">
+                                <span class="text-xs text-gray-500 font-medium">提示: 藍色代表比昨日高，橙色代表比昨日低</span>
+                                <button onclick="copyToClipboard('${ticker}')" class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-2 px-4 rounded shadow border border-blue-300">📋 複製 TSV</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto mb-6">
+                            <table class="history-table">
+                                <thead><tr><th>Date</th><th>Close</th><th>Open</th><th>High</th><th>Low</th><th>Chg(%)</th><th>Vol(M)</th><th>RVOL</th><th>SMA5</th><th>SMA10</th><th>SMA20</th><th>SMA50</th><th>SMA200</th><th>MACD</th><th>RSI</th><th>ADX</th><th>KDJ_K</th><th>KDJ_D</th><th>KDJ_J</th><th>OBV(M)</th></tr></thead>
+                                <tbody>${historyRows}</tbody>
+                            </table>
                         </div>
                     </div>
                 `;
-                content.innerHTML = html;
+
+                // 產生 TSV 字串供複製
+                let tsv = `=== TICKER: ${ticker} ===\nDate:\t${latest.trading_date}\nPrice:\t${formatNum(latest.current_price, 3)}\nChange:\t${changeSign}${formatNum(changePct, 2)}%\nBaZi:\t${bazi.label}\n\n`;
+                tsv += `Date\tClose\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA20\tMACD\tRSI\tKDJ_J\tOBV(M)\n`;
+                records.forEach(r => tsv += `${r.trading_date}\t${formatNum(r.close_price||r.current_price,3)}\t${formatNum(r.change_pct,2)}%\t${formatNum(r.vol_million,3)}\t${formatNum(r.rvol,2)}\t${formatNum(r.sma5,3)}\t${formatNum(r.sma20,3)}\t${formatNum(r.macd,3)}\t${formatNum(r.rsi,2)}\t${formatNum(r.kdj_j,2)}\t${formatNum(r.obv_millions,3)}\n`);
+                window.clipboardDataMap[ticker] = tsv;
+
+                content.innerHTML = `<div class="analysis-card text-left">${headerHtml}${bodyHtml}</div>`;
                 windowCache[ticker] = true;
 
             } catch (err) {
-                content.innerHTML = `<div class="text-red-500 py-4">數據載入失敗，請重試。</div>`;
+                content.innerHTML = `<div class="p-8 text-red-500 font-bold">資料載入失敗，請檢查連線。</div>`;
             }
         };
 
@@ -409,11 +553,7 @@
         // ==========================================
         document.getElementById('btn-load-date').addEventListener('click', fetchMacroData);
         document.getElementById('search-ticker').addEventListener('input', executeScreenerLogic);
-        
-        document.addEventListener('DOMContentLoaded', async () => {
-            await fetchInitialData();
-            await fetchMacroData();
-        });
+        document.addEventListener('DOMContentLoaded', async () => { await fetchInitialData(); await fetchMacroData(); });
     </script>
 </body>
 </html>
