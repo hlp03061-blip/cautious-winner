@@ -77,7 +77,6 @@
             <div class="flex flex-wrap gap-3">
                 <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 shadow-sm transition-colors">📊 綜合決策儀表板</a>
                 <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-200 shadow-sm cursor-default">👑 選股與深度分析</a>
-                <!-- 修復 1：加回數據分析按鈕 -->
                 <a href="stockanalysis.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 shadow-sm transition-colors">📈 數據分析儀表板</a>
             </div>
             <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -230,7 +229,6 @@
             try {
                 const multiCols = 'ticker, company_name, sector, current_price, sma20, sma200, macd, rsi, kdj_j, obv_divergence, pre_uptrend_signal, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
                 
-                // 修復 4：將 money_flow 表格加回巨觀抓取，以確保 MFI 能正確顯示在主表與展開卡片
                 const [mHK, mUS, mfHK, mfUS] = await Promise.all([
                     supabaseClient.from('multi_stock_analysis_hk').select(multiCols).eq('trading_date', document.getElementById('hk-date').value).limit(3000),
                     supabaseClient.from('multi_stock_analysis_sp500').select(multiCols).eq('trading_date', document.getElementById('us-date').value).limit(3000),
@@ -293,7 +291,6 @@
                 const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
 
-                // 修復 2：精準計算最大邊界，防止 SVG 柱狀圖溢出
                 const f10_5 = s.flow_10d - s.flow_5d;
                 const f5_1 = s.flow_5d - s.flow_1d;
                 const f1 = s.flow_1d;
@@ -364,14 +361,13 @@
         }
 
         // ==========================================
-        // 5. 展開完整分析卡片 (新增收起功能)
+        // 5. 展開完整分析卡片
         // ==========================================
         window.toggleAnalysis = async (ticker) => {
             const row = document.getElementById(`expand-${ticker}`);
             const content = document.getElementById(`content-${ticker}`);
             const btn = document.getElementById(`btn-analyze-${ticker}`);
             
-            // 修復 3：完美的摺回與按鈕狀態切換
             if (row.classList.contains('open')) { 
                 row.classList.remove('open'); 
                 btn.innerHTML = '📊 分析';
@@ -379,7 +375,6 @@
                 return; 
             }
             
-            // 關閉其他已展開的，並將它們的按鈕恢復原狀
             document.querySelectorAll('.expansion-row.open').forEach(el => {
                 el.classList.remove('open');
                 const otherTicker = el.id.replace('expand-', '');
@@ -390,7 +385,6 @@
                 }
             });
             
-            // 打開當前這列
             row.classList.add('open');
             btn.innerHTML = '🔼 收起';
             btn.className = 'bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-1.5 px-3 rounded border border-red-200 transition';
@@ -401,9 +395,12 @@
 
             try {
                 const multiTable = activeMarket === 'HK' ? 'multi_stock_analysis_hk' : 'multi_stock_analysis_sp500';
+                const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
                 
-                const [multiRes, sdRes] = await Promise.all([
+                // 修復遺漏的 mfRes：向資料庫抓取 money_flow 歷史數據
+                const [multiRes, mfRes, sdRes] = await Promise.all([
                     supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(20),
+                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
                     supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(1)
                 ]);
 
@@ -416,7 +413,6 @@
                 const prevData = records.length > 1 ? records[1] : {};
                 const sd = sdRes.data && sdRes.data.length > 0 ? sdRes.data[0] : {};
                 
-                // MFI 從之前已經載入的 macro 資料中提取
                 const stockMacro = latestMarketData.find(x => x.ticker === ticker) || {};
                 const mfiVal = stockMacro.mfi !== undefined && stockMacro.mfi !== null ? formatNum(stockMacro.mfi, 2) : 'N/A';
 
@@ -455,13 +451,12 @@
                         </div>
                         <div class="flex flex-col items-end gap-2 text-sm text-right">
                             <span class="text-gray-500 text-xs">最後更新: ${latest.trading_date} <br> (${latest.market_status})</span>
-                            <!-- 新增卡片內收起按鈕 -->
                             <button onclick="toggleAnalysis('${ticker}')" class="text-xs text-blue-600 hover:text-blue-800 font-bold mt-1">🔼 收起卡片</button>
                         </div>
                     </div>
                 `;
 
-                let historyRows = "";
+                let historyRows = "", moneyFlowDailyRows = "";
                 records.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
                     const prevR = records[i + 1] || {};
@@ -490,6 +485,18 @@
                         </tr>
                     `;
                 });
+
+                // 補回缺失的 1D Flow 每日列表
+                if(mfRes && mfRes.data) {
+                    mfRes.data.forEach((row, i) => {
+                        moneyFlowDailyRows += `
+                            <div class="grid grid-cols-2 text-sm gap-y-1">
+                                <span class="text-gray-600">Day -${i} (${row.Record_Date.slice(5)})</span>
+                                <span class="text-right font-medium ${getFlowColor(row.money_flow_million)}">${formatNum(row.money_flow_million, 2)}</span>
+                            </div>
+                        `;
+                    });
+                }
 
                 const bodyHtml = `
                     <div class="p-6 bg-white">
@@ -531,6 +538,10 @@
                                 <div class="grid grid-cols-2 text-sm gap-y-1 mb-2">
                                     <span class="text-gray-800 font-bold">Last 5 Days</span><span class="text-right font-bold ${getFlowColor(latest.money_flow_5d_million)}">${formatNum(latest.money_flow_5d_million, 2)}</span>
                                     <span class="text-gray-800 font-bold border-b pb-1">Last 10 Days</span><span class="text-right font-bold border-b pb-1 ${getFlowColor(latest.money_flow_10d_million)}">${formatNum(latest.money_flow_10d_million, 2)}</span>
+                                </div>
+                                <div class="mt-2 font-bold text-gray-700 mb-1 text-xs">Daily 1D Flow:</div>
+                                <div class="max-h-64 overflow-y-auto pr-2">
+                                    ${moneyFlowDailyRows}
                                 </div>
                             </div>
                         </div>
