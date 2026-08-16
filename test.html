@@ -178,6 +178,7 @@
         let latestMarketData = [], userLists = {}, windowCache = {}; 
         let activeMarket = 'HK', activeStrategy = 'ultimate_resonance'; 
         window.clipboardDataMap = {}; 
+        let hoverTimer = null; // 處理滑鼠懸停展開的計時器
 
         const strategyTexts = {
             'short_term': `
@@ -236,7 +237,17 @@
             } else {
                 alert('資料尚未載入完成。');
             }
-        }
+        };
+
+        // 處理滑鼠懸停展開
+        window.handleMouseEnter = (ticker) => {
+            hoverTimer = setTimeout(() => {
+                toggleAnalysis(ticker, true); // true 代表由 hover 觸發，不作折疊
+            }, 400); // 400ms 延遲，防止路過閃爍
+        };
+        window.handleMouseLeave = () => {
+            if (hoverTimer) clearTimeout(hoverTimer);
+        };
 
         async function fetchInitialData() {
             const [{ data: hD }, { data: uD }, { data: pD }] = await Promise.all([
@@ -336,6 +347,9 @@
         }
 
         function renderTable(holding, watchlist, filtered) {
+            // 🎯 修復 Bug：重置快取，確保在切換 watchlist/holding 重新渲染時，卡片能正常重新載入
+            windowCache = {}; 
+            
             const tbody = document.getElementById('stock-table-body');
             document.getElementById('match-count').innerText = `篩選結果: ${filtered.length} 隻`;
             
@@ -356,7 +370,11 @@
                 let bg = 'hover:bg-blue-50 border-b border-gray-100';
                 if(category==='holding') bg = 'bg-yellow-50/60 hover:bg-yellow-100 border-b border-yellow-200';
                 if(category==='watchlist') bg = 'bg-teal-50/40 hover:bg-teal-100 border-b border-teal-100';
-                tr.className = bg;
+                
+                // 🎯 加入滑鼠 Hover 感應器 (整個 row 都可以觸發)
+                tr.className = bg + ' transition-colors cursor-pointer';
+                tr.setAttribute('onmouseenter', `handleMouseEnter('${s.ticker}')`);
+                tr.setAttribute('onmouseleave', `handleMouseLeave()`);
 
                 const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
@@ -372,13 +390,13 @@
                 };
 
                 tr.innerHTML = `
-                    <td class="py-3 px-2 text-center border-r border-gray-100">
+                    <td class="py-3 px-2 text-center border-r border-gray-100" onmouseenter="handleMouseLeave()"> <!-- 避免點擊按鈕時觸發hover展開 -->
                         <div class="flex justify-center gap-2 text-xl">
                             <span class="action-btn ${holdCls}" onclick="toggleList('${s.ticker}', 'holding')">💼</span>
                             <span class="action-btn ${watchCls}" onclick="toggleList('${s.ticker}', 'watchlist')">👀</span>
                         </div>
                     </td>
-                    <td class="py-3 px-2 text-center"><input type="checkbox" class="stock-checkbox"></td>
+                    <td class="py-3 px-2 text-center" onmouseenter="handleMouseLeave()"><input type="checkbox" class="stock-checkbox"></td>
                     <td class="py-3 px-4">
                         <div class="font-bold text-blue-900 font-mono tracking-tight text-base">${s.ticker}</div>
                         <div class="text-xs text-gray-500 truncate w-32">${s.name}</div>
@@ -406,7 +424,7 @@
                         <span class="text-gray-500">ROE:</span> <span class="font-bold">${s.roe?formatPct(s.roe):'N/A'}</span>
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-lg ${scoreColorClass}">${s.score.toFixed(1)}</td>
-                    <td class="py-3 px-4 text-center">
+                    <td class="py-3 px-4 text-center" onmouseenter="handleMouseLeave()">
                         <button id="btn-analyze-${s.ticker}" onclick="toggleAnalysis('${s.ticker}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition">📊 分析</button>
                     </td>
                 `;
@@ -433,25 +451,37 @@
         // ==========================================
         // 5. 展開完整分析卡片
         // ==========================================
-        window.toggleAnalysis = async (ticker) => {
+        window.toggleAnalysis = async (ticker, isHover = false) => {
+            // 如果是手動點擊按鈕，則清除 hover 倒數，避免衝突
+            if (!isHover && hoverTimer) clearTimeout(hoverTimer);
+
             const row = document.getElementById(`expand-${ticker}`);
             const content = document.getElementById(`content-${ticker}`);
             const btn = document.getElementById(`btn-analyze-${ticker}`);
             
-            if (row.classList.contains('open')) { 
+            const isOpen = row.classList.contains('open');
+
+            // 如果是由 hover 觸發，且已經是打開狀態，就不用做事
+            if (isHover && isOpen) return; 
+            
+            // 如果已經打開，且是用戶點擊按鈕要求關閉
+            if (isOpen && !isHover) { 
                 row.classList.remove('open'); 
                 btn.innerHTML = '📊 分析';
                 btn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
                 return; 
             }
             
+            // 確保展開時關閉其他已展開的列
             document.querySelectorAll('.expansion-row.open').forEach(el => {
-                el.classList.remove('open');
-                const otherTicker = el.id.replace('expand-', '');
-                const otherBtn = document.getElementById(`btn-analyze-${otherTicker}`);
-                if(otherBtn) {
-                    otherBtn.innerHTML = '📊 分析';
-                    otherBtn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
+                if (el.id !== `expand-${ticker}`) {
+                    el.classList.remove('open');
+                    const otherTicker = el.id.replace('expand-', '');
+                    const otherBtn = document.getElementById(`btn-analyze-${otherTicker}`);
+                    if(otherBtn) {
+                        otherBtn.innerHTML = '📊 分析';
+                        otherBtn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
+                    }
                 }
             });
             
@@ -465,9 +495,11 @@
 
             try {
                 const multiTable = activeMarket === 'HK' ? 'multi_stock_analysis_hk' : 'multi_stock_analysis_sp500';
+                const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
                 
-                const [multiRes, sdRes] = await Promise.all([
+                const [multiRes, mfRes, sdRes] = await Promise.all([
                     supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(20),
+                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
                     supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(1)
                 ]);
 
@@ -526,7 +558,6 @@
                 let historyRows = "";
                 let moneyFlowDailyRows = ""; 
 
-                // 🎯 根治 1：迴圈抓取歷史數據與每日資金流 (正確從 records 提取)
                 records.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
                     const prevR = records[i + 1] || {};
@@ -564,7 +595,6 @@
                     `;
                 });
 
-                // 🎯 根治 2：使用 Flex-Wrap 取代 Grid，讓卡片完美響應視窗縮放
                 const bodyHtml = `
                     <div class="p-6 bg-white" style="white-space: normal;">
                         <div class="flex flex-wrap gap-6 mb-6">
@@ -632,7 +662,6 @@
                     </div>
                 `;
 
-                // 完整 TSV 產生
                 let tsv = `=== TICKER: ${ticker} | ${latest.company_name || 'N/A'} ===\n`;
                 tsv += `Price:\t${formatNum(latest.current_price, 3)}\n`;
                 tsv += `Change:\t${changeSign}${formatNum(changePct, 2)}%\n`;
