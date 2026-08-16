@@ -30,7 +30,7 @@
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-6">
     <script>
         // ==========================================
-        // 1. SUPABASE 設定 (請填入 KEY)
+        // 1. SUPABASE 設定
         // ==========================================
         const SUPABASE_URL = 'https://dfeqgzgjnkcinduhaqbx.supabase.co'; 
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
@@ -89,7 +89,6 @@
             <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-gray-100 pb-4">
                 <div class="space-y-3">
                     <h1 class="text-3xl font-bold text-blue-900">🎣 智能選股與十二長生儀表板</h1>
-                    <!-- 策略切換按鈕 -->
                     <div class="flex flex-wrap gap-2 bg-gray-100 p-1.5 rounded-lg border border-gray-200 inline-flex shadow-inner">
                         <label class="cursor-pointer relative">
                             <input type="radio" name="strategy" value="short_term" onchange="switchStrategy('short_term')" class="peer sr-only">
@@ -261,6 +260,33 @@
             let all = latestMarketData.filter(r => r.market === activeMarket).map(processStock);
             all.forEach(s => s.bazi = getBaZiState(s));
 
+            // 🎯 修復 2：重新加回綜合分數的計算邏輯 (不再綁定 flow_5d)
+            const maxF5 = Math.max(...all.map(s => s.flow_5d), 1);
+            const minF10 = Math.min(...all.map(s => s.flow_10d));
+            const maxF10 = Math.max(...all.map(s => s.flow_10d));
+            const rangeF10 = maxF10 - minF10 === 0 ? 1 : maxF10 - minF10;
+
+            const calcScore = (s) => {
+                let finalScore = 0;
+                if (activeStrategy === 'short_term') {
+                    const mfiScore = ((45 - Math.max(s.mfi||100, 15)) / 30) * 40;
+                    const flowScore = (s.flow_5d / maxF5) * 40;
+                    const volScore = Math.min((s.rvol||0) / 2.0, 1) * 20; 
+                    finalScore = mfiScore + flowScore + volScore;
+                } else if (activeStrategy === 'long_term') {
+                    const valScore = (s.valRating / 5) * 30 + Math.min(s.divYield / 5.0, 1) * 10;
+                    const flowScore = ((s.flow_10d - minF10) / rangeF10) * 30;
+                    const oversoldScore = Math.max(0, ((100 - (s.rsi||100)) / 100) * 30);
+                    finalScore = valScore + flowScore + oversoldScore;
+                } else if (activeStrategy === 'ultimate_resonance') {
+                    const flowScore = ((s.flow_10d - minF10) / rangeF10) * 50;
+                    const valScore = (s.valRating / 5) * 50;
+                    finalScore = flowScore + valScore;
+                }
+                s.score = Math.max(finalScore, 0); // 防止負分出現
+            };
+            all.forEach(calcScore);
+
             let holding = all.filter(s => userLists[s.ticker] === 'holding');
             let watchlist = all.filter(s => userLists[s.ticker] === 'watchlist');
             let filtered = all.filter(s => {
@@ -270,7 +296,8 @@
                 if (activeStrategy === 'ultimate_resonance') return ['🌱 胎', '🍼 養', '🚀 長生 (爆量)'].includes(s.bazi.label) && s.valRating >= 3;
             });
 
-            const sorter = (a, b) => b.flow_5d - a.flow_5d;
+            // 以分數排高低
+            const sorter = (a, b) => b.score - a.score;
             holding.sort(sorter); watchlist.sort(sorter); filtered.sort(sorter);
 
             renderTable(holding, watchlist, filtered);
@@ -279,6 +306,18 @@
         function renderTable(holding, watchlist, filtered) {
             const tbody = document.getElementById('stock-table-body');
             document.getElementById('match-count').innerText = `篩選結果: ${filtered.length} 隻`;
+            
+            // 設定分數欄位的顏色
+            let scoreColorClass = 'text-gray-800';
+            if (activeStrategy === 'short_term') scoreColorClass = 'text-orange-600';
+            if (activeStrategy === 'long_term') scoreColorClass = 'text-indigo-700';
+            if (activeStrategy === 'ultimate_resonance') scoreColorClass = 'text-purple-700';
+            
+            const scoreHeader = document.getElementById('score-header');
+            if (activeStrategy === 'short_term') scoreHeader.innerText = '短線動能分';
+            else if (activeStrategy === 'long_term') scoreHeader.innerText = '長線價值分';
+            else scoreHeader.innerText = '共振爆發力';
+
             tbody.innerHTML = '';
 
             const createRow = (s, category) => {
@@ -335,7 +374,7 @@
                         <span class="text-gray-500">Val:</span> <span class="text-orange-600 font-bold">${s.valRating>0?s.valRating+'/5':'-'}</span><br>
                         <span class="text-gray-500">ROE:</span> <span class="font-bold">${s.roe?formatPct(s.roe):'N/A'}</span>
                     </td>
-                    <td class="py-3 px-4 text-right font-mono font-bold text-gray-800">${formatMoney(s.flow_5d)}</td>
+                    <td class="py-3 px-4 text-right font-mono font-bold text-lg ${scoreColorClass}">${s.score.toFixed(1)}</td>
                     <td class="py-3 px-4 text-center">
                         <button id="btn-analyze-${s.ticker}" onclick="toggleAnalysis('${s.ticker}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition">📊 分析</button>
                     </td>
@@ -395,12 +434,9 @@
 
             try {
                 const multiTable = activeMarket === 'HK' ? 'multi_stock_analysis_hk' : 'multi_stock_analysis_sp500';
-                const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
                 
-                // 修復遺漏的 mfRes：向資料庫抓取 money_flow 歷史數據
-                const [multiRes, mfRes, sdRes] = await Promise.all([
+                const [multiRes, sdRes] = await Promise.all([
                     supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(20),
-                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
                     supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(1)
                 ]);
 
@@ -456,7 +492,9 @@
                     </div>
                 `;
 
-                let historyRows = "", moneyFlowDailyRows = "";
+                let historyRows = "";
+                let moneyFlowDailyRows = ""; // 🎯 修復 1：重新宣告變數來儲存每日資金流
+
                 records.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
                     const prevR = records[i + 1] || {};
@@ -484,19 +522,15 @@
                             <td class="${getCompareColorClass(row.obv_millions, prevR.obv_millions)}">${formatNum(row.obv_millions, 3)}</td>
                         </tr>
                     `;
-                });
 
-                // 補回缺失的 1D Flow 每日列表
-                if(mfRes && mfRes.data) {
-                    mfRes.data.forEach((row, i) => {
-                        moneyFlowDailyRows += `
-                            <div class="grid grid-cols-2 text-sm gap-y-1">
-                                <span class="text-gray-600">Day -${i} (${row.Record_Date.slice(5)})</span>
-                                <span class="text-right font-medium ${getFlowColor(row.money_flow_million)}">${formatNum(row.money_flow_million, 2)}</span>
-                            </div>
-                        `;
-                    });
-                }
+                    // 🎯 修復 1：正確地從 multi_stock_analysis (records) 提取每日資金流，不再需要向 money_flow 抓取
+                    moneyFlowDailyRows += `
+                        <div class="grid grid-cols-2 text-sm gap-y-1">
+                            <span class="text-gray-600">Day -${i} (${row.trading_date.slice(5)})</span>
+                            <span class="text-right font-medium ${getFlowColor(row.money_flow_million)}">${formatNum(row.money_flow_million, 2)}</span>
+                        </div>
+                    `;
+                });
 
                 const bodyHtml = `
                     <div class="p-6 bg-white">
