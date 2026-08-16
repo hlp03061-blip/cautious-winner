@@ -132,29 +132,29 @@
         // ==========================================
         // 2. 狀態與輔助函數
         // ==========================================
-        let latestMarketData = [], userLists = {}, windowCache = {}; // windowCache 用於存放延遲載入的歷史數據
+        let latestMarketData = [], userLists = {}, windowCache = {}; 
         let activeMarket = 'HK', activeStrategy = 'ultimate_resonance'; 
         
         const formatMoney = (v) => v ? (Math.abs(v) >= 1000000 ? (v/1000000).toFixed(1)+'M' : v.toFixed(1)) : '-';
         const formatPct = (v) => v ? (v*100).toFixed(1)+'%' : '-';
         const formatNum = (v, d=2) => v ? Number(v).toFixed(d) : 'N/A';
 
-        // 十二長生動態演算 (基於第一性原理)
+        // 十二長生動態演算 (修正無效欄位後)
         function getBaZiState(s) {
             const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
             const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
-            const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd, macdMom = s.macdMom;
-            const obvDiv = s.obvDiv, squeeze = s.volSqueeze;
+            const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd;
+            const obvDiv = s.obvDiv, preUp = s.preUp;
 
             if (rsi > 75 && kdj_j > 100) return { label: '🔥 帝旺', c: 'bg-orange-100 text-orange-800 border-orange-300 font-bold' };
-            // 長生: 突破 SMA20 且 RVOL 爆量 且 MACD為正 (嚴格防守假突破)
+            // 長生: 突破 SMA20 且 RVOL 爆量 且 MACD為正
             if (p > sma20 && rvol >= 1.5 && macd > 0) return { label: '🚀 長生 (爆量)', c: 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm' };
-            if (p > sma20 && s.smaTrend === 'Bullish') return { label: '🌳 生長', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
+            if (p > sma20) return { label: '🌳 生長', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
             if (p < sma200 && rsi < 30 && kdj_j < 0) return { label: '⚡ 絕', c: 'bg-slate-800 text-white border-slate-900 font-bold' };
-            // 養: 資金連續流入, 動能轉正
-            if (p <= sma20 && f5 > 0 && f10 > 0 && macdMom === 'Positive') return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
-            // 胎: 有背離或收斂，資金開始微流入
-            if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || squeeze === 'Squeeze (Ready)')) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
+            // 養: 資金連續流入
+            if (p <= sma20 && f5 > 0 && f10 > 0) return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
+            // 胎: 有背離或準備訊號，資金開始微流入
+            if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || preUp.includes('Squeeze') || preUp.includes('Accumulation'))) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
             
             return { label: '🍂 衰/死', c: 'bg-gray-100 text-gray-500 border-gray-200' };
         }
@@ -192,8 +192,8 @@
         async function fetchMacroData() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold animate-pulse">🔄 正在抓取全市場巨觀數據...</td></tr>`;
             try {
-                // 抓取所需的欄位以計算十二長生
-                const multiCols = 'ticker, company_name, sector, current_price, sma20, sma200, macd, macd_momentum, rsi, kdj_j, obv_divergence, vol_squeeze, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
+                // 👉 修正重點：移除了不存在的 macd_momentum 與 vol_squeeze，換成正確的 pre_uptrend_signal
+                const multiCols = 'ticker, company_name, sector, current_price, sma20, sma200, macd, rsi, kdj_j, obv_divergence, pre_uptrend_signal, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
                 
                 const [mHK, mUS] = await Promise.all([
                     supabaseClient.from('multi_stock_analysis_hk').select(multiCols).eq('trading_date', document.getElementById('hk-date').value).limit(3000),
@@ -205,7 +205,10 @@
                     ...(mUS.data||[]).map(r => ({...r, market: 'US'}))
                 ];
                 executeScreenerLogic();
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error(err); 
+                document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-bold">❌ 抓取失敗，請檢查網路。</td></tr>`;
+            }
         }
 
         // ==========================================
@@ -214,8 +217,8 @@
         function processStock(r) {
             return {
                 ticker: r.ticker, market: r.market, name: r.company_name, sector: r.sector,
-                price: r.current_price, sma20: r.sma20, sma200: r.sma200, macd: r.macd, macdMom: r.macd_momentum,
-                rsi: r.rsi, kdj_j: r.kdj_j, rvol: r.rvol, obvDiv: r.obv_divergence === 'Yes', volSqueeze: r.vol_squeeze,
+                price: r.current_price, sma20: r.sma20, sma200: r.sma200, macd: r.macd,
+                rsi: r.rsi, kdj_j: r.kdj_j, rvol: r.rvol, obvDiv: r.obv_divergence === 'Yes', preUp: r.pre_uptrend_signal || '',
                 flow_1d: r.money_flow_million||0, flow_5d: r.money_flow_5d_million||0, flow_10d: r.money_flow_10d_million||0,
                 pe: r.pe_ratio||0, divYield: r.dividend_yield||0, valRating: r.value_rating||0, roe: r.roe||0, score: 0
             };
@@ -224,23 +227,20 @@
         function executeScreenerLogic() {
             let all = latestMarketData.filter(r => r.market === activeMarket).map(processStock);
             
-            // 賦予八字狀態
             all.forEach(s => s.bazi = getBaZiState(s));
 
             let holding = all.filter(s => userLists[s.ticker] === 'holding');
             let watchlist = all.filter(s => userLists[s.ticker] === 'watchlist');
             
             let filtered = all.filter(s => {
-                if (userLists[s.ticker]) return false; // 避開重複
+                if (userLists[s.ticker]) return false; 
                 if (activeStrategy === 'short_term') return s.flow_5d > 0 && s.rsi < 40 && s.valRating >= 3;
                 if (activeStrategy === 'long_term') return s.valRating >= 3 && s.rsi < 35 && s.price < s.sma200;
                 if (activeStrategy === 'ultimate_resonance') {
-                    // 🔮 八字尋寶：只找胎、養、長生
                     return ['🌱 胎', '🍼 養', '🚀 長生 (爆量)'].includes(s.bazi.label) && s.valRating >= 3;
                 }
             });
 
-            // 簡單排序：以5D資金排
             const sorter = (a, b) => b.flow_5d - a.flow_5d;
             holding.sort(sorter); watchlist.sort(sorter); filtered.sort(sorter);
 
@@ -262,7 +262,6 @@
                 const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
 
-                // Sparkline
                 const maxF = Math.max(Math.abs(s.flow_10d), 1);
                 const drawBar = (val, x) => {
                     const h = Math.abs((val/maxF)*12);
@@ -311,7 +310,6 @@
                 `;
                 tbody.appendChild(tr);
 
-                // 隱藏的展開列 (Lazy Load Container)
                 const expandTr = document.createElement('tr');
                 expandTr.id = `expand-${s.ticker}`;
                 expandTr.className = 'expansion-row';
@@ -337,21 +335,17 @@
             const row = document.getElementById(`expand-${ticker}`);
             const content = document.getElementById(`content-${ticker}`);
             
-            // 開關切換
             if (row.classList.contains('open')) {
                 row.classList.remove('open'); return;
             }
-            // 關閉其他已展開的列 (保持畫面整潔)
             document.querySelectorAll('.expansion-row.open').forEach(el => el.classList.remove('open'));
             row.classList.add('open');
 
-            // 如果已經抓過數據，就不用重抓
             if (windowCache[ticker]) return;
 
             content.innerHTML = `<div class="animate-pulse text-indigo-600 font-bold py-4">⏳ 正在為 ${ticker} 抓取 20 天歷史軌跡...</div>`;
 
             try {
-                // 瞬間單獨查詢該股票的 20 天歷史 (極快)
                 const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
                 const [mfRes, sdRes] = await Promise.all([
                     supabaseClient.from(mfTable).select('*').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
@@ -362,7 +356,6 @@
                     content.innerHTML = `<div class="text-red-500 py-4">無法取得歷史數據。</div>`; return;
                 }
 
-                // 產生歷史表格 HTML
                 let historyRows = '';
                 sdRes.data.forEach(row => {
                     historyRows += `
@@ -379,7 +372,6 @@
                     `;
                 });
 
-                // 產生資金流 HTML
                 let flowRows = '';
                 if(mfRes.data) {
                     mfRes.data.forEach(row => {
@@ -387,7 +379,6 @@
                     });
                 }
 
-                // 渲染至畫面
                 const html = `
                     <div class="bg-white p-4 rounded border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6 text-left">
                         <div class="md:col-span-3">
@@ -406,7 +397,7 @@
                     </div>
                 `;
                 content.innerHTML = html;
-                windowCache[ticker] = true; // 標記為已快取
+                windowCache[ticker] = true;
 
             } catch (err) {
                 content.innerHTML = `<div class="text-red-500 py-4">數據載入失敗，請重試。</div>`;
