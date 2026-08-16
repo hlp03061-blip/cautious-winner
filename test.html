@@ -36,7 +36,6 @@
         const SUPABASE_ANON_KEY = 'sb_publishable_eOJwtn52IK-ud7RAvZlXKQ_8Io078XT'; 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 共用輔助函數 (完美克隆原有的 formatNum 與 getCompareHtml)
         const formatNum = (num, decimals = 2) => num !== null && num !== undefined && !isNaN(num) ? Number(num).toFixed(decimals) : 'N/A';
         const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
         const getFlowColor = (flow) => flow === null || flow === undefined ? 'text-gray-800' : (flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800'));
@@ -76,8 +75,10 @@
         <!-- 頂部導覽列 -->
         <nav class="flex flex-wrap items-center justify-between gap-3 mb-2">
             <div class="flex flex-wrap gap-3">
-                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 shadow-sm">📊 綜合決策儀表板</a>
+                <a href="index.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 shadow-sm transition-colors">📊 綜合決策儀表板</a>
                 <a href="#" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-200 shadow-sm cursor-default">👑 選股與深度分析</a>
+                <!-- 修復 1：加回數據分析按鈕 -->
+                <a href="stockanalysis.html" class="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 hover:text-blue-600 rounded-lg text-sm font-medium border border-gray-200 shadow-sm transition-colors">📈 數據分析儀表板</a>
             </div>
             <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
                 <input type="text" id="search-ticker" placeholder="🔍 搜尋代號或公司" class="w-full sm:w-64 bg-white border border-gray-300 rounded-lg text-sm px-4 py-2 outline-none focus:border-blue-500 shadow-sm">
@@ -170,7 +171,7 @@
         // ==========================================
         let latestMarketData = [], userLists = {}, windowCache = {}; 
         let activeMarket = 'HK', activeStrategy = 'ultimate_resonance'; 
-        window.clipboardDataMap = {}; // 複製 TSV 用
+        window.clipboardDataMap = {}; 
         
         function getBaZiState(s) {
             const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
@@ -227,17 +228,22 @@
         async function fetchMacroData() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold animate-pulse">🔄 正在抓取全市場巨觀數據...</td></tr>`;
             try {
-                // 這裡只抓快照，點擊「分析」才去抓歷史
                 const multiCols = 'ticker, company_name, sector, current_price, sma20, sma200, macd, rsi, kdj_j, obv_divergence, pre_uptrend_signal, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
                 
-                const [mHK, mUS] = await Promise.all([
+                // 修復 4：將 money_flow 表格加回巨觀抓取，以確保 MFI 能正確顯示在主表與展開卡片
+                const [mHK, mUS, mfHK, mfUS] = await Promise.all([
                     supabaseClient.from('multi_stock_analysis_hk').select(multiCols).eq('trading_date', document.getElementById('hk-date').value).limit(3000),
-                    supabaseClient.from('multi_stock_analysis_sp500').select(multiCols).eq('trading_date', document.getElementById('us-date').value).limit(3000)
+                    supabaseClient.from('multi_stock_analysis_sp500').select(multiCols).eq('trading_date', document.getElementById('us-date').value).limit(3000),
+                    supabaseClient.from('money_flow_hk').select('ticker, MFI').eq('Record_Date', document.getElementById('hk-date').value).limit(3000),
+                    supabaseClient.from('money_flow_sp500').select('ticker, MFI').eq('Record_Date', document.getElementById('us-date').value).limit(3000)
                 ]);
 
+                const mfiMapHK = {}; (mfHK.data||[]).forEach(r => mfiMapHK[r.ticker] = r.MFI);
+                const mfiMapUS = {}; (mfUS.data||[]).forEach(r => mfiMapUS[r.ticker] = r.MFI);
+
                 latestMarketData = [
-                    ...(mHK.data||[]).map(r => ({...r, market: 'HK'})), 
-                    ...(mUS.data||[]).map(r => ({...r, market: 'US'}))
+                    ...(mHK.data||[]).map(r => ({...r, market: 'HK', mfi: mfiMapHK[r.ticker]})), 
+                    ...(mUS.data||[]).map(r => ({...r, market: 'US', mfi: mfiMapUS[r.ticker]}))
                 ];
                 executeScreenerLogic();
             } catch (err) { console.error(err); }
@@ -247,7 +253,7 @@
             return {
                 ticker: r.ticker, market: r.market, name: r.company_name, sector: r.sector,
                 price: r.current_price, sma20: r.sma20, sma200: r.sma200, macd: r.macd,
-                rsi: r.rsi, kdj_j: r.kdj_j, rvol: r.rvol, obvDiv: r.obv_divergence === 'Yes', preUp: r.pre_uptrend_signal || '',
+                mfi: r.mfi, rsi: r.rsi, kdj_j: r.kdj_j, rvol: r.rvol, obvDiv: r.obv_divergence === 'Yes', preUp: r.pre_uptrend_signal || '',
                 flow_1d: r.money_flow_million||0, flow_5d: r.money_flow_5d_million||0, flow_10d: r.money_flow_10d_million||0,
                 pe: r.pe_ratio||0, divYield: r.dividend_yield||0, valRating: r.value_rating||0, roe: r.roe||0, score: 0
             };
@@ -287,8 +293,16 @@
                 const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
 
-                const maxF = Math.max(Math.abs(s.flow_10d), 1);
-                const drawBar = (val, x) => `<rect x="${x}" y="${val>0 ? 15-Math.abs((val/maxF)*12) : 15}" width="8" height="${Math.abs((val/maxF)*12)||2}" rx="1" fill="${val>0?'#10B981':'#EF4444'}" />`;
+                // 修復 2：精準計算最大邊界，防止 SVG 柱狀圖溢出
+                const f10_5 = s.flow_10d - s.flow_5d;
+                const f5_1 = s.flow_5d - s.flow_1d;
+                const f1 = s.flow_1d;
+                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
+                
+                const drawBar = (val, x) => {
+                    const h = Math.abs((val/maxAbs)*12);
+                    return `<rect x="${x}" y="${val>0 ? 15-h : 15}" width="8" height="${h||2}" rx="1" fill="${val>0?'#10B981':'#EF4444'}" />`;
+                };
 
                 tr.innerHTML = `
                     <td class="py-3 px-2 text-center border-r border-gray-100">
@@ -307,11 +321,12 @@
                         <div class="flex items-center justify-center gap-2">
                             <svg class="w-12 h-8" viewBox="0 0 40 30" style="overflow:visible">
                                 <line x1="0" y1="15" x2="40" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
-                                ${drawBar(s.flow_10d-s.flow_5d, 2)} ${drawBar(s.flow_5d-s.flow_1d, 16)} ${drawBar(s.flow_1d, 30)}
+                                ${drawBar(f10_5, 2)} ${drawBar(f5_1, 16)} ${drawBar(f1, 30)}
                             </svg>
                         </div>
                     </td>
                     <td class="py-3 px-4 text-center font-mono text-xs">
+                        <span class="${s.mfi < 45 ? 'text-teal-600 font-bold' : 'text-gray-500'}">MFI:${s.mfi ? s.mfi.toFixed(1) : 'N/A'}</span><br>
                         <span class="${s.rsi < 40 ? 'text-teal-600 font-bold' : 'text-gray-500'}">RSI:${s.rsi.toFixed(1)}</span><br>
                         <span class="${s.kdj_j < 20 ? 'text-teal-600 font-bold' : 'text-gray-500'}">KDJ:${s.kdj_j.toFixed(1)}</span>
                     </td>
@@ -325,7 +340,7 @@
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-gray-800">${formatMoney(s.flow_5d)}</td>
                     <td class="py-3 px-4 text-center">
-                        <button onclick="toggleAnalysis('${s.ticker}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition">📊 分析</button>
+                        <button id="btn-analyze-${s.ticker}" onclick="toggleAnalysis('${s.ticker}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition">📊 分析</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -349,15 +364,36 @@
         }
 
         // ==========================================
-        // 5. 展開完整分析卡片 (100% 完美克隆)
+        // 5. 展開完整分析卡片 (新增收起功能)
         // ==========================================
         window.toggleAnalysis = async (ticker) => {
             const row = document.getElementById(`expand-${ticker}`);
             const content = document.getElementById(`content-${ticker}`);
+            const btn = document.getElementById(`btn-analyze-${ticker}`);
             
-            if (row.classList.contains('open')) { row.classList.remove('open'); return; }
-            document.querySelectorAll('.expansion-row.open').forEach(el => el.classList.remove('open'));
+            // 修復 3：完美的摺回與按鈕狀態切換
+            if (row.classList.contains('open')) { 
+                row.classList.remove('open'); 
+                btn.innerHTML = '📊 分析';
+                btn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
+                return; 
+            }
+            
+            // 關閉其他已展開的，並將它們的按鈕恢復原狀
+            document.querySelectorAll('.expansion-row.open').forEach(el => {
+                el.classList.remove('open');
+                const otherTicker = el.id.replace('expand-', '');
+                const otherBtn = document.getElementById(`btn-analyze-${otherTicker}`);
+                if(otherBtn) {
+                    otherBtn.innerHTML = '📊 分析';
+                    otherBtn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
+                }
+            });
+            
+            // 打開當前這列
             row.classList.add('open');
+            btn.innerHTML = '🔼 收起';
+            btn.className = 'bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-1.5 px-3 rounded border border-red-200 transition';
 
             if (windowCache[ticker]) return;
 
@@ -365,11 +401,9 @@
 
             try {
                 const multiTable = activeMarket === 'HK' ? 'multi_stock_analysis_hk' : 'multi_stock_analysis_sp500';
-                const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
                 
-                const [multiRes, mfRes, sdRes] = await Promise.all([
+                const [multiRes, sdRes] = await Promise.all([
                     supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(20),
-                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
                     supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(1)
                 ]);
 
@@ -381,9 +415,11 @@
                 const latest = records[0]; 
                 const prevData = records.length > 1 ? records[1] : {};
                 const sd = sdRes.data && sdRes.data.length > 0 ? sdRes.data[0] : {};
-                const mfiVal = mfRes.data && mfRes.data.length > 0 && mfRes.data[0].MFI !== null ? formatNum(mfRes.data[0].MFI, 2) : 'N/A';
+                
+                // MFI 從之前已經載入的 macro 資料中提取
+                const stockMacro = latestMarketData.find(x => x.ticker === ticker) || {};
+                const mfiVal = stockMacro.mfi !== undefined && stockMacro.mfi !== null ? formatNum(stockMacro.mfi, 2) : 'N/A';
 
-                // ================= 頂部排版 (加入十二長生標籤) =================
                 const changePct = latest.change_pct;
                 const changeColor = changePct > 0 ? 'text-green-600' : (changePct < 0 ? 'text-red-600' : 'text-gray-500');
                 const changeSign = changePct > 0 ? '+' : '';
@@ -391,7 +427,6 @@
                 let dist52WLowText = 'N/A';
                 if (week52Low > 0) dist52WLowText = `+${(((Number(latest.current_price) - week52Low) / week52Low) * 100).toFixed(1)}%`;
                 
-                // 計算當前十二長生狀態
                 const mockObjForBazi = {
                     price: latest.current_price, sma20: latest.sma20, sma200: latest.sma200, rvol: latest.rvol, rsi: latest.rsi, kdj_j: latest.kdj_j,
                     flow_5d: latest.money_flow_5d_million, flow_10d: latest.money_flow_10d_million, macd: latest.macd, 
@@ -407,7 +442,6 @@
                                 <span class="text-sm text-gray-600 truncate w-32">${latest.company_name || 'N/A'}</span>
                                 <span class="text-lg font-bold text-gray-800">${formatNum(latest.current_price, 3)}</span>
                                 <span class="${changeColor} font-bold text-sm">${changeSign}${formatNum(changePct, 2)}%</span>
-                                <!-- 👑 十二長生標籤 -->
                                 <span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${bazi.c} ml-4">${bazi.label}</span>
                             </div>
                             <div class="flex items-center gap-3 text-sm font-medium">
@@ -421,12 +455,13 @@
                         </div>
                         <div class="flex flex-col items-end gap-2 text-sm text-right">
                             <span class="text-gray-500 text-xs">最後更新: ${latest.trading_date} <br> (${latest.market_status})</span>
+                            <!-- 新增卡片內收起按鈕 -->
+                            <button onclick="toggleAnalysis('${ticker}')" class="text-xs text-blue-600 hover:text-blue-800 font-bold mt-1">🔼 收起卡片</button>
                         </div>
                     </div>
                 `;
 
-                // ================= 四大區塊與歷史表格 =================
-                let historyRows = "", moneyFlowDailyRows = "";
+                let historyRows = "";
                 records.forEach((row, i) => {
                     const px = row.close_price || row.current_price;
                     const prevR = records[i + 1] || {};
@@ -456,22 +491,9 @@
                     `;
                 });
 
-                if(mfRes.data) {
-                    mfRes.data.forEach((row, i) => {
-                        moneyFlowDailyRows += `
-                            <div class="grid grid-cols-2 text-sm gap-y-1">
-                                <span class="text-gray-600">Day -${i} (${row.Record_Date.slice(5)})</span>
-                                <span class="text-right font-medium ${getFlowColor(row.money_flow_million)}">${formatNum(row.money_flow_million, 2)}</span>
-                            </div>
-                        `;
-                    });
-                }
-
-                // 組合卡片內容
                 const bodyHtml = `
                     <div class="p-6 bg-white">
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
-                            <!-- Section 1 -->
                             <div>
                                 <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 1: BASIC FUNDAMENTALS ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
@@ -489,7 +511,6 @@
                                     <span class="text-gray-600">Target Mean Px</span><span class="text-right font-medium">${formatNum(latest.target_mean_price, 2)}</span>
                                 </div>
                             </div>
-                            <!-- Section 2 -->
                             <div>
                                 <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 2: SMART MONEY ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-2 items-center">
@@ -505,19 +526,15 @@
                                     <span class="text-gray-600">Global Sector %</span><span class="text-right font-medium">${formatNum(latest.global_sector_trend_pct, 2)}</span>
                                 </div>
                             </div>
-                            <!-- Section 4 -->
                             <div class="bg-gray-50 p-3 rounded border">
                                 <h3 class="font-bold text-blue-900 border-b pb-1 mb-2 text-sm">--- SECTION 4: MONEY FLOW ---</h3>
                                 <div class="grid grid-cols-2 text-sm gap-y-1 mb-2">
                                     <span class="text-gray-800 font-bold">Last 5 Days</span><span class="text-right font-bold ${getFlowColor(latest.money_flow_5d_million)}">${formatNum(latest.money_flow_5d_million, 2)}</span>
                                     <span class="text-gray-800 font-bold border-b pb-1">Last 10 Days</span><span class="text-right font-bold border-b pb-1 ${getFlowColor(latest.money_flow_10d_million)}">${formatNum(latest.money_flow_10d_million, 2)}</span>
                                 </div>
-                                <div class="mt-2 font-bold text-gray-700 mb-1 text-xs">Daily 1D Flow:</div>
-                                ${moneyFlowDailyRows}
                             </div>
                         </div>
                         
-                        <!-- Section 3: History Table -->
                         <div class="mb-2 flex justify-between items-end">
                             <h3 class="font-bold text-blue-900 text-sm">--- SECTION 3: HISTORICAL TECHNICALS ---</h3>
                             <div class="flex items-center gap-4">
@@ -534,7 +551,6 @@
                     </div>
                 `;
 
-                // 產生 TSV 字串供複製
                 let tsv = `=== TICKER: ${ticker} ===\nDate:\t${latest.trading_date}\nPrice:\t${formatNum(latest.current_price, 3)}\nChange:\t${changeSign}${formatNum(changePct, 2)}%\nBaZi:\t${bazi.label}\n\n`;
                 tsv += `Date\tClose\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA20\tMACD\tRSI\tKDJ_J\tOBV(M)\n`;
                 records.forEach(r => tsv += `${r.trading_date}\t${formatNum(r.close_price||r.current_price,3)}\t${formatNum(r.change_pct,2)}%\t${formatNum(r.vol_million,3)}\t${formatNum(r.rvol,2)}\t${formatNum(r.sma5,3)}\t${formatNum(r.sma20,3)}\t${formatNum(r.macd,3)}\t${formatNum(r.rsi,2)}\t${formatNum(r.kdj_j,2)}\t${formatNum(r.obv_millions,3)}\n`);
