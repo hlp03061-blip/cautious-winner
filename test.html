@@ -142,7 +142,6 @@
                     </label>
                     <span id="match-count" class="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-1 rounded-full border border-blue-200">載入中...</span>
                 </div>
-                <!-- 🎯 批量複製按鈕 -->
                 <button id="btn-copy-selected" class="bg-gray-800 hover:bg-gray-700 text-white text-sm font-bold px-5 py-2 rounded-lg flex gap-2 transition-colors">
                     📋 複製選取代號 (<span id="selected-count">0</span>)
                 </button>
@@ -229,7 +228,6 @@
             }
         };
 
-        // 🎯 批量複製核取方塊的驅動邏輯
         window.updateSelectedCount = () => {
             const count = document.querySelectorAll('.stock-checkbox[data-ticker]:checked').length;
             document.getElementById('selected-count').innerText = count;
@@ -276,7 +274,6 @@
             }
         };
 
-        // 一鍵單點複製代號小工具
         window.copyTicker = (e, ticker) => {
             e.stopPropagation(); 
             navigator.clipboard.writeText(ticker).then(() => {
@@ -291,7 +288,6 @@
             });
         };
 
-        // 🎯 右鍵瞬間展開卡片功能
         window.handleRightClick = (e, ticker) => {
             e.preventDefault(); 
             toggleAnalysis(ticker);
@@ -396,7 +392,6 @@
 
         function renderTable(holding, watchlist, filtered) {
             windowCache = {}; 
-            // 清除全選與計數器狀態
             document.getElementById('check-all').checked = false;
             document.getElementById('selected-count').innerText = '0';
             
@@ -415,23 +410,21 @@
 
             tbody.innerHTML = '';
 
+            // 🎯 修改點：直接傳遞 10D, 5D, 1D 的原始絕對數值給 Sparkline 繪製
             const createRow = (s, category) => {
                 const tr = document.createElement('tr');
                 let bg = 'hover:bg-blue-50 border-b border-gray-100';
                 if(category==='holding') bg = 'bg-yellow-50/60 hover:bg-yellow-100 border-b border-yellow-200';
                 if(category==='watchlist') bg = 'bg-teal-50/40 hover:bg-teal-100 border-b border-teal-100';
                 
-                // 綁定右鍵事件展開
                 tr.className = bg + ' transition-colors cursor-default';
                 tr.setAttribute('oncontextmenu', `handleRightClick(event, '${s.ticker}')`);
 
                 const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
 
-                const f10_5 = s.flow_10d - s.flow_5d;
-                const f5_1 = s.flow_5d - s.flow_1d;
-                const f1 = s.flow_1d;
-                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
+                // 取最大絕對值作為比例尺基準
+                const maxAbs = Math.max(Math.abs(s.flow_10d), Math.abs(s.flow_5d), Math.abs(s.flow_1d), 1);
                 
                 const drawBar = (val, x) => {
                     const h = Math.abs((val/maxAbs)*12);
@@ -455,7 +448,8 @@
                         <div class="flex items-center justify-center gap-2">
                             <svg class="w-12 h-8" viewBox="0 0 40 30" style="overflow:visible">
                                 <line x1="0" y1="15" x2="40" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
-                                ${drawBar(f10_5, 2)} ${drawBar(f5_1, 16)} ${drawBar(f1, 30)}
+                                <!-- 🎯 修改點：直接畫出 10D, 5D, 1D 的絕對值 -->
+                                ${drawBar(s.flow_10d, 2)} ${drawBar(s.flow_5d, 16)} ${drawBar(s.flow_1d, 30)}
                             </svg>
                         </div>
                     </td>
