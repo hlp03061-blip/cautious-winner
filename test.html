@@ -198,20 +198,33 @@
             `
         };
         
-        function getBaZiState(s) {
-            const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
-            const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
-            const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd;
-            const obvDiv = s.obvDiv, preUp = s.preUp || '';
+function getBaZiState(s) {
+    const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
+    const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
+    const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd;
+    const obvDiv = s.obvDiv, preUp = s.preUp || '';
 
-            if (rsi > 75 && kdj_j > 100) return { label: '🔥 帝旺', c: 'bg-orange-100 text-orange-800 border-orange-300 font-bold' };
-            if (p > sma20 && rvol >= 1.5 && macd > 0) return { label: '🚀 長生 (爆量)', c: 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm' };
-            if (p > sma20) return { label: '🌳 生長', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
-            if (p < sma200 && rsi < 30 && kdj_j < 0) return { label: '⚡ 絕', c: 'bg-slate-800 text-white border-slate-900 font-bold' };
-            if (p <= sma20 && f5 > 0 && f10 > 0) return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
-            if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || preUp.includes('Squeeze') || preUp.includes('Accumulation'))) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
-            return { label: '🍂 衰/死', c: 'bg-gray-100 text-gray-500 border-gray-200' };
-        }
+    // 1. 🔥 帝旺 (盛極而衰的過熱區)
+    if (rsi > 75 && kdj_j > 100) return { label: '🔥 帝旺', c: 'bg-orange-100 text-orange-800 border-orange-300 font-bold' };
+    
+    // 2. 🚀 長生 (帶量突破的起漲點)
+    if (p > sma20 && rvol >= 1.5 && macd > 0) return { label: '🚀 長生 (爆量)', c: 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm' };
+    
+    // 3. 🌳 冠帶/臨官 (站穩均線的穩健主升段，取代尷尬的「生長」)
+    if (p > sma20) return { label: '🌳 冠帶/臨官', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
+    
+    // 4. ⚡ 絕 (恐慌拋售的極端超賣區)
+    if (p < sma200 && rsi < 30 && kdj_j < 0) return { label: '⚡ 絕', c: 'bg-slate-800 text-white border-slate-900 font-bold' };
+    
+    // 5. 🍼 養 (資金連續流入的動能復甦區)
+    if (p <= sma20 && f5 > 0 && f10 > 0) return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
+    
+    // 6. 🌱 胎 (價格還在跌，但內部出現背離的暗中孕育區)
+    if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || preUp.includes('Squeeze') || preUp.includes('Accumulation'))) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
+    
+    // 7. 🍂 衰/病/死/墓 (缺乏動能與資金的空頭防線失守區)
+    return { label: '🍂 衰/死/墓', c: 'bg-gray-100 text-gray-500 border-gray-200' };
+}
 
         window.switchTab = (m) => { activeMarket = m; executeScreenerLogic(); };
         window.switchStrategy = (s) => { activeStrategy = s; executeScreenerLogic(); };
