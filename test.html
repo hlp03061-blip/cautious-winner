@@ -178,7 +178,6 @@
         let latestMarketData = [], userLists = {}, windowCache = {}; 
         let activeMarket = 'HK', activeStrategy = 'ultimate_resonance'; 
         window.clipboardDataMap = {}; 
-        let hoverTimer = null; // 處理滑鼠懸停展開的計時器
 
         const strategyTexts = {
             'short_term': `
@@ -198,33 +197,20 @@
             `
         };
         
-function getBaZiState(s) {
-    const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
-    const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
-    const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd;
-    const obvDiv = s.obvDiv, preUp = s.preUp || '';
+        function getBaZiState(s) {
+            const p = s.price, sma20 = s.sma20, sma200 = s.sma200;
+            const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
+            const f5 = s.flow_5d, f10 = s.flow_10d, macd = s.macd;
+            const obvDiv = s.obvDiv, preUp = s.preUp || '';
 
-    // 1. 🔥 帝旺 (盛極而衰的過熱區)
-    if (rsi > 75 && kdj_j > 100) return { label: '🔥 帝旺', c: 'bg-orange-100 text-orange-800 border-orange-300 font-bold' };
-    
-    // 2. 🚀 長生 (帶量突破的起漲點)
-    if (p > sma20 && rvol >= 1.5 && macd > 0) return { label: '🚀 長生 (爆量)', c: 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm' };
-    
-    // 3. 🌳 冠帶/臨官 (站穩均線的穩健主升段，取代尷尬的「生長」)
-    if (p > sma20) return { label: '🌳 冠帶/臨官', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
-    
-    // 4. ⚡ 絕 (恐慌拋售的極端超賣區)
-    if (p < sma200 && rsi < 30 && kdj_j < 0) return { label: '⚡ 絕', c: 'bg-slate-800 text-white border-slate-900 font-bold' };
-    
-    // 5. 🍼 養 (資金連續流入的動能復甦區)
-    if (p <= sma20 && f5 > 0 && f10 > 0) return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
-    
-    // 6. 🌱 胎 (價格還在跌，但內部出現背離的暗中孕育區)
-    if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || preUp.includes('Squeeze') || preUp.includes('Accumulation'))) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
-    
-    // 7. 🍂 衰/病/死/墓 (缺乏動能與資金的空頭防線失守區)
-    return { label: '🍂 衰/死/墓', c: 'bg-gray-100 text-gray-500 border-gray-200' };
-}
+            if (rsi > 75 && kdj_j > 100) return { label: '🔥 帝旺', c: 'bg-orange-100 text-orange-800 border-orange-300 font-bold' };
+            if (p > sma20 && rvol >= 1.5 && macd > 0) return { label: '🚀 長生 (爆量)', c: 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm' };
+            if (p > sma20) return { label: '🌳 冠帶/臨官', c: 'bg-green-100 text-green-800 border-green-200 font-medium' };
+            if (p < sma200 && rsi < 30 && kdj_j < 0) return { label: '⚡ 絕', c: 'bg-slate-800 text-white border-slate-900 font-bold' };
+            if (p <= sma20 && f5 > 0 && f10 > 0) return { label: '🍼 養', c: 'bg-lime-100 text-lime-800 border-lime-300 font-bold' };
+            if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || preUp.includes('Squeeze') || preUp.includes('Accumulation'))) return { label: '🌱 胎', c: 'bg-pink-100 text-pink-800 border-pink-200 font-medium' };
+            return { label: '🍂 衰/死/墓', c: 'bg-gray-100 text-gray-500 border-gray-200' };
+        }
 
         window.switchTab = (m) => { activeMarket = m; executeScreenerLogic(); };
         window.switchStrategy = (s) => { activeStrategy = s; executeScreenerLogic(); };
@@ -252,14 +238,25 @@ function getBaZiState(s) {
             }
         };
 
-        // 處理滑鼠懸停展開
-        window.handleMouseEnter = (ticker) => {
-            hoverTimer = setTimeout(() => {
-                toggleAnalysis(ticker, true); // true 代表由 hover 觸發，不作折疊
-            }, 400); // 400ms 延遲，防止路過閃爍
+        // 一鍵複製代號小工具
+        window.copyTicker = (e, ticker) => {
+            e.stopPropagation(); // 阻止事件冒泡（防止觸發右鍵展開）
+            navigator.clipboard.writeText(ticker).then(() => {
+                const el = e.target;
+                const orig = el.innerText;
+                el.innerText = '已複製!';
+                el.classList.add('text-green-600');
+                setTimeout(() => {
+                    el.innerText = orig;
+                    el.classList.remove('text-green-600');
+                }, 800);
+            });
         };
-        window.handleMouseLeave = () => {
-            if (hoverTimer) clearTimeout(hoverTimer);
+
+        // 右鍵展開卡片功能
+        window.handleRightClick = (e, ticker) => {
+            e.preventDefault(); // 阻止瀏覽器預設的右鍵選單
+            toggleAnalysis(ticker);
         };
 
         async function fetchInitialData() {
@@ -360,7 +357,6 @@ function getBaZiState(s) {
         }
 
         function renderTable(holding, watchlist, filtered) {
-            // 🎯 修復 Bug：重置快取，確保在切換 watchlist/holding 重新渲染時，卡片能正常重新載入
             windowCache = {}; 
             
             const tbody = document.getElementById('stock-table-body');
@@ -384,10 +380,9 @@ function getBaZiState(s) {
                 if(category==='holding') bg = 'bg-yellow-50/60 hover:bg-yellow-100 border-b border-yellow-200';
                 if(category==='watchlist') bg = 'bg-teal-50/40 hover:bg-teal-100 border-b border-teal-100';
                 
-                // 🎯 加入滑鼠 Hover 感應器 (整個 row 都可以觸發)
-                tr.className = bg + ' transition-colors cursor-pointer';
-                tr.setAttribute('onmouseenter', `handleMouseEnter('${s.ticker}')`);
-                tr.setAttribute('onmouseleave', `handleMouseLeave()`);
+                // 設定右鍵觸發展開卡片
+                tr.className = bg + ' transition-colors cursor-default';
+                tr.setAttribute('oncontextmenu', `handleRightClick(event, '${s.ticker}')`);
 
                 const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
@@ -403,19 +398,19 @@ function getBaZiState(s) {
                 };
 
                 tr.innerHTML = `
-                    <td class="py-3 px-2 text-center border-r border-gray-100" onmouseenter="handleMouseLeave()"> <!-- 避免點擊按鈕時觸發hover展開 -->
+                    <td class="py-3 px-2 text-center border-r border-gray-100">
                         <div class="flex justify-center gap-2 text-xl">
                             <span class="action-btn ${holdCls}" onclick="toggleList('${s.ticker}', 'holding')">💼</span>
                             <span class="action-btn ${watchCls}" onclick="toggleList('${s.ticker}', 'watchlist')">👀</span>
                         </div>
                     </td>
-                    <td class="py-3 px-2 text-center" onmouseenter="handleMouseLeave()"><input type="checkbox" class="stock-checkbox"></td>
+                    <td class="py-3 px-2 text-center"><input type="checkbox" class="stock-checkbox"></td>
                     <td class="py-3 px-4">
-                        <div class="font-bold text-blue-900 font-mono tracking-tight text-base">${s.ticker}</div>
-                        <div class="text-xs text-gray-500 truncate w-32">${s.name}</div>
+                        <div class="font-bold text-blue-900 hover:text-blue-600 cursor-pointer font-mono tracking-tight text-base transition-colors" onclick="copyTicker(event, '${s.ticker}')" title="點擊複製代號">${s.ticker}</div>
+                        <div class="text-xs text-gray-500 truncate w-32 pointer-events-none">${s.name}</div>
                     </td>
-                    <td class="py-3 px-4 text-center"><span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${s.bazi.c}">${s.bazi.label}</span></td>
-                    <td class="py-3 px-4 text-center">
+                    <td class="py-3 px-4 text-center pointer-events-none"><span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${s.bazi.c}">${s.bazi.label}</span></td>
+                    <td class="py-3 px-4 text-center pointer-events-none">
                         <div class="flex items-center justify-center gap-2">
                             <svg class="w-12 h-8" viewBox="0 0 40 30" style="overflow:visible">
                                 <line x1="0" y1="15" x2="40" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
@@ -423,21 +418,21 @@ function getBaZiState(s) {
                             </svg>
                         </div>
                     </td>
-                    <td class="py-3 px-4 text-center font-mono text-xs">
+                    <td class="py-3 px-4 text-center font-mono text-xs pointer-events-none">
                         <span class="${s.mfi < 45 ? 'text-teal-600 font-bold' : 'text-gray-500'}">MFI:${s.mfi ? s.mfi.toFixed(1) : 'N/A'}</span><br>
                         <span class="${s.rsi < 40 ? 'text-teal-600 font-bold' : 'text-gray-500'}">RSI:${s.rsi.toFixed(1)}</span><br>
                         <span class="${s.kdj_j < 20 ? 'text-teal-600 font-bold' : 'text-gray-500'}">KDJ:${s.kdj_j.toFixed(1)}</span>
                     </td>
-                    <td class="py-3 px-4 text-center font-mono text-xs">
+                    <td class="py-3 px-4 text-center font-mono text-xs pointer-events-none">
                         <span class="text-gray-500">P/E:</span> <span class="font-bold">${s.pe>0?s.pe.toFixed(1):'N/A'}</span><br>
                         <span class="text-gray-500">Div:</span> <span class="text-purple-700 font-bold">${s.divYield>0?s.divYield.toFixed(2)+'%':'0%'}</span>
                     </td>
-                    <td class="py-3 px-4 text-center font-mono text-xs">
+                    <td class="py-3 px-4 text-center font-mono text-xs pointer-events-none">
                         <span class="text-gray-500">Val:</span> <span class="text-orange-600 font-bold">${s.valRating>0?s.valRating+'/5':'-'}</span><br>
                         <span class="text-gray-500">ROE:</span> <span class="font-bold">${s.roe?formatPct(s.roe):'N/A'}</span>
                     </td>
-                    <td class="py-3 px-4 text-right font-mono font-bold text-lg ${scoreColorClass}">${s.score.toFixed(1)}</td>
-                    <td class="py-3 px-4 text-center" onmouseenter="handleMouseLeave()">
+                    <td class="py-3 px-4 text-right font-mono font-bold text-lg ${scoreColorClass} pointer-events-none">${s.score.toFixed(1)}</td>
+                    <td class="py-3 px-4 text-center">
                         <button id="btn-analyze-${s.ticker}" onclick="toggleAnalysis('${s.ticker}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition">📊 分析</button>
                     </td>
                 `;
@@ -452,11 +447,11 @@ function getBaZiState(s) {
 
             if(holding.length) { holding.forEach(s => createRow(s, 'holding')); }
             if(watchlist.length) {
-                const sep = document.createElement('tr'); sep.innerHTML=`<td colspan="10" class="text-center font-bold bg-teal-100/60 py-2 text-teal-800 text-xs">👀 監察名單</td>`; tbody.appendChild(sep);
+                const sep = document.createElement('tr'); sep.innerHTML=`<td colspan="10" class="text-center font-bold bg-teal-100/60 py-2 text-teal-800 text-xs pointer-events-none">👀 監察名單</td>`; tbody.appendChild(sep);
                 watchlist.forEach(s => createRow(s, 'watchlist'));
             }
             if(filtered.length) {
-                const sep = document.createElement('tr'); sep.innerHTML=`<td colspan="10" class="text-center font-bold bg-gray-200/80 py-2 text-gray-600 text-xs">👇 最新篩選結果</td>`; tbody.appendChild(sep);
+                const sep = document.createElement('tr'); sep.innerHTML=`<td colspan="10" class="text-center font-bold bg-gray-200/80 py-2 text-gray-600 text-xs pointer-events-none">👇 最新篩選結果</td>`; tbody.appendChild(sep);
                 filtered.forEach(s => createRow(s, 'filtered'));
             }
         }
@@ -464,37 +459,25 @@ function getBaZiState(s) {
         // ==========================================
         // 5. 展開完整分析卡片
         // ==========================================
-        window.toggleAnalysis = async (ticker, isHover = false) => {
-            // 如果是手動點擊按鈕，則清除 hover 倒數，避免衝突
-            if (!isHover && hoverTimer) clearTimeout(hoverTimer);
-
+        window.toggleAnalysis = async (ticker) => {
             const row = document.getElementById(`expand-${ticker}`);
             const content = document.getElementById(`content-${ticker}`);
             const btn = document.getElementById(`btn-analyze-${ticker}`);
             
-            const isOpen = row.classList.contains('open');
-
-            // 如果是由 hover 觸發，且已經是打開狀態，就不用做事
-            if (isHover && isOpen) return; 
-            
-            // 如果已經打開，且是用戶點擊按鈕要求關閉
-            if (isOpen && !isHover) { 
+            if (row.classList.contains('open')) { 
                 row.classList.remove('open'); 
                 btn.innerHTML = '📊 分析';
                 btn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
                 return; 
             }
             
-            // 確保展開時關閉其他已展開的列
             document.querySelectorAll('.expansion-row.open').forEach(el => {
-                if (el.id !== `expand-${ticker}`) {
-                    el.classList.remove('open');
-                    const otherTicker = el.id.replace('expand-', '');
-                    const otherBtn = document.getElementById(`btn-analyze-${otherTicker}`);
-                    if(otherBtn) {
-                        otherBtn.innerHTML = '📊 分析';
-                        otherBtn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
-                    }
+                el.classList.remove('open');
+                const otherTicker = el.id.replace('expand-', '');
+                const otherBtn = document.getElementById(`btn-analyze-${otherTicker}`);
+                if(otherBtn) {
+                    otherBtn.innerHTML = '📊 分析';
+                    otherBtn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
                 }
             });
             
