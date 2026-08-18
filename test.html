@@ -18,7 +18,6 @@
         .btn-inactive:hover { opacity: 0.7; filter: grayscale(0%); transform: scale(1.1); }
         .btn-active { opacity: 1; filter: grayscale(0%); transform: scale(1.15); drop-shadow: 0 4px 3px rgb(0 0 0 / 0.07); }
         
-        /* 手風琴展開與深度分析樣式 */
         .expansion-row { display: none; background-color: #f8fafc; box-shadow: inset 0 3px 6px 0 rgba(0, 0, 0, 0.03); }
         .expansion-row.open { display: table-row; }
         .analysis-card { border: 1px solid #e5e7eb; border-radius: 0.5rem; background: #fff; margin: 0.5rem; }
@@ -39,7 +38,6 @@
         const formatNum = (num, decimals = 2) => num !== null && num !== undefined && !isNaN(num) ? Number(num).toFixed(decimals) : 'N/A';
         const checkHighlight = (price, sma) => (price !== null && sma !== null && Number(price) > Number(sma)) ? 'text-green-600 font-bold bg-green-50' : '';
         const getFlowColor = (flow) => flow === null || flow === undefined ? 'text-gray-800' : (flow > 0 ? 'text-green-600' : (flow < 0 ? 'text-red-600' : 'text-gray-800'));
-        const formatMoney = (v) => v ? (Math.abs(v) >= 1000000 ? (v/1000000).toFixed(1)+'M' : v.toFixed(1)) : '-';
         const formatPct = (v) => v ? (v*100).toFixed(1)+'%' : '-';
 
         function getCompareColorClass(curr, prev) {
@@ -106,6 +104,15 @@
                 </div>
                 
                 <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-wrap items-end gap-4 shadow-sm">
+                    <!-- 🎯 新增的卡片歷史天數下拉選單 -->
+                    <div>
+                        <label class="text-xs text-indigo-700 font-bold block mb-1">📅 卡片歷史天數</label>
+                        <select id="history-days" class="bg-white border border-indigo-200 rounded text-sm px-3 py-2 outline-none font-medium text-gray-700 shadow-sm cursor-pointer hover:border-indigo-400 transition-colors">
+                            <option value="10" selected>最近 10 天 (極速)</option>
+                            <option value="20">最近 20 天</option>
+                            <option value="30">最近 30 天</option>
+                        </select>
+                    </div>
                     <div>
                         <label class="text-xs text-gray-600 font-bold block mb-1">🇭🇰 港股</label>
                         <input type="date" id="hk-date" class="bg-white border border-gray-300 rounded text-sm px-3 py-2 outline-none">
@@ -230,7 +237,8 @@
 
         window.updateSelectedCount = () => {
             const count = document.querySelectorAll('.stock-checkbox[data-ticker]:checked').length;
-            document.getElementById('selected-count').innerText = count;
+            const countEl = document.getElementById('selected-count');
+            if (countEl) countEl.innerText = count;
         };
 
         document.getElementById('check-all').addEventListener('change', (e) => {
@@ -261,7 +269,7 @@
                     btn.classList.add('bg-gray-800');
                     btn.classList.remove('bg-green-600');
                 }, 1500);
-            }).catch(() => alert('複製失敗，請允許剪貼簿權限。'));
+            }).catch(() => alert('複製失敗，請允許瀏覽器剪貼簿權限。'));
         });
 
         window.copyToClipboard = (ticker) => {
@@ -310,19 +318,32 @@
                 const multiCols = 'ticker, company_name, sector, current_price, sma20, sma200, macd, rsi, kdj_j, obv_divergence, pre_uptrend_signal, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
                 
                 const [mHK, mUS, mfHK, mfUS] = await Promise.all([
-                    supabaseClient.from('multi_stock_analysis_hk').select(multiCols).eq('trading_date', document.getElementById('hk-date').value).limit(3000),
-                    supabaseClient.from('multi_stock_analysis_sp500').select(multiCols).eq('trading_date', document.getElementById('us-date').value).limit(3000),
-                    supabaseClient.from('money_flow_hk').select('ticker, MFI').eq('Record_Date', document.getElementById('hk-date').value).limit(3000),
-                    supabaseClient.from('money_flow_sp500').select('ticker, MFI').eq('Record_Date', document.getElementById('us-date').value).limit(3000)
+                    supabaseClient.from('multi_stock_analysis_hk').select(multiCols).eq('trading_date', document.getElementById('hk-date').value).limit(10000),
+                    supabaseClient.from('multi_stock_analysis_sp500').select(multiCols).eq('trading_date', document.getElementById('us-date').value).limit(10000),
+                    supabaseClient.from('money_flow_hk').select('ticker, MFI').eq('Record_Date', document.getElementById('hk-date').value).limit(10000),
+                    supabaseClient.from('money_flow_sp500').select('ticker, MFI').eq('Record_Date', document.getElementById('us-date').value).limit(10000)
                 ]);
 
                 const mfiMapHK = {}; (mfHK.data||[]).forEach(r => mfiMapHK[r.ticker] = r.MFI);
                 const mfiMapUS = {}; (mfUS.data||[]).forEach(r => mfiMapUS[r.ticker] = r.MFI);
 
-                latestMarketData = [
-                    ...(mHK.data||[]).map(r => ({...r, market: 'HK', mfi: mfiMapHK[r.ticker]})), 
-                    ...(mUS.data||[]).map(r => ({...r, market: 'US', mfi: mfiMapUS[r.ticker]}))
-                ];
+                const hkData = []; const seenHK = new Set();
+                [...(mHK.data||[])].reverse().forEach(r => {
+                    if(!seenHK.has(r.ticker)) {
+                        seenHK.add(r.ticker);
+                        hkData.push({...r, market: 'HK', mfi: mfiMapHK[r.ticker]});
+                    }
+                });
+
+                const usData = []; const seenUS = new Set();
+                [...(mUS.data||[])].reverse().forEach(r => {
+                    if(!seenUS.has(r.ticker)) {
+                        seenUS.add(r.ticker);
+                        usData.push({...r, market: 'US', mfi: mfiMapUS[r.ticker]});
+                    }
+                });
+
+                latestMarketData = [...hkData, ...usData];
                 executeScreenerLogic();
             } catch (err) { console.error(err); }
         }
@@ -392,8 +413,10 @@
 
         function renderTable(holding, watchlist, filtered) {
             windowCache = {}; 
-            document.getElementById('check-all').checked = false;
-            document.getElementById('selected-count').innerText = '0';
+            const checkAllEl = document.getElementById('check-all');
+            if(checkAllEl) checkAllEl.checked = false;
+            const countEl = document.getElementById('selected-count');
+            if(countEl) countEl.innerText = '0';
             
             const tbody = document.getElementById('stock-table-body');
             document.getElementById('match-count').innerText = `篩選結果: ${filtered.length} 隻`;
@@ -410,7 +433,6 @@
 
             tbody.innerHTML = '';
 
-            // 🎯 修改點：直接傳遞 10D, 5D, 1D 的原始絕對數值給 Sparkline 繪製
             const createRow = (s, category) => {
                 const tr = document.createElement('tr');
                 let bg = 'hover:bg-blue-50 border-b border-gray-100';
@@ -423,8 +445,10 @@
                 const holdCls = category === 'holding' ? 'btn-active text-yellow-600' : 'btn-inactive text-gray-500';
                 const watchCls = category === 'watchlist' ? 'btn-active text-teal-600' : 'btn-inactive text-gray-500';
 
-                // 取最大絕對值作為比例尺基準
-                const maxAbs = Math.max(Math.abs(s.flow_10d), Math.abs(s.flow_5d), Math.abs(s.flow_1d), 1);
+                const f10_5 = s.flow_10d - s.flow_5d;
+                const f5_1 = s.flow_5d - s.flow_1d;
+                const f1 = s.flow_1d;
+                const maxAbs = Math.max(Math.abs(f10_5), Math.abs(f5_1), Math.abs(f1), 1);
                 
                 const drawBar = (val, x) => {
                     const h = Math.abs((val/maxAbs)*12);
@@ -438,9 +462,11 @@
                             <span class="action-btn ${watchCls}" onclick="toggleList('${s.ticker}', 'watchlist')">👀</span>
                         </div>
                     </td>
-                    <td class="py-3 px-2 text-center"><input type="checkbox" class="stock-checkbox stock-checkbox" data-ticker="${s.ticker}" onchange="updateSelectedCount()"></td>
+                    <td class="py-3 px-2 text-center">
+                        <input type="checkbox" class="stock-checkbox" data-ticker="${s.ticker}" onchange="updateSelectedCount()">
+                    </td>
                     <td class="py-3 px-4">
-                        <div class="font-bold text-blue-900 hover:text-blue-600 cursor-pointer font-mono tracking-tight text-base transition-colors" onclick="copyTicker(event, '${s.ticker}')" title="點擊複製代號">${s.ticker}</div>
+                        <div class="font-bold text-blue-900 hover:text-blue-600 cursor-pointer font-mono tracking-tight text-base transition-colors" onclick="copyTicker(event, '${s.ticker}')" title="點擊左鍵複製代號">${s.ticker}</div>
                         <div class="text-xs text-gray-500 truncate w-32 pointer-events-none">${s.name}</div>
                     </td>
                     <td class="py-3 px-4 text-center pointer-events-none"><span class="px-2.5 py-1 text-xs border rounded-md shadow-sm ${s.bazi.c}">${s.bazi.label}</span></td>
@@ -448,7 +474,6 @@
                         <div class="flex items-center justify-center gap-2">
                             <svg class="w-12 h-8" viewBox="0 0 40 30" style="overflow:visible">
                                 <line x1="0" y1="15" x2="40" y2="15" stroke="#E5E7EB" stroke-width="2" stroke-dasharray="2,2" />
-                                <!-- 🎯 修改點：直接畫出 10D, 5D, 1D 的絕對值 -->
                                 ${drawBar(s.flow_10d, 2)} ${drawBar(s.flow_5d, 16)} ${drawBar(s.flow_1d, 30)}
                             </svg>
                         </div>
@@ -499,10 +524,15 @@
             const content = document.getElementById(`content-${ticker}`);
             const btn = document.getElementById(`btn-analyze-${ticker}`);
             
+            // 🎯 讀取使用者設定的歷史天數
+            const historyDays = parseInt(document.getElementById('history-days').value, 10);
+            
             if (row.classList.contains('open')) { 
                 row.classList.remove('open'); 
                 btn.innerHTML = '📊 分析';
                 btn.className = 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-3 rounded border border-indigo-200 transition';
+                // 每次收起時清除快取，以確保下次展開時能根據新的天數重新載入
+                windowCache[ticker] = false;
                 return; 
             }
             
@@ -522,15 +552,16 @@
 
             if (windowCache[ticker]) return;
 
-            content.innerHTML = `<div class="p-8 text-center animate-pulse text-indigo-600 font-bold">⏳ 正在為 ${ticker} 抓取完整分析報告...</div>`;
+            content.innerHTML = `<div class="p-8 text-center animate-pulse text-indigo-600 font-bold">⏳ 正在為 ${ticker} 抓取過去 ${historyDays} 天的分析報告...</div>`;
 
             try {
                 const multiTable = activeMarket === 'HK' ? 'multi_stock_analysis_hk' : 'multi_stock_analysis_sp500';
                 const mfTable = activeMarket === 'HK' ? 'money_flow_hk' : 'money_flow_sp500';
                 
+                // 🎯 這裡的 limit 動態綁定了下拉選單的天數
                 const [multiRes, mfRes, sdRes] = await Promise.all([
-                    supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(20),
-                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(20),
+                    supabaseClient.from(multiTable).select('*').eq('ticker', ticker).order('trading_date', { ascending: false }).limit(historyDays),
+                    supabaseClient.from(mfTable).select('ticker, MFI, Record_Date, money_flow_million').eq('ticker', ticker).order('Record_Date', { ascending: false }).limit(historyDays),
                     supabaseClient.from('stock_data').select('*').eq('ticker', ticker).order('date', { ascending: false }).limit(1)
                 ]);
 
@@ -538,7 +569,14 @@
                     content.innerHTML = `<div class="p-8 text-red-500">無法取得歷史數據。</div>`; return;
                 }
 
-                const records = multiRes.data;
+                const records = []; const seenDates = new Set();
+                multiRes.data.forEach(r => {
+                    if(!seenDates.has(r.trading_date)) {
+                        seenDates.add(r.trading_date);
+                        records.push(r);
+                    }
+                });
+
                 const latest = records[0]; 
                 const prevData = records.length > 1 ? records[1] : {};
                 const sd = sdRes.data && sdRes.data.length > 0 ? sdRes.data[0] : {};
@@ -755,6 +793,13 @@
         // ==========================================
         document.getElementById('btn-load-date').addEventListener('click', fetchMacroData);
         document.getElementById('search-ticker').addEventListener('input', executeScreenerLogic);
+        // 監聽下拉選單變化：切換天數時，將所有展開的卡片收起，強制下次展開重新抓取
+        document.getElementById('history-days').addEventListener('change', () => {
+            document.querySelectorAll('.expansion-row.open').forEach(el => {
+                const ticker = el.id.replace('expand-', '');
+                toggleAnalysis(ticker); 
+            });
+        });
         document.addEventListener('DOMContentLoaded', async () => { await fetchInitialData(); await fetchMacroData(); });
     </script>
 </body>
