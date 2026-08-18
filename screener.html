@@ -772,7 +772,12 @@
 
                 tsv += `--- SECTION 4: MONEY FLOW ---\n`;
                 tsv += `Last 5 Days (Accum)\t${formatNum(latest.money_flow_5d_million, 2)}\n`;
-                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n\n`;
+                tsv += `Last 10 Days (Accum)\t${formatNum(latest.money_flow_10d_million, 2)}\n`;
+                tsv += `Daily 1D Flow:\n`;
+                records.forEach((row, i) => {
+                tsv += `Day -${i} (${row.trading_date.slice(5)})\t${formatNum(row.money_flow_million, 2)}\n`;
+                });
+                tsv += `\n`;
 
                 tsv += `--- SECTION 3: HISTORICAL TECHNICALS ---\n`;
                 tsv += `Date\tClose\tOpen\tHigh\tLow\tChg(%)\tVol(M)\tRVOL\tSMA5\tSMA10\tSMA20\tSMA50\tSMA200\tMACD\tRSI\tADX\tKDJ_K\tKDJ_D\tKDJ_J\tOBV(M)\tSharpe\n`;
