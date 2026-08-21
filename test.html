@@ -116,38 +116,61 @@
                 <p class="font-bold text-blue-900 mb-2 text-base">📌 當前篩選邏輯與參數：</p>
                 <ul id="strategy-desc" class="list-disc list-inside space-y-1.5 text-sm text-gray-600 mb-4"></ul>
                 
-                <!-- 🎯 十二長生微觀動能說明書 -->
-                <details class="bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <summary class="cursor-pointer font-bold text-indigo-700 px-4 py-2 hover:bg-indigo-50 transition-colors list-none flex items-center justify-between">
-                        <span>💡 查看「十二長生狀態」與「微觀動能 (+ / -)」圖例說明</span>
+                <!-- 🎯 全新升級：完整十二長生說明書 -->
+                <details class="bg-white rounded-lg border border-gray-200 shadow-sm mt-2">
+                    <summary class="cursor-pointer font-bold text-indigo-700 px-4 py-3 hover:bg-indigo-50 transition-colors list-none flex items-center justify-between border-b border-transparent">
+                        <span>💡 完整圖例說明：十二長生系統與微觀動能 (+/-)</span>
                         <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded">點擊展開</span>
                     </summary>
-                    <div class="p-4 border-t border-gray-200 text-sm text-gray-600 space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div class="bg-red-50 p-3 rounded border border-red-100">
-                                <h4 class="font-bold text-red-800 mb-1">【主升區】[6]帝旺 / [5]臨官 / [4]長生</h4>
-                                <p class="text-xs mb-2 text-red-600">股價在月線之上。動能取決於 5日線與今日資金。</p>
-                                <ul class="text-xs space-y-1">
-                                    <li><strong class="text-green-600">(+) 踩油門</strong>：現價 > 5日線 且 今日資金 > 0。</li>
-                                    <li><strong class="text-red-500">(-) 踩煞車/洗盤</strong>：現價 < 5日線 且 今日資金 < 0。</li>
-                                    <li><strong class="text-gray-500">(無符號) 中性</strong>：狀態互有矛盾。</li>
-                                </ul>
+                    <div class="p-5 border-t border-gray-200 text-sm text-gray-700 space-y-6">
+                        
+                        <!-- Part 1: 十二長生定義 -->
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-900 mb-3 border-l-4 border-indigo-500 pl-2">📖 第一部分：十二長生基礎定義</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <div class="bg-orange-50 p-2.5 rounded border border-orange-100"><span class="font-bold text-orange-800">[6] 🔥 帝旺:</span> RSI > 75 且 KDJ_J > 100 <br><span class="text-xs text-gray-500">極度超買亢奮，隨時見頂，切勿追高。</span></div>
+                                    <div class="bg-green-50 p-2.5 rounded border border-green-100"><span class="font-bold text-green-800">[5] 🌳 冠帶/臨官:</span> 現價 > 20日均線 <br><span class="text-xs text-gray-500">穩健主升段，趨勢已成型，持股續抱階段。</span></div>
+                                    <div class="bg-red-50 p-2.5 rounded border border-red-100"><span class="font-bold text-red-700">[4] 🚀 長生:</span> 現價 > 20日線 + RVOL > 1.5倍爆量 + MACD > 0 <br><span class="text-xs text-gray-500">主力帶量點火突破，生命週期的起漲點。</span></div>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="bg-lime-50 p-2.5 rounded border border-lime-100"><span class="font-bold text-lime-800">[3] 🍼 養:</span> 現價 <= 20日線，且 5D與10D資金皆為正數 <br><span class="text-xs text-gray-500">跌破月線但主力逆勢逢低吸籌，籌碼養育中。</span></div>
+                                    <div class="bg-pink-50 p-2.5 rounded border border-pink-100"><span class="font-bold text-pink-800">[2] 🌱 胎:</span> 現價 < 20日線，資金微流入且有背離/收斂訊號 <br><span class="text-xs text-gray-500">跌勢縮減，底部型態醞釀中，準備反轉。</span></div>
+                                    <div class="bg-slate-100 p-2.5 rounded border border-slate-300"><span class="font-bold text-slate-800">[1] ⚡ 絕:</span> 現價 < 200日年線，RSI < 30 且 KDJ_J < 0 <br><span class="text-xs text-gray-500">極度恐慌超賣區，長線價值浮現的接刀點。</span></div>
+                                    <div class="bg-gray-50 p-2.5 rounded border border-gray-200"><span class="font-bold text-gray-600">[7] 🍂 衰/死/墓:</span> 不符合上述任何條件 <br><span class="text-xs text-gray-500">無明確動能或主力護航，通常處於弱勢陰跌。</span></div>
+                                </div>
                             </div>
-                            <div class="bg-lime-50 p-3 rounded border border-lime-100">
-                                <h4 class="font-bold text-lime-800 mb-1">【打底區】[3]養 / [2]胎 / [1]絕</h4>
-                                <p class="text-xs mb-2 text-lime-700">股價在月線之下。動能完全取決於主力單日真金白銀。</p>
-                                <ul class="text-xs space-y-1">
-                                    <li><strong class="text-green-600">(+) 主力護盤/吸籌</strong>：今日資金 > 0。</li>
-                                    <li><strong class="text-red-500">(-) 主力倒貨/破底</strong>：今日資金 < 0。</li>
-                                </ul>
-                            </div>
-                            <div class="bg-gray-100 p-3 rounded border border-gray-200">
-                                <h4 class="font-bold text-gray-700 mb-1">【淘汰區】[7]衰/死/墓</h4>
-                                <p class="text-xs mb-2 text-gray-500">失去防守。關注波段低點。</p>
-                                <ul class="text-xs space-y-1">
-                                    <li><strong class="text-green-600">(+) 嘗試止跌</strong>：今日資金 > 0。</li>
-                                    <li><strong class="text-red-500">(-) 陰跌不止</strong>：今日資金 < 0。</li>
-                                </ul>
+                        </div>
+
+                        <!-- Part 2: 微觀動能 +/- -->
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-900 mb-3 border-l-4 border-indigo-500 pl-2">⚙️ 第二部分：微觀動能 (+ / -) 判定標準</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-red-50 p-3 rounded border border-red-200 shadow-sm">
+                                    <h4 class="font-bold text-red-800 mb-1">【主升區】[6]帝旺 / [5]臨官 / [4]長生</h4>
+                                    <p class="text-xs mb-2 text-red-600">股價在月線之上。動能取決於 5日線與今日資金。</p>
+                                    <ul class="text-xs space-y-1.5 text-gray-700">
+                                        <li><strong class="text-green-600">(+) 踩油門加攻</strong>：現價 > 5日線 且 今日資金 > 0。</li>
+                                        <li><strong class="text-red-500">(-) 踩煞車洗盤</strong>：現價 < 5日線 且 今日資金 < 0。</li>
+                                        <li><strong class="text-gray-500">(無) 中性狀態</strong>：現價與資金方向互有矛盾。</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-lime-50 p-3 rounded border border-lime-200 shadow-sm">
+                                    <h4 class="font-bold text-lime-800 mb-1">【打底區】[3]養 / [2]胎 / [1]絕</h4>
+                                    <p class="text-xs mb-2 text-lime-700">股價在月線之下。動能完全取決於主力單日真金白銀。</p>
+                                    <ul class="text-xs space-y-1.5 text-gray-700">
+                                        <li><strong class="text-green-600">(+) 積極護盤吸籌</strong>：今日單日資金 > 0。</li>
+                                        <li><strong class="text-red-500">(-) 倒貨任由破底</strong>：今日單日資金 < 0。</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-gray-100 p-3 rounded border border-gray-300 shadow-sm">
+                                    <h4 class="font-bold text-gray-700 mb-1">【淘汰區】[7]衰/死/墓</h4>
+                                    <p class="text-xs mb-2 text-gray-500">失去防守。關注波段低點的支撐力道。</p>
+                                    <ul class="text-xs space-y-1.5 text-gray-700">
+                                        <li><strong class="text-green-600">(+) 嘗試止跌</strong>：今日單日資金 > 0。</li>
+                                        <li><strong class="text-red-500">(-) 陰跌不止</strong>：今日單日資金 < 0。</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -246,7 +269,6 @@
             `
         };
         
-        // 🎯 核心升級：十二長生微觀動能 +/-
         function getBaZiState(s) {
             const p = s.price, sma5 = s.sma5, sma20 = s.sma20, sma200 = s.sma200;
             const rvol = s.rvol, rsi = s.rsi, kdj_j = s.kdj_j;
@@ -257,7 +279,6 @@
             let baseLabel = '🍂 衰/死/墓';
             let baseClass = 'bg-gray-100 text-gray-500 border-gray-200';
 
-            // 1. 決定基礎檔位 (大類)
             if (rsi > 75 && kdj_j > 100) { stateNum = 6; baseLabel = '🔥 帝旺'; baseClass = 'bg-orange-100 text-orange-800 border-orange-300 font-bold'; }
             else if (p > sma20 && rvol >= 1.5 && macd > 0) { stateNum = 4; baseLabel = '🚀 長生 (爆發)'; baseClass = 'bg-red-100 text-red-700 border-red-300 font-black shadow-sm'; }
             else if (p > sma20) { stateNum = 5; baseLabel = '🌳 冠帶/臨官'; baseClass = 'bg-green-100 text-green-800 border-green-200 font-medium'; }
@@ -265,11 +286,10 @@
             else if (p <= sma20 && f5 > 0 && f10 > 0) { stateNum = 3; baseLabel = '🍼 養'; baseClass = 'bg-lime-100 text-lime-800 border-lime-300 font-bold'; }
             else if (p < sma20 && (f5 > 0 || f10 > 0) && (obvDiv || preUp.includes('Squeeze') || preUp.includes('Accumulation'))) { stateNum = 2; baseLabel = '🌱 胎'; baseClass = 'bg-pink-100 text-pink-800 border-pink-200 font-medium'; }
 
-            // 2. 決定微觀動能 +/-
             let modifier = '';
             if ([4, 5, 6].includes(stateNum)) {
                 if (p > sma5 && f1 > 0) { modifier = '+'; }
-                else if (p < sma5 && f1 < 0) { modifier = '-'; baseClass += ' opacity-80'; } // 轉弱時稍微調暗
+                else if (p < sma5 && f1 < 0) { modifier = '-'; baseClass += ' opacity-80'; } 
             } else {
                 if (f1 > 0) { modifier = '+'; }
                 else if (f1 < 0) { modifier = '-'; baseClass += ' opacity-80'; }
@@ -439,7 +459,7 @@
             navigator.clipboard.writeText(bulkTsv).then(() => {
                 btn.innerHTML = `✅ 成功複製 ${tickers.length} 檔數據`; btn.classList.add('bg-green-600'); btn.classList.remove('bg-blue-600');
                 setTimeout(() => { btn.innerHTML = origHtml; btn.classList.add('bg-indigo-600'); btn.classList.remove('bg-green-600'); }, 2000);
-            }).catch(() => { alert('複製失敗'); btn.innerHTML = origHtml; });
+            }).catch(() => { alert('複製失敗，請檢查瀏覽器權限。'); btn.innerHTML = origHtml; });
         });
 
         window.copyToClipboard = (ticker) => {
@@ -470,7 +490,6 @@
         async function fetchMacroData() {
             document.getElementById('stock-table-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-blue-600 font-bold animate-pulse">🔄 正在抓取全市場巨觀數據...</td></tr>`;
             try {
-                // 🎯 升級：查詢欄位加入 asset_type
                 const multiCols = 'ticker, asset_type, company_name, sector, current_price, sma5, sma20, sma200, macd, rsi, kdj_j, obv_divergence, pre_uptrend_signal, rvol, pe_ratio, dividend_yield, value_rating, roe, money_flow_million, money_flow_5d_million, money_flow_10d_million';
                 const [mHK, mUS, mfHK, mfUS] = await Promise.all([
                     supabaseClient.from('multi_stock_analysis_hk').select(multiCols).eq('trading_date', document.getElementById('hk-date').value).limit(10000),
@@ -581,7 +600,6 @@
                 const tr = document.createElement('tr');
                 let bg = 'hover:bg-blue-50 border-b border-gray-100';
                 
-                // 🎯 ETF 行專屬底色與邊框
                 if(s.assetType === 'ETF') bg = 'etf-row border-b border-blue-200';
                 
                 if(renderCategory==='holding') bg = 'bg-yellow-50/60 hover:bg-yellow-100 border-b border-yellow-200';
@@ -603,7 +621,6 @@
                     return `<rect x="${x}" y="${val>0 ? 15-h : 15}" width="8" height="${h||2}" rx="1" fill="${val>0?'#10B981':'#EF4444'}" />`;
                 };
 
-                // 🎯 ETF Badge 標籤
                 const etfBadge = s.assetType === 'ETF' ? '<span class="ml-1.5 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded border border-indigo-200 shadow-sm align-middle">📦 ETF</span>' : '';
 
                 tr.innerHTML = `
@@ -651,7 +668,6 @@
                 const expandTr = document.createElement('tr');
                 expandTr.id = `expand-${s.ticker}`;
                 expandTr.className = 'expansion-row';
-                // 🎯 如果是 ETF，展開的容器也加上極淡背景色
                 if(s.assetType === 'ETF') expandTr.classList.add('bg-blue-50/30');
                 expandTr.innerHTML = `<td colspan="10" class="p-0"><div id="content-${s.ticker}"></div></td>`;
                 tbody.appendChild(expandTr);
